@@ -97,3 +97,11 @@ This guide provides instructions to set up the TSTO server, patch the `tsto.apk`
 ---
 
 Follow these steps sequentially for proper setup. Enjoy!
+
+---
+
+## Building the project currently needs `vcpkg` 
+- abseil libary
+  ( vcpkg install abseil )
+---
+
