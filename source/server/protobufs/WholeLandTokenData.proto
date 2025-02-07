@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package Data;
+
+message WholeLandTokenRequest {
+  optional string requestId = 1;
+}
+
+message WholeLandTokenResponse {
+  optional string token = 1;
+  optional bool conflict = 2;
+}
+
+message DeleteTokenRequest {
+  optional string token = 1;
+}
+
+message DeleteTokenResponse {
+  optional bool result = 1;
+}
+
+option java_package = "com.ea.simpsons.data";

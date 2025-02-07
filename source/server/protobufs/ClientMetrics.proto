@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package com.ea.simpsons.client.metrics;
+
+message ClientMetricsMessage {
+  .com.ea.simpsons.client.metrics.ClientMetricsMessage.Type type = 1;
+  string name = 2;
+  int64 value = 3;
+  enum Type {
+    COUNTER = 0;
+    HISTOGRAM = 1;
+  };
+}
+
+option java_package = "com.ea.simpsons.data";
+option java_outer_classname = "ClientMetrics";

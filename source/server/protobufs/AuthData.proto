@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package Data;
+
+import "Error.proto";
+
+message UserIndirectData {
+  optional string userId = 1;
+  optional string telemetryId = 2;
+}
+
+message AnonymousUserData {
+  optional bool isAnonymous = 1;
+}
+
+message TokenData {
+  optional string sessionKey = 1;
+  optional int64 expirationDate = 2;
+}
+
+message UsersResponseMessage {
+  optional .Data.UserIndirectData user = 1;
+  optional .Data.TokenData token = 2;
+}
+
+message LinkData {
+  optional .Data.LinkData.identityType sourceType = 1;
+  optional string sourceId = 2;
+  optional .Data.LinkData.identityType destinationType = 3;
+  optional string destinationId = 4;
+  enum identityType {
+    TNT_ID = 0;
+    NUCLEUS_TOKEN = 1;
+  };
+}
+
+message LinkUserResponseMessage {
+  optional string userId = 1;
+  optional string externalId = 2;
+  optional string externalType = 3;
+  optional .Data.ErrorMessage error = 4;
+}
+
+message DeleteUserResponseMessage {
+  optional string userId = 1;
+  optional .Data.ErrorMessage error = 2;
+}
+
+option java_package = "com.eamobile.mayhem.plugin.data";

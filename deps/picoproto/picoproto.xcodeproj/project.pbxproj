@@ -1,0 +1,330 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 46;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		591D72A41DD7E5ED00232CAC /* picoproto_test.cc in Sources */ = {isa = PBXBuildFile; fileRef = 591D72A31DD7E5ED00232CAC /* picoproto_test.cc */; };
+		591D72A71DD7F24000232CAC /* picoproto.cc in Sources */ = {isa = PBXBuildFile; fileRef = 591D72A61DD7F24000232CAC /* picoproto.cc */; };
+		591D72B41DD93CF900232CAC /* tf_to_dot.cc in Sources */ = {isa = PBXBuildFile; fileRef = 591D72B31DD93CF900232CAC /* tf_to_dot.cc */; };
+		591D72B51DD93EF900232CAC /* picoproto.cc in Sources */ = {isa = PBXBuildFile; fileRef = 591D72A61DD7F24000232CAC /* picoproto.cc */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		591D72971DD7E5BB00232CAC /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = /usr/share/man/man1/;
+			dstSubfolderSpec = 0;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+		};
+		591D72AA1DD93CD100232CAC /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = /usr/share/man/man1/;
+			dstSubfolderSpec = 0;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		591D72991DD7E5BB00232CAC /* picoproto_test */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = picoproto_test; sourceTree = BUILT_PRODUCTS_DIR; };
+		591D72A31DD7E5ED00232CAC /* picoproto_test.cc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = picoproto_test.cc; sourceTree = "<group>"; };
+		591D72A51DD7E64D00232CAC /* picoproto.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = picoproto.h; sourceTree = "<group>"; };
+		591D72A61DD7F24000232CAC /* picoproto.cc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = picoproto.cc; sourceTree = "<group>"; };
+		591D72AC1DD93CD100232CAC /* tf_to_dot */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = tf_to_dot; sourceTree = BUILT_PRODUCTS_DIR; };
+		591D72B31DD93CF900232CAC /* tf_to_dot.cc */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = tf_to_dot.cc; sourceTree = "<group>"; };
+		593AD8821DDA345500D30BAA /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		591D72961DD7E5BB00232CAC /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		591D72A91DD93CD100232CAC /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		591D72901DD7E5BB00232CAC = {
+			isa = PBXGroup;
+			children = (
+				591D72A31DD7E5ED00232CAC /* picoproto_test.cc */,
+				591D72A51DD7E64D00232CAC /* picoproto.h */,
+				591D72A61DD7F24000232CAC /* picoproto.cc */,
+				593AD8821DDA345500D30BAA /* README.md */,
+				591D72B31DD93CF900232CAC /* tf_to_dot.cc */,
+				591D729A1DD7E5BB00232CAC /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		591D729A1DD7E5BB00232CAC /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				591D72991DD7E5BB00232CAC /* picoproto_test */,
+				591D72AC1DD93CD100232CAC /* tf_to_dot */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		591D72981DD7E5BB00232CAC /* picoproto_test */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 591D72A01DD7E5BB00232CAC /* Build configuration list for PBXNativeTarget "picoproto_test" */;
+			buildPhases = (
+				591D72951DD7E5BB00232CAC /* Sources */,
+				591D72961DD7E5BB00232CAC /* Frameworks */,
+				591D72971DD7E5BB00232CAC /* CopyFiles */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = picoproto_test;
+			productName = picoproto;
+			productReference = 591D72991DD7E5BB00232CAC /* picoproto_test */;
+			productType = "com.apple.product-type.tool";
+		};
+		591D72AB1DD93CD100232CAC /* tf_to_dot */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 591D72B01DD93CD100232CAC /* Build configuration list for PBXNativeTarget "tf_to_dot" */;
+			buildPhases = (
+				591D72A81DD93CD100232CAC /* Sources */,
+				591D72A91DD93CD100232CAC /* Frameworks */,
+				591D72AA1DD93CD100232CAC /* CopyFiles */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = tf_to_dot;
+			productName = tf_to_dot;
+			productReference = 591D72AC1DD93CD100232CAC /* tf_to_dot */;
+			productType = "com.apple.product-type.tool";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		591D72911DD7E5BB00232CAC /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 0800;
+				ORGANIZATIONNAME = Google;
+				TargetAttributes = {
+					591D72981DD7E5BB00232CAC = {
+						CreatedOnToolsVersion = 8.0;
+						ProvisioningStyle = Automatic;
+					};
+					591D72AB1DD93CD100232CAC = {
+						CreatedOnToolsVersion = 8.0;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 591D72941DD7E5BB00232CAC /* Build configuration list for PBXProject "picoproto" */;
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = English;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+			);
+			mainGroup = 591D72901DD7E5BB00232CAC;
+			productRefGroup = 591D729A1DD7E5BB00232CAC /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				591D72981DD7E5BB00232CAC /* picoproto_test */,
+				591D72AB1DD93CD100232CAC /* tf_to_dot */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		591D72951DD7E5BB00232CAC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				591D72A71DD7F24000232CAC /* picoproto.cc in Sources */,
+				591D72A41DD7E5ED00232CAC /* picoproto_test.cc in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		591D72A81DD93CD100232CAC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				591D72B51DD93EF900232CAC /* picoproto.cc in Sources */,
+				591D72B41DD93CF900232CAC /* tf_to_dot.cc in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		591D729E1DD7E5BB00232CAC /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_SUSPICIOUS_MOVES = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "-";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.11;
+				MTL_ENABLE_DEBUG_INFO = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		591D729F1DD7E5BB00232CAC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_SUSPICIOUS_MOVES = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "-";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.11;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		591D72A11DD7E5BB00232CAC /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		591D72A21DD7E5BB00232CAC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+		591D72B11DD93CD100232CAC /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		591D72B21DD93CD100232CAC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		591D72941DD7E5BB00232CAC /* Build configuration list for PBXProject "picoproto" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				591D729E1DD7E5BB00232CAC /* Debug */,
+				591D729F1DD7E5BB00232CAC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		591D72A01DD7E5BB00232CAC /* Build configuration list for PBXNativeTarget "picoproto_test" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				591D72A11DD7E5BB00232CAC /* Debug */,
+				591D72A21DD7E5BB00232CAC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		591D72B01DD93CD100232CAC /* Build configuration list for PBXNativeTarget "tf_to_dot" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				591D72B11DD93CD100232CAC /* Debug */,
+				591D72B21DD93CD100232CAC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 591D72911DD7E5BB00232CAC /* Project object */;
+}

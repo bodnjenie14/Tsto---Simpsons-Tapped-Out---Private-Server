@@ -1,0 +1,52 @@
+syntax = "proto2";
+
+package Data;
+
+message ErrorMessage {
+  optional .Data.ErrorMessage.Code code = 1;
+  optional .Data.ErrorMessage.Type type = 2;
+  optional string field = 3;
+  optional .Data.ErrorMessage.Severity severity = 4;
+  optional string message = 5;
+  enum Code {
+    UNKNOWN_CODE = 1;
+    UNAUTHORIZED = 401;
+    NOT_FOUND = 404;
+    CONFLICT = 409;
+    INTERNAL_SERVER_ERROR = 500;
+    NOT_IMPLEMENTED = 501;
+    SERVICE_UNAVAILABLE = 503;
+    HTTP_VERSION_NOT_SUPPORTED = 505;
+    BAD_REQUEST = 400;
+  };
+  enum Type {
+    UNKNOWN_ERROR = 1;
+    AUTHENTICATION_ERROR = 2;
+    NO_SUCH_METHOD = 3;
+    NO_SUCH_RESOURCE = 4;
+    MISSING_VALUE = 5;
+    INVALID_VALUE = 6;
+    VALUE_TOO_SMALL = 7;
+    VALUE_TOO_LARGE = 8;
+    RESOURCE_ALREADY_EXISTS = 9;
+    METHOD_CALLED_TOO_OFTEN = 23;
+    INVALID_PARAMETERS_FORMAT = 24;
+    LOCK_REQUEST_FAILED_DUE_TO_TIMEOUT = 26;
+    PROTOCOL_MISMATCH = 28;
+    DATABASE_ERROR = 29;
+    SERVICE_UNAVAILABLE_TYPE = 30;
+    NOT_IMPLEMENTED_TYPE = 31;
+    SERVER_ERROR = 32;
+    SHARD_UNDER_MAINTENANCE = 34;
+    PLUGIN_INACTIVE = 35;
+  };
+  enum Severity {
+    LEVEL_DEBUG = 0;
+    LEVEL_INFO = 1;
+    LEVEL_WARN = 2;
+    LEVEL_ERROR = 3;
+    LEVEL_FATAL = 4;
+  };
+}
+
+option java_package = "com.ea.simpsons.data";

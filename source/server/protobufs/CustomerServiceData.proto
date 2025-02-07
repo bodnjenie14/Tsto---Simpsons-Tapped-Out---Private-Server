@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package Data;
+
+import "PurchaseData.proto";
+import "LandData.proto";
+import "Error.proto";
+import "WholeLandTokenData.proto";
+
+message PlayerSession {
+  optional string ownerId = 1;
+  optional string hostname = 2;
+}
+
+message LandResponseMessage {
+  optional .Data.LandMessage land = 1;
+  optional .Data.PlayerSession session = 2;
+  optional .Data.ErrorMessage error = 3;
+}
+
+message CurrencyResponseMessage {
+  optional .Data.CurrencyData currency = 1;
+  optional .Data.ErrorMessage error = 2;
+}
+
+message UserResponseMessage {
+  optional string gameId = 1;
+  repeated .Data.UserResponseMessage.ReverseMapping reverseMapping = 2;
+  optional .Data.ErrorMessage error = 3;
+  message ReverseMapping {
+    optional string externalId = 1;
+    optional string externalType = 2;
+  }
+}
+
+message LandBackupResponseMessage {
+  repeated .Data.LandBackupResponseMessage.LandBackup landBackup = 1;
+  optional .Data.ErrorMessage error = 2;
+  message LandBackup {
+    optional uint64 date = 1;
+    optional .Data.LandMessage land = 2;
+  }
+}
+
+message WholeLandTokenResponseMessage {
+  optional .Data.WholeLandTokenResponse tokenResponse = 1;
+  optional .Data.ErrorMessage error = 2;
+}
+
+option java_package = "com.ea.simpsons.customerservice.data";

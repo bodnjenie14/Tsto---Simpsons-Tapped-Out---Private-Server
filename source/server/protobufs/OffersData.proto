@@ -1,0 +1,74 @@
+syntax = "proto2";
+
+package Data;
+
+import "Error.proto";
+
+message OffersResponseMessage {
+  repeated .Data.OffersResponseMessage.OfferItem offerItems = 1;
+  repeated .Data.OffersResponseMessage.ItemPopularityList popularityRangeList = 2;
+  optional .Data.ErrorMessage error = 3;
+  repeated .Data.OffersResponseMessage.LevelUpXpOffer levelUpXpOffers = 4;
+  repeated .Data.OffersResponseMessage.PriceOverrideOffer priceOverrideOffer = 5;
+  message OfferItem {
+    optional .Data.OffersResponseMessage.OfferItem.OfferType offerType = 1;
+    optional string productId = 2;
+    optional .Data.OffersResponseMessage.OfferItem.RecommendationType recommendationType = 3;
+    enum OfferType {
+      MTX = 1;
+      PREMIUM = 2;
+      CHARACTER = 3;
+      BUILDING = 4;
+      CONSUMABLE = 5;
+    };
+    enum RecommendationType {
+      RECOMMEND = 1;
+      WATCH = 2;
+      NOCONVERT = 3;
+    };
+  }
+  message ItemPopularityList {
+    optional string displayName = 1;
+    repeated .Data.OffersResponseMessage.ItemPopularityList.PopularItem popularityItemList = 3;
+    message PopularItem {
+      optional .Data.OffersResponseMessage.ItemPopularityList.PopularItem.Type popularityType = 1;
+      optional int32 id = 2;
+      optional int32 count = 3;
+      enum Type {
+        BUILDING = 1;
+        CHARACTER = 2;
+        CONSUMABLE = 3;
+        SKIN = 4;
+        UNKNOWN = 5;
+      };
+    }
+  }
+  message LevelUpXpOffer {
+    optional int32 level = 1;
+    optional int32 xpForNextLevel = 2;
+    optional int32 donutAwardAmount = 3;
+    optional int32 moneyAwardAmount = 4;
+    optional .Data.OffersResponseMessage.LevelUpXpOffer.LevelUpRecordType levelUpRecordType = 5;
+    enum LevelUpRecordType {
+      OFFER = 1;
+      CONVERSION_EVENT = 2;
+    };
+  }
+  message PriceOverrideOffer {
+    optional .Data.OffersResponseMessage.PriceOverrideOffer.OverrideItemType overrideItemType = 1;
+    optional string productId = 2;
+    optional .Data.OffersResponseMessage.PriceOverrideOffer.CurrencyPriceType currencyPriceType = 3;
+    optional int32 currencyAmount = 4;
+    enum OverrideItemType {
+      CHARACTER = 1;
+      BUILDING = 2;
+      CONSUMABLE = 3;
+    };
+    enum CurrencyPriceType {
+      GRIND = 1;
+      PREMIUM = 2;
+    };
+  }
+}
+
+option java_package = "com.ea.simpsons.data";

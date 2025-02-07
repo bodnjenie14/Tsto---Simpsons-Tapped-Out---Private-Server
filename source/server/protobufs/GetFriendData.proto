@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package Data;
+
+import "LandData.proto";
+import "Error.proto";
+
+message GetFriendDataRequest {
+  repeated string friendId = 1;
+}
+
+message GetFriendDataResponse {
+  repeated .Data.GetFriendDataResponse.FriendDataPair friendData = 1;
+  optional .Data.ErrorMessage error = 2;
+  message FriendDataPair {
+    optional string friendId = 1;
+    optional .Data.LandMessage.FriendData friendData = 2;
+    optional .Data.GetFriendDataResponse.FriendDataPair.FriendDataError error = 3;
+    optional .Data.GetFriendDataResponse.FriendDataPair.AuthService authService = 4;
+    optional string externalId = 5;
+    message FriendDataError {
+      optional int32 code = 1;
+      optional string type = 2;
+    }
+    enum AuthService {
+      NUCLEUS = 0;
+      FACEBOOK = 1;
+    };
+  }
+}
+
+option java_package = "com.ea.simpsons.data";

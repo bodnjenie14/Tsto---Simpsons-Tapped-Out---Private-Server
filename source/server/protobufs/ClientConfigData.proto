@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package Data;
+
+message ClientConfigResponse {
+  repeated .Data.ClientConfigResponse.ClientConfigItem items = 2;
+  message ClientConfigItem {
+    optional int32 clientConfigId = 1;
+    optional string name = 2;
+    optional string value = 3;
+  }
+}
+
+option java_package = "com.ea.simpsons.data";

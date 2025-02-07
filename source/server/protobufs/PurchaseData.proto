@@ -1,0 +1,117 @@
+syntax = "proto2";
+
+package Data;
+
+message PurchasedItemData {
+  optional string productId = 1;
+  optional string purchasePrice = 2;
+  optional int64 purchaseDate = 3;
+}
+
+message CurrencyData {
+  optional string id = 1;
+  optional int32 vcTotalPurchased = 2;
+  optional int32 vcTotalAwarded = 3;
+  optional int32 vcBalance = 4;
+  optional int64 createdAt = 5;
+  optional int64 updatedAt = 6;
+  optional int32 unverified = 7;
+}
+
+message PurchaseErrorData {
+  optional int32 code = 1;
+  optional string type = 2;
+}
+
+message PurchaseResponseMessage {
+  optional .Data.CurrencyData currency = 1;
+  repeated .Data.PurchasedItemData purchases = 2;
+  optional .Data.PurchaseErrorData error = 3;
+  repeated .Data.OrderData orderData = 4;
+  repeated .Data.SubscriptionData subscriptions = 5;
+}
+
+message PurchaseRequestMessage {
+  optional string receipt = 1;
+  optional string signedData = 2;
+  optional string signature = 3;
+  optional .Data.PurchasePlatform platform = 4;
+  optional string purchaseToken = 5;
+  optional string amazonUserId = 6;
+  repeated .Data.PurchaseRequestMessage.PaymentInfo paymentInfo = 7;
+  repeated .Data.PurchaseRequestMessage.DeviceIds deviceIds = 8;
+  optional .Data.PurchaseRequestMessage.ApplicationInfo applicationInfo = 9;
+  optional .Data.PurchaseRequestMessage.DeviceInfo deviceInfo = 10;
+  optional string synergySystemVersion = 11;
+  optional bool isSubscription = 12;
+  message PaymentInfo {
+    optional string transactionId = 1;
+    optional string purchasePrice = 2;
+    optional string currencyCode = 3;
+  }
+  message DeviceIds {
+    optional .Data.DeviceId type = 1;
+    optional string id = 2;
+  }
+  message ApplicationInfo {
+    optional int64 timestamp = 1;
+    optional string bundleId = 2;
+    optional string appName = 3;
+    optional string appVersion = 4;
+    optional string appLanguage = 5;
+    optional string countryCode = 6;
+    optional string facebookAppId = 7;
+    optional string facebookAttributionId = 8;
+  }
+  message DeviceInfo {
+    optional string systemName = 1;
+    optional bool limitAdTracking = 2;
+    optional string deviceNativeId = 3;
+    optional string deviceType = 4;
+    optional bool iadAttribution = 5;
+    optional string imei = 6;
+  }
+}
+
+message OrderData {
+  optional string notificationId = 1;
+  optional string orderId = 2;
+  optional .Data.OrderData.OrderState state = 3 [default = IGNORED];
+  optional .Data.PurchasePlatform platform = 4;
+  optional string purchaseToken = 5;
+  optional string signedData = 6;
+  enum OrderState {
+    VALID = 0;
+    IGNORED = 1;
+    FAILED = 2;
+  };
+}
+
+message SubscriptionData {
+  optional string subscriptionId = 1;
+  optional string purchaseId = 2;
+  optional .Data.PurchasePlatform platform = 3;
+  optional int64 purchaseDate = 4;
+  optional int64 validationDate = 5;
+}
+
+enum PurchasePlatform {
+  ITUNES = 0;
+  GOOGLEPLAY_V2 = 1;
+  GOOGLEPLAY_V3 = 2;
+  AMAZON = 3;
+  ITUNES_GRAND_UNIFIED_RECEIPT = 4;
+  NOKIA_NORMANDY = 5;
+  AMAZON_V2 = 6;
+};
+
+enum DeviceId {
+  EA_DEVICE_ID = 0;
+  AUT = 1;
+  ADVERTISER_ID = 2;
+  VENDOR_ID = 3;
+  ANDROID_ID = 4;
+  MAC_HASH = 5;
+};
+
+option java_package = "com.ea.simpsons.data";

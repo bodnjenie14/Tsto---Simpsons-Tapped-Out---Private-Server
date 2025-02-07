@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package Data;
+
+import "Error.proto";
+import "Common.proto";
+
+message GameplayConfigResponse {
+  repeated .Data.NameValue item = 1;
+  optional .Data.ErrorMessage error = 2;
+}
+
+option java_package = "com.ea.simpsons.data";

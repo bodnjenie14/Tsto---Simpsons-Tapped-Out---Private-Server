@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package Data;
+
+import "Error.proto";
+import "PurchaseData.proto";
+
+message GambleResponse {
+  optional .Data.CurrencyData updatedCurrency = 1;
+  optional int32 currencyAwarded = 2;
+  optional .Data.ErrorMessage error = 3;
+}
+
+option java_package = "com.ea.simpsons.data";

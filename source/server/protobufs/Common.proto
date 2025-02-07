@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package Data;
+
+message NameValue {
+  optional string name = 1;
+  optional string value = 2;
+}
+
+message NameValueSet {
+  repeated .Data.NameValue nameValueSet = 1;
+}
+
+option java_package = "com.ea.simpsons.data";

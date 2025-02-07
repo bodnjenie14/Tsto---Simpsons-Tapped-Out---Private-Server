@@ -1,0 +1,101 @@
+syntax = "proto2";
+
+package com.ea.simpsons.client.telemetry;
+
+import "PurchaseData.proto";
+
+message ClientTelemetryMessage {
+  optional .com.ea.simpsons.client.telemetry.ClientTelemetryMessage.ClientProvidedTelemetry clientProvidedTelemetry = 1;
+  optional .com.ea.simpsons.client.telemetry.ClientTelemetryMessage.ServerProvidedTelemetry serverProvidedTelemetry = 2;
+  repeated .com.ea.simpsons.client.telemetry.ClientTelemetryMessage.NimbleExtractedTelemetry nimbleProvidedTelemetry = 3;
+  message ClientProvidedTelemetry {
+    optional int64 timeStamp = 1;
+    optional string userId = 2;
+    optional .com.ea.simpsons.client.telemetry.ClientTelemetryIdentifier clientTelemetryId = 3;
+    optional float fps_min = 4;
+    optional float fps_max = 5;
+    optional float fps_average = 6;
+    repeated .com.ea.simpsons.client.telemetry.ClientApplicationGUID applicationGUIDs = 7;
+    optional int64 sessionStartTimestamp = 8;
+    repeated .com.ea.simpsons.client.telemetry.ClientAccountId userAccountIds = 9;
+    optional .com.ea.simpsons.client.telemetry.SharedSessionGUID sharedSessionGUID = 10;
+    optional int64 touchesDuringSession = 11;
+    optional .com.ea.simpsons.client.telemetry.ClientTelemetryMessage.ClientProvidedTelemetry.MemoryStat totalAvailableMemory = 12;
+    optional .com.ea.simpsons.client.telemetry.ClientTelemetryMessage.ClientProvidedTelemetry.MemoryStat freeMemory = 13;
+    optional .com.ea.simpsons.client.telemetry.ClientTelemetryMessage.ClientProvidedTelemetry.MemoryStat usedMemory = 14;
+    optional int64 physicalMemory = 15;
+    optional int64 userMemory = 16;
+    optional int64 sessionMismatchAskDisplayed = 17;
+    optional int64 sessionMismatchConfirmDisplayed = 18;
+    optional int64 sessionMismatchConfirmAccepted = 19;
+    optional .com.ea.simpsons.client.telemetry.ClientTelemetryMessage.ClientProvidedTelemetry.DlcInfo dlcInfo = 20;
+    message MemoryStat {
+      optional int64 min = 1;
+      optional int64 max = 2;
+      optional float average = 3;
+    }
+    message DlcInfo {
+      optional uint32 numPackageCrcChecksFailed = 1;
+      optional uint32 numPackageDsaSignaturesInvalid = 2;
+      optional uint32 numPackagesToDownload = 3;
+      optional uint32 assetTierTargeted = 4;
+      optional uint64 sizeExpectedKB = 5;
+      optional uint64 sizeDownloadedKB = 6;
+      optional float downloadTimeSeconds = 7;
+      optional string downloadUrl = 8;
+    }
+  }
+  message ServerProvidedTelemetry {
+    optional int64 millisTimeStamp = 1;
+    optional string authUserId = 2;
+    optional string bgClientVersion = 3;
+    optional string mhClientVersion = 4;
+    optional string clientPlatform = 5;
+    optional .com.ea.simpsons.client.telemetry.ServerTelemetryIdentifier serverTelemetryId = 6;
+    optional string clientRequestCountryCode = 7;
+    optional string dlcHashHeader = 8;
+  }
+  message NimbleExtractedTelemetry {
+    optional string nimbleSessionId = 1;
+  }
+}
+
+message ClientTelemetryIdentifier {
+  optional string id = 1;
+}
+
+message ServerTelemetryIdentifier {
+  optional string id = 1;
+}
+
+message ClientApplicationGUID {
+  optional .Data.DeviceId deviceIdType = 1;
+  optional string id = 2;
+}
+
+message ClientAccountId {
+  optional .com.ea.simpsons.client.telemetry.ServiceAccountId idType = 1;
+  optional string idValue = 2;
+}
+
+message SharedSessionGUID {
+  optional .com.ea.simpsons.client.telemetry.SessionMessageType sessionMessageType = 1;
+  optional .com.ea.simpsons.client.telemetry.ClientTelemetryIdentifier sessionIdentifier = 2;
+}
+
+enum ServiceAccountId {
+  LAND_MAYHEM_ID = 1;
+  TNT_ID = 2;
+  SYNERGY_ID = 3;
+  NUCLEUS_ID = 4;
+  FACEBOOK_ID = 5;
+};
+
+enum SessionMessageType {
+  DEFAULT_NONE = 1;
+  START = 2;
+  END = 3;
+};
+
+option java_package = "com.ea.simpsons.data";
+option java_outer_classname = "ClientTelemetry";
