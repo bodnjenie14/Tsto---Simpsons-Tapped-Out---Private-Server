@@ -105,3 +105,5 @@ Follow these steps sequentially for proper setup. Enjoy!
   ( vcpkg install abseil )
 ---
 
+then replace the abseil file with patch from repo :D
+
