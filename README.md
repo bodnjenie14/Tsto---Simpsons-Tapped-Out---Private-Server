@@ -1,5 +1,15 @@
 # TSTO Server and APK Patching Guide
 
+## UPDATE NOTES
+
+Update 1 v0.02
+- **RESTART BUG FIXED:** No longer need to reboot server if you close game.
+- **Ios/Apple Support:** Fully supports ios/apple devices. Non jailbroke via sideloady and jailbroke devices.
+- **Taps Event can be completed:** Dont need to minuplate time to finish taps.
+- **Webpanel Dashboard:** ``http://localhost/dashboard`` - Can be used for basic servercontrols and to restore old events.
+
+---
+
 ## Overview
 This guide provides instructions to set up the TSTO server, patch the `tsto.apk`, and configure the system to use the server and DLC files.
 
@@ -105,3 +115,8 @@ Follow these steps sequentially for proper setup. Enjoy!
   ( vcpkg install abseil )
 ---
 
+
+
+Follow these steps sequentially for proper setup. Enjoy!
+
+---
