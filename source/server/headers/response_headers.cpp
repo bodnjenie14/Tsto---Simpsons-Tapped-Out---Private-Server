@@ -21,11 +21,6 @@ namespace tsto {
             // ctx->AddResponseHeader("Server", "TSTO-Server/1.0");
         }
 
-        void set_html_response(const evpp::http::ContextPtr& ctx) {
-            ctx->AddResponseHeader("Content-Type", "application/html");
-            // ctx->AddResponseHeader("Server", "TSTO-Server/1.0");
-        }
-
     } // namespace headers
 
 } // namespace tsto

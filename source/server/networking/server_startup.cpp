@@ -40,7 +40,6 @@ std::string get_local_ipv4() {
 
 void initialize_servers() {  //for now dlc on same port as game
     logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_INITIALIZER, "Initializing HTTP Servers...");
-    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_INITIALIZER, "VERSION V0.02");
 
     const char* CONFIG_SECTION = "ServerConfig";
     std::string detected_ip = get_local_ipv4();

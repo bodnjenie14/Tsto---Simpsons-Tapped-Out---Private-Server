@@ -16,14 +16,13 @@ namespace tsto::land {
         try {
             std::string uri = ctx->uri();
             std::string token;
-            std::string user_id;
 
-            size_t token_start = uri.find("/checkToken/") + 11;
+
+            size_t token_start = uri.find("/checkToken/") + 11;  // Length of "/checkToken/"
             size_t token_end = uri.find("/protoWholeLandToken/");
             if (token_start != std::string::npos && token_end != std::string::npos) {
                 token = uri.substr(token_start, token_end - token_start);
             }
-
 
             logger::write(logger::LOG_LEVEL_INCOMING, logger::LOG_LABEL_LAND, "[CHECK TOKEN] Request from %s: %s", ctx->remote_ip().data(), ctx->uri().data());
 
@@ -36,7 +35,6 @@ namespace tsto::land {
             );
 
             auto& session = tsto::Session::get();
-
 
             Data::TokenData response;
             response.set_sessionkey(session.session_key);
@@ -53,7 +51,6 @@ namespace tsto::land {
             cb("");
         }
     }
-
 
 
     bool Land::load_town() {
@@ -109,6 +106,7 @@ namespace tsto::land {
         }
     }
 
+
     void Land::create_blank_town() {
         auto& session = tsto::Session::get();
 
@@ -124,7 +122,6 @@ namespace tsto::land {
 
         logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME, "[LAND] Created new blank town with data version %d", friend_data->dataversion());
     }
-
 
     bool Land::save_town() {
         auto& session = tsto::Session::get();
@@ -168,8 +165,7 @@ namespace tsto::land {
             const size_t land_end = uri.find("/", land_start);
 
             if (land_start == std::string::npos || land_end == std::string::npos || land_end <= land_start) {
-                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
-                    "[PROTOLAND] Invalid URI format: %s", uri.c_str());
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME, "[PROTOLAND] Invalid URI format: %s", uri.c_str());
                 ctx->set_response_http_code(400);
                 cb("Invalid URI format");
                 return;
@@ -177,37 +173,34 @@ namespace tsto::land {
 
             const std::string land_id = uri.substr(land_start, land_end - land_start);
 
-            std::string access_token;
-            auto auth_header = ctx->FindRequestHeader("mh_auth_params");
-            if (auth_header) {
-                std::string auth_str(auth_header);
-                if (auth_str.substr(0, 7) == "Bearer ") {
-                    access_token = auth_str.substr(7);
-                }
-                else {
-                    access_token = auth_str;
-                }
+
+            //seems ios wont load this with this in causes a minidump #lazy fix comment it out
+            /*
+            // Extract nucleus token
+            std::string nucleus_token = ctx->FindRequestHeader("nucleus_token");
+            if (nucleus_token.empty()) {
+                nucleus_token = ctx->FindRequestHeader("mh_auth_params");
             }
 
-
-            auto& session = tsto::Session::get();
-
-            // Verify mh_uid matches land_id for security
-            auto mh_uid = ctx->FindRequestHeader("mh_uid");
-            if (mh_uid && std::string(mh_uid) != land_id) {
-                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_LAND,
-                    "[PROTOLAND] Land ID mismatch - URI: %s, mh_uid: %s",
-                    land_id.c_str(), mh_uid);
-                ctx->set_response_http_code(403);
-                cb("Unauthorized");
+            if (nucleus_token.empty()) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME, "[PROTOLAND] Missing nucleus_token");
+                const std::string error_xml =
+                    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+                    "<error code=\"400\" type=\"MISSING_VALUE\" field=\"nucleus_token\"/>";
+                ctx->set_response_http_code(400);
+                ctx->AddResponseHeader("Content-Type", "application/xml");
+                cb(error_xml);
                 return;
             }
+            */
 
-            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
-                "[PROTOLAND] GET request from %s for land_id: %s",
-                ctx->remote_ip().c_str(), land_id.c_str());
 
+            // Determine HTTP method
             const std::string method = ctx->GetMethod();
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
+                "[PROTOLAND] %s request from %s for land_id: %s",
+                method.c_str(), ctx->remote_ip().data(), land_id.c_str());
+
             if (method == "GET") {
                 handle_get_request(ctx, cb, land_id);
             }
@@ -218,16 +211,22 @@ namespace tsto::land {
                 handle_post_request(ctx, cb);
             }
             else {
+                logger::write(logger::LOG_LEVEL_WARN, logger::LOG_LABEL_GAME, "[PROTOLAND] Unsupported method: %s", method.c_str());
                 ctx->set_response_http_code(405);
                 ctx->AddResponseHeader("Allow", "GET, PUT, POST");
                 cb("Method Not Allowed");
             }
+
         }
         catch (const std::exception& ex) {
-            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
-                "[PROTOLAND] Error: %s", ex.what());
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME, "[PROTOLAND] Exception caught: %s", ex.what());
             ctx->set_response_http_code(500);
-            cb("");
+            cb("Internal Server Error");
+        }
+        catch (...) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME, "[PROTOLAND] Unknown error occurred");
+            ctx->set_response_http_code(500);
+            cb("Internal Server Error");
         }
     }
 
@@ -287,111 +286,50 @@ namespace tsto::land {
     }
 
     void Land::handle_post_request(const evpp::http::ContextPtr& ctx, const evpp::http::HTTPSendResponseCallback& cb) {
-        try {
-            const char* auth_header = ctx->FindRequestHeader("mh_auth_params");
-            if (!auth_header) {
-                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
-                    "[PROTOLAND] Missing authentication token");
-                ctx->set_response_http_code(401);
-                cb("Authentication required");
-                return;
-            }
+        const std::string compressed_data = ctx->body().ToString();
+        logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME, "[PROTOLAND] Received compressed data size: %zu", compressed_data.size());
 
-
-            const std::string compressed_data = ctx->body().ToString();
-            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
-                "[PROTOLAND] Received compressed data size: %zu", compressed_data.size());
-
-            std::string decompressed_data;
-            const char* encoding = ctx->FindRequestHeader("Content-Encoding");
-            if (encoding && strcmp(encoding, "gzip") == 0) {
-                decompressed_data = utils::compression::zlib::decompress(compressed_data);
-                if (decompressed_data.empty()) {
-                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
-                        "[PROTOLAND] Failed to decompress data");
-                    ctx->set_response_http_code(400);
-                    cb("Failed to decompress data");
-                    return;
-                }
-            }
-            else {
-                decompressed_data = compressed_data;
-            }
-
-            auto& session = tsto::Session::get();
-            session.access_token = auth_header;
-
-            if (!session.land_proto.ParseFromString(decompressed_data)) {
-                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
-                    "[PROTOLAND] Failed to parse decompressed data");
+        std::string decompressed_data;
+        const char* encoding = ctx->FindRequestHeader("Content-Encoding");
+        if (encoding && strcmp(encoding, "gzip") == 0) {
+            decompressed_data = utils::compression::zlib::decompress(compressed_data);
+            if (decompressed_data.empty()) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME, "[PROTOLAND] Failed to decompress data");
                 ctx->set_response_http_code(400);
-                cb("Failed to parse data");
+                cb("Failed to decompress data");
                 return;
             }
-
-            session.land_proto.set_id(session.user_user_id);
-
-            if (!save_town()) {
-                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
-                    "[PROTOLAND] Failed to save land data");
-                ctx->set_response_http_code(500);
-                cb("Failed to save data");
-                return;
-            }
-
-            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
-                "[PROTOLAND] Successfully saved land data for user: %s",
-                session.user_user_id.c_str());
-
-            const std::string xml = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>"
-                "<WholeLandUpdateResponse/>";
-
-            ctx->AddResponseHeader("Content-Type", "application/xml");
-            cb(xml);
         }
-        catch (const std::exception& ex) {
-            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
-                "[PROTOLAND] Error processing request: %s", ex.what());
+        else {
+            decompressed_data = compressed_data;
+        }
+
+        auto& session = tsto::Session::get();
+        if (!session.land_proto.ParseFromString(decompressed_data)) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME, "[PROTOLAND] Failed to parse decompressed data");
+            ctx->set_response_http_code(400);
+            cb("Failed to parse data");
+            return;
+        }
+
+        if (!save_town()) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME, "[PROTOLAND] Failed to save land data");
             ctx->set_response_http_code(500);
-            cb("Internal server error");
+            cb("Failed to save data");
+            return;
         }
+
+        logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME, "[PROTOLAND] Successfully saved land data");
+
+        const std::string xml = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>"
+            "<WholeLandUpdateResponse/>";
+
+        ctx->AddResponseHeader("Content-Type", "application/xml");
+        cb(xml);
     }
 
-    void Land::handle_delete_token(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
-        const evpp::http::HTTPSendResponseCallback& cb) {
-        try {
-            std::string uri = ctx->uri();
-            std::string token;
-            std::string user_id;
 
-            size_t token_start = uri.find("/deleteToken/") + 12;
-            size_t token_end = uri.find("/protoWholeLandToken/");
-            if (token_start != std::string::npos && token_end != std::string::npos) {
-                token = uri.substr(token_start, token_end - token_start);
-            }
 
-            logger::write(logger::LOG_LEVEL_INCOMING, logger::LOG_LABEL_LAND, "[DELETE TOKEN] Request from %s: %s", ctx->remote_ip().data(), ctx->uri().data());
-
-            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_LAND,
-                "[DELETE TOKEN] Request params:\n"
-                "URI: %s\n"
-                "Token: %s",
-                ctx->uri().c_str(),
-                token.c_str()
-            );
-
-            auto& session = tsto::Session::get();
-
-            // Return empty response idk
-            headers::set_protobuf_response(ctx);
-            cb("");
-        }
-        catch (const std::exception& ex) {
-            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_LAND, "[DELETE TOKEN] Error: %s", ex.what());
-            ctx->set_response_http_code(500);
-            cb("");
-        }
-    }
 
     void Land::handle_extraland_update(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
         const evpp::http::HTTPSendResponseCallback& cb) {
@@ -404,7 +342,7 @@ namespace tsto::land {
             logger::write(logger::LOG_LEVEL_INCOMING, logger::LOG_LABEL_LAND, "[EXTRALAND] Request from %s for land_id: %s", ctx->remote_ip().data(), land_id.c_str());
 
 
-            const std::string method = ctx->GetMethod(); // 
+            const std::string method = ctx->GetMethod(); 
 
             if (method == "POST") {
 
@@ -419,7 +357,6 @@ namespace tsto::land {
                 if (request.ParseFromString(decompressed)) {
                     logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_LAND, "[EXTRALAND] Successfully parsed request data");
 
-                    // Debug log the contents
                     if (request.currencydelta_size() > 0) {
                         for (const auto& delta : request.currencydelta()) {
                             logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_LAND, "[EXTRALAND] Currency Delta - ID: %d, Reason: %s, Amount: %d",

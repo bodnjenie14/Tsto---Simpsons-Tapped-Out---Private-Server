@@ -4,7 +4,6 @@
 #include <rapidjson/document.h>
 #include <rapidjson/writer.h>
 #include <rapidjson/stringbuffer.h>
-#include "configuration.hpp"
 
 // Protobuf includes
 #include "AuthData.pb.h"
@@ -49,20 +48,15 @@ namespace tsto {
         friend class server::dispatcher::http::Dispatcher;
 
     public:
-        TSTOServer() : server_(), server_ip_(), server_port_(0), should_restart_(false) {}
-
         ~TSTOServer() = default;
 
         bool initialize(uint16_t port);
         void start();
         void stop();
 
-        std::string server_ip_;  
-        uint16_t server_port_;   
-        std::chrono::system_clock::time_point start_time_;  
-        bool should_restart_;    
-        std::atomic<size_t> active_sessions_{ 0 };  
-   
+        std::string server_ip_;  // Configured through server-config.json
+        uint16_t server_port_;   // Configured through server-config.json
+
 
         std::string get_server_address() const {
             if (server_port_ == 80) {
@@ -83,10 +77,6 @@ namespace tsto {
         //shite
         void set_server_ip(const std::string& ip) { server_ip_ = ip; }
         void set_server_port(uint16_t port) { server_port_ = port; }
-
-        void handle_dashboard(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx, const evpp::http::HTTPSendResponseCallback& cb);
-        void handle_server_restart(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx, const evpp::http::HTTPSendResponseCallback& cb);
-        void handle_server_stop(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx, const evpp::http::HTTPSendResponseCallback& cb);
         void handle_root(evpp::EventLoop*, const evpp::http::ContextPtr&, const evpp::http::HTTPSendResponseCallback&);
         void handle_get_direction(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx, const evpp::http::HTTPSendResponseCallback& cb, const std::string& platform);
         void handle_lobby_time(evpp::EventLoop*, const evpp::http::ContextPtr&, const evpp::http::HTTPSendResponseCallback&);
@@ -99,9 +89,13 @@ namespace tsto {
         void handle_proto_currency(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx, const evpp::http::HTTPSendResponseCallback& cb);
         void handle_plugin_event_protoland(evpp::EventLoop*, const evpp::http::ContextPtr&, const evpp::http::HTTPSendResponseCallback&);
 
+
         std::string generate_random_id();
         std::string generate_session_key() {
             return utils::cryptography::random::get_challenge();
         }
+
+
     };
+
 }
