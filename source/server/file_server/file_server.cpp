@@ -3,9 +3,13 @@
 #include <fstream>
 #include <sstream>
 #include "debugging/serverlog.hpp"
+#include <mutex>
+#include <thread>
+#include <evpp/event_loop.h>
 
 namespace file_server {
-    FileServer::FileServer() {
+    FileServer::FileServer() : file_mutex_(), queue_mutex_() {
+        std::lock_guard<std::mutex> lock(file_mutex_);
         base_directory_ = "dlc";  // Simple relative path, just like in Land class
 
         try {
@@ -24,8 +28,75 @@ namespace file_server {
         }
     }
 
+    void FileServer::cleanup_completed_ops() {
+        std::lock_guard<std::mutex> lock(queue_mutex_);
+        while (!pending_ops_.empty()) {
+            auto& op = pending_ops_.front();
+            if (op.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+                pending_ops_.pop();
+            }
+            else {
+                break;
+            }
+        }
+    }
+
+    void FileServer::async_read_file(evpp::EventLoop* loop, const std::string& file_path,
+        const evpp::http::ContextPtr& ctx, const evpp::http::HTTPSendResponseCallback& cb) {
+
+        auto future = std::async(std::launch::async, [this, file_path, ctx, cb, loop]() {
+            try {
+                std::string response_data;
+                {
+                    std::lock_guard<std::mutex> lock(file_mutex_);
+                    if (std::filesystem::exists(file_path)) {
+                        std::ifstream file(file_path, std::ios::binary);
+                        std::stringstream buffer;
+                        buffer << file.rdbuf();
+                        response_data = buffer.str();
+                    }
+                }
+
+                // Post the response back to the event loop
+                loop->RunInLoop([response_data, ctx, cb, file_path]() {
+                    if (!response_data.empty()) {
+                        ctx->AddResponseHeader("Content-Type", "application/zip");
+                        cb(response_data);
+#ifdef DEBUG
+                        //logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_FILESERVER,
+                        //   "Successfully served static file: %s (Size: %zu bytes)", 
+                        //   file_path.c_str(), response_data.size());
+#endif
+                    }
+                    else {
+                        logger::write(logger::LOG_LEVEL_WARN, logger::LOG_LABEL_FILESERVER,
+                            "Static file not found: %s", file_path.c_str());
+                        ctx->set_response_http_code(404);
+                        cb("File not found");
+                    }
+                    });
+            }
+            catch (const std::exception& e) {
+                loop->RunInLoop([ctx, cb, e]() {
+                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_FILESERVER,
+                        "Error serving static file: %s", e.what());
+                    ctx->set_response_http_code(500);
+                    cb("Internal server error");
+                    });
+            }
+            });
+
+        {
+            std::lock_guard<std::mutex> lock(queue_mutex_);
+            pending_ops_.push(std::move(future));
+        }
+    }
+
     void FileServer::handle_dlc_download(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx,
         const evpp::http::HTTPSendResponseCallback& cb) {
+
+        cleanup_completed_ops();  // Clean up completed operations
+
         try {
             std::string uri = ctx->uri();
 
@@ -34,38 +105,20 @@ namespace file_server {
                 uri = uri.substr(8);  // Length of "/static/"
             }
 
-            // Sanitize filename
             uri = sanitize_filename(uri);
 
-            // Construct file path without double slashes
             std::string file_path = "dlc/" + uri;  // All static content goes in dlc directory
 
-            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_FILESERVER,
-                "Attempting to serve static file: %s", file_path.c_str());
+#ifdef DEBUG
+            //logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_FILESERVER,
+            //   "Attempting to serve static file: %s", file_path.c_str());
+#endif
 
-            // Check if file exists and serve it
-            if (std::filesystem::exists(file_path)) {
-                std::ifstream file(file_path, std::ios::binary);
-                std::stringstream buffer;
-                buffer << file.rdbuf();
-
-                ctx->AddResponseHeader("Content-Type", "application/zip");
-                cb(buffer.str());
-
-                // Log successful file serve
-                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_FILESERVER,
-                    "Successfully served static file: %s (Size: %zu bytes)", file_path.c_str(), buffer.str().size());
-            }
-            else {
-                logger::write(logger::LOG_LEVEL_WARN, logger::LOG_LABEL_FILESERVER,
-                    "Static file not found: %s", file_path.c_str());
-                ctx->set_response_http_code(404);
-                cb("File not found");
-            }
+            async_read_file(loop, file_path, ctx, cb);
         }
         catch (const std::exception& e) {
             logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_FILESERVER,
-                "Error serving static file: %s", e.what());
+                "Error in handle_dlc_download: %s", e.what());
             ctx->set_response_http_code(500);
             cb("Internal server error");
         }
@@ -106,4 +159,6 @@ namespace file_server {
 
         return result;
     }
+
+    std::queue<std::future<void>> pending_ops_;
 }

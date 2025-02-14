@@ -292,8 +292,7 @@ namespace tsto::events {
         Event current_event;
         current_event.name = "Normal Play";
         // Set default time to January 1, 2025
-        current_event.start_time = 1735689600; // January 1, 2025 00:00:00 UTC
-        current_event.end_time = 1738368000;   // January 31, 2025 00:00:00 UTC
+        current_event.start_time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());       // current_event.end_time = 1738368000;   // January 31, 2025 00:00:00 UTC
         current_event.is_active = true;
 
         if (current_event_override != 0) {

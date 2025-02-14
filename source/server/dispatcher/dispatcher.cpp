@@ -8,6 +8,9 @@
 #include "tsto/auth/auth.hpp"
 #include "tsto/user/user.hpp"
 #include "tsto/land/land.hpp"
+#include "tsto/events/events.hpp"
+#include "regex"
+
 namespace server::dispatcher::http {
 
     Dispatcher::Dispatcher(std::shared_ptr<tsto::TSTOServer> server)
@@ -18,19 +21,40 @@ namespace server::dispatcher::http {
     void Dispatcher::handle(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx,
         const evpp::http::HTTPSendResponseCallback& cb) noexcept {
         try {
+            std::string remote_ip = std::string(ctx->remote_ip());
+            std::string uri = std::string(ctx->uri());
+            std::string original_uri = std::string(ctx->original_uri());
 
+            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP,
+                "Received request: RemoteIP: '%s', URI: '%s', FULL URI: '%s'",
+                remote_ip.c_str(), uri.c_str(), original_uri.c_str());
 
-            logger::write(logger::LOG_LEVEL_INCOMING, logger::LOG_LABEL_SERVER_HTTP, "RemoteIP: '%s', URI: '%s', FULL URI: '%s'",
-                ctx->remote_ip().data(), ctx->uri().data(), ctx->original_uri());
-
-            const std::string& uri = ctx->uri();
+            uri = std::regex_replace(uri, std::regex("/{2,}"), "/");
 
             if (uri == "/") {
                 tsto_server_->handle_root(loop, ctx, cb);
                 return;
             }
 
+            if (uri == "/probe") {
+                cb("");
+                return;
+            }
+
+
+            if (uri == "/api/events/set") {
+                tsto::events::Events::handle_events_set(loop, ctx, cb);
+                return;
+            }
+
             if (uri.find("/static") == 0) {
+                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP,
+                    "Handling file download: %s", uri.c_str());
+
+                // **Ensure correct path resolution**
+                std::string normalized_uri = uri.substr(7); // Remove "/static" prefix
+                std::string file_path = "static" + normalized_uri;
+
                 file_server_->handle_dlc_download(loop, ctx, cb);
                 return;
             }
@@ -38,7 +62,6 @@ namespace server::dispatcher::http {
             //server stuff
 
             if (uri.find("/director/api/") == 0) {
-                // Extract platform from URL
                 size_t platform_start = uri.find("/api/") + 5;
                 size_t platform_end = uri.find("/", platform_start);
                 std::string platform = uri.substr(platform_start, platform_end - platform_start);
@@ -50,15 +73,8 @@ namespace server::dispatcher::http {
                 }
             }
 
-
-
             if (uri == "/mh/games/lobby/time") {
                 tsto_server_->handle_lobby_time(loop, ctx, cb);
-                return;
-            }
-
-            if (uri == "/probe") {  
-                cb("");
                 return;
             }
 
@@ -118,13 +134,27 @@ namespace server::dispatcher::http {
                 return;
             }
 
+            if (uri == "/user/api/iphone/getAnonUid") {
+                tsto::device::Device::handle_get_anon_uid(loop, ctx, cb);
+                return;
+            }
 
             if (uri == "/user/api/android/getDeviceID") {
                 tsto::device::Device::handle_get_device_id(loop, ctx, cb);
                 return;
             }
 
+            if (uri == "/user/api/iphone/getDeviceID") {
+                tsto::device::Device::handle_get_device_id(loop, ctx, cb);
+                return;
+            }
+
             if (uri == "/user/api/android/validateDeviceID") {
+                tsto::device::Device::handle_validate_device_id(loop, ctx, cb);
+                return;
+            }
+
+            if (uri == "/user/api/iphone/validateDeviceID") {
                 tsto::device::Device::handle_validate_device_id(loop, ctx, cb);
                 return;
             }
@@ -151,7 +181,6 @@ namespace server::dispatcher::http {
                 return;
             }
 
-
             // game
 
             if (uri == "/mh/games/bg_gameserver_plugin/protoClientConfig/") {
@@ -165,7 +194,6 @@ namespace server::dispatcher::http {
             }
 
             //tracking
-
 
             if (uri == "/tracking/api/core/logEvent") {
                 tsto::tracking::Tracking::handle_core_log_event(loop, ctx, cb);
@@ -181,7 +209,6 @@ namespace server::dispatcher::http {
                 tsto::tracking::Tracking::handle_tracking_metrics(loop, ctx, cb);
                 return;
             }
-
 
             if (uri == "/mh/clienttelemetry/") {
                 tsto::tracking::Tracking::handle_client_telemetry(loop, ctx, cb);
@@ -200,28 +227,32 @@ namespace server::dispatcher::http {
                 return;
             }
 
-
             if (uri.find("/mh/games/bg_gameserver_plugin/protoWholeLandToken/") == 0) {
                 tsto::land::Land::handle_proto_whole_land_token(loop, ctx, cb);
                 return;
             }
 
-            //friends
+            // In your dispatcher
+            if (uri.find("/mh/games/bg_gameserver_plugin/deleteToken/") != std::string::npos &&
+                uri.find("/protoWholeLandToken/") != std::string::npos) {
+                tsto::land::Land::handle_delete_token(loop, ctx, cb);
+                return;
+            }
 
+
+            //friends
 
             if (uri.find("/mh/games/bg_gameserver_plugin/friendData") == 0) {
                 tsto_server_->handle_friend_data(loop, ctx, cb);
                 return;
             }
 
-
-            //currency
-
+            //currency 
+            //TODO ::
             if (uri.find("/mh/games/bg_gameserver_plugin/protocurrency/") == 0) {
                 tsto_server_->handle_proto_currency(loop, ctx, cb);
                 return;
             }
-
 
             // if no route matched, return 404 and log to console
             logger::write(logger::LOG_LEVEL_WARN, logger::LOG_LABEL_SERVER_HTTP, "No handler found for URI: %s", uri.c_str());
@@ -230,7 +261,6 @@ namespace server::dispatcher::http {
             ctx->AddResponseHeader("Content-Type", "application/json");
             cb(R"({"status": "error", "message": "Route not found"})");
         }
-
 
         catch (const std::exception& ex) {
             logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, "Error handling request: %s", ex.what());

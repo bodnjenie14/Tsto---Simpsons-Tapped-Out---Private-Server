@@ -49,6 +49,10 @@ namespace tsto {
 
         Data::LandMessage land_proto;
 
+        // Reinitialize the session
+        void reinitialize() {
+            initialize();
+        }
 
     private:
 

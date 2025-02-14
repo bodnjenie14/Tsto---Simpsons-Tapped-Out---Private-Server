@@ -171,6 +171,7 @@ namespace tsto::auth {
                 "[CONNECT TOKENINFO] Request from %s", ctx->remote_ip().data());
 
             auto& session = tsto::Session::get();
+            session.reinitialize(); // hacky fix to restart if delete token not called
 
             std::string access_token;
             auto auth_header = ctx->FindRequestHeader("Authorization"); // shud be ("access_token") -  code is broke wait for update - Will pass auth :D
