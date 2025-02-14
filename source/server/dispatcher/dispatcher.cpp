@@ -42,6 +42,21 @@ namespace server::dispatcher::http {
             }
 
 
+            if (uri == "/dashboard") {
+                tsto_server_->handle_dashboard(loop, ctx, cb);
+                return;
+            }
+
+            if (uri == "/api/server/restart") {
+                tsto_server_->handle_server_restart(loop, ctx, cb);
+                return;
+            }
+
+            if (uri == "/api/server/stop") {
+                tsto_server_->handle_server_stop(loop, ctx, cb);
+                return;
+            }
+
             if (uri == "/api/events/set") {
                 tsto::events::Events::handle_events_set(loop, ctx, cb);
                 return;
@@ -72,6 +87,9 @@ namespace server::dispatcher::http {
                     return;
                 }
             }
+
+
+
 
             if (uri == "/mh/games/lobby/time") {
                 tsto_server_->handle_lobby_time(loop, ctx, cb);

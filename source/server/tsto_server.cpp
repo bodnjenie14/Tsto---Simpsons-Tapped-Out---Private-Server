@@ -11,6 +11,7 @@
 
 #include "compression.hpp"  
 
+#include "tsto/events/events.hpp"
 namespace tsto {
 
     std::string TSTOServer::generate_random_id() {
@@ -411,6 +412,133 @@ namespace tsto {
             ctx->set_response_http_code(500); 
             cb(""); 
         }
+    }
+
+    void TSTOServer::handle_server_restart(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx,
+        const evpp::http::HTTPSendResponseCallback& cb) {
+        ctx->AddResponseHeader("Content-Type", "application/json");
+
+        cb("{\"status\":\"success\",\"message\":\"Server restart initiated\"}");
+
+        loop->RunAfter(evpp::Duration(1.0), [this]() {
+            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP,
+                "Server stopping for restart...");
+
+            char exePath[MAX_PATH];
+            GetModuleFileNameA(NULL, exePath, MAX_PATH);
+
+            STARTUPINFOA si = { sizeof(STARTUPINFOA) };
+            PROCESS_INFORMATION pi;
+
+            if (CreateProcessA(
+                exePath,                
+                NULL,                   
+                NULL,                   
+                NULL,                   
+                FALSE,                  
+                0,                      
+                NULL,                   
+                NULL,                   
+                &si,                    
+                &pi                     
+            )) {
+                CloseHandle(pi.hProcess);
+                CloseHandle(pi.hThread);
+
+                ExitProcess(0);
+            }
+            else {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP,
+                    "Failed to restart server: %lu", GetLastError());
+            }
+            });
+    }
+
+    void TSTOServer::handle_dashboard(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
+        const evpp::http::HTTPSendResponseCallback& cb) {
+
+        ctx->AddResponseHeader("Content-Type", "text/html; charset=utf-8");
+
+        try {
+            std::filesystem::path templatePath = "webpanel/dashboard.html";
+
+            if (!std::filesystem::exists(templatePath)) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_INITIALIZER,
+                    "Dashboard template not found at %s", templatePath.string().c_str());
+                cb("Error: Dashboard template file not found");
+                return;
+            }
+
+            std::ifstream file(templatePath, std::ios::binary);
+            if (!file.is_open()) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_INITIALIZER,
+                    "Failed to open dashboard template: %s", templatePath.string().c_str());
+                cb("Error: Failed to open dashboard template");
+                return;
+            }
+
+            std::stringstream template_stream;
+            template_stream << file.rdbuf();
+            std::string html_template = template_stream.str();
+
+            html_template = std::regex_replace(html_template, std::regex("%SERVER_IP%"), server_ip_);
+            html_template = std::regex_replace(html_template, std::regex("\\{\\{ GAME_PORT \\}\\}"), std::to_string(server_port_));
+
+            static auto start_time = std::chrono::system_clock::now();
+            auto now = std::chrono::system_clock::now();
+            auto uptime = std::chrono::duration_cast<std::chrono::seconds>(now - start_time);
+            auto hours = std::chrono::duration_cast<std::chrono::hours>(uptime);
+            auto minutes = std::chrono::duration_cast<std::chrono::minutes>(uptime % std::chrono::hours(1));
+            auto seconds = uptime % std::chrono::minutes(1);
+
+            std::stringstream uptime_str;
+            uptime_str << hours.count() << "h " << minutes.count() << "m " << seconds.count() << "s";
+
+            html_template = std::regex_replace(html_template, std::regex("%UPTIME%"), uptime_str.str());
+
+            // Get active sessions count
+            //html_template = std::regex_replace(html_template, std::regex("%ACTIVE_SESSIONS%"), std::to_string(active_sessions_.load()));
+
+            auto current_event = tsto::events::Events::get_current_event();
+            std::string current_event_name = current_event.is_active ? current_event.name : "No Active Event";
+            html_template = std::regex_replace(html_template, std::regex("%CURRENT_EVENT%"), current_event_name);
+
+            std::stringstream rows;
+            for (const auto& event_pair : tsto::events::tsto_events) {
+                if (event_pair.first == 0) continue; 
+
+                rows << "<option value=\"" << event_pair.first << "\"";
+                if (event_pair.first == current_event.start_time) {
+                    rows << " selected";
+                }
+                rows << ">" << event_pair.second << "</option>\n";
+            }
+
+            size_t event_pos = html_template.find("%EVENT_ROWS%");
+            if (event_pos != std::string::npos) {
+                html_template.replace(event_pos, 12, rows.str());
+            }
+
+            cb(html_template);
+        }
+        catch (const std::exception& ex) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_INITIALIZER,
+                "Dashboard error: %s", ex.what());
+            cb("Error: Failed to generate dashboard");
+        }
+    }
+
+    void TSTOServer::handle_server_stop(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx,
+        const evpp::http::HTTPSendResponseCallback& cb) {
+        ctx->AddResponseHeader("Content-Type", "application/json");
+
+        cb("{\"status\":\"success\",\"message\":\"Server shutdown initiated\"}");
+
+        loop->RunAfter(evpp::Duration(1.0), []() {
+            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP,
+                "Server stopping...");
+            ExitProcess(0);
+            });
     }
 
 }
