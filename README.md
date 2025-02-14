@@ -2,12 +2,14 @@
 
 ## UPDATE NOTES
 
-Update 1 v0.02
+Update 1 v0.03
 - **RESTART BUG FIXED:** No longer need to reboot server if you close game.
 - **Ios/Apple Support:** Fully supports ios/apple devices. Non jailbroke via sideloady and jailbroke devices.
 - **Taps Event can be completed:** Dont need to minuplate time to finish taps.
 - **Webpanel Dashboard:** ``http://localhost/dashboard`` - Can be used for basic servercontrols and to restore old events.
-
+- **Async DLC download:** DLC speeds have been improved.
+- **Better land handling:** Land handling has been improved.
+- **Events fix** Events will now count down correctly..
 ---
 
 ## Overview
