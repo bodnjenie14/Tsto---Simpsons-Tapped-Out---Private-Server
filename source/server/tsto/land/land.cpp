@@ -357,134 +357,6 @@ namespace tsto::land {
         }
     }
 
-    void Land::handle_delete_token(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
-        const evpp::http::HTTPSendResponseCallback& cb) {
-        try {
-            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_LAND,
-                "[DELETE TOKEN] Received request: RemoteIP: '%s', URI: '%s'",
-                std::string(ctx->remote_ip()).c_str(),
-                std::string(ctx->uri()).c_str());
-
-            std::string uri = ctx->uri();
-            size_t mayhem_id_start = uri.find("/deleteToken/");
-            if (mayhem_id_start == std::string::npos) {
-                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_LAND,
-                    "[DELETE TOKEN] Invalid URI format - could not find /deleteToken/");
-                headers::set_xml_response(ctx);
-                ctx->set_response_http_code(400);
-                cb("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<error code=\"400\" type=\"BAD_REQUEST\" field=\"Invalid URI format\"/>");
-                return;
-            }
-            mayhem_id_start += 12; 
-
-            size_t mayhem_id_end = uri.find("/protoWholeLandToken/", mayhem_id_start);
-            if (mayhem_id_end == std::string::npos) {
-                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_LAND,
-                    "[DELETE TOKEN] Invalid URI format - could not find /protoWholeLandToken/");
-                headers::set_xml_response(ctx);
-                ctx->set_response_http_code(400);
-                cb("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<error code=\"400\" type=\"BAD_REQUEST\" field=\"Invalid URI format\"/>");
-                return;
-            }
-
-            std::string mayhem_id = uri.substr(mayhem_id_start, mayhem_id_end - mayhem_id_start);
-            if (!mayhem_id.empty() && mayhem_id[0] == '/') {
-                mayhem_id = mayhem_id.substr(1);
-            }
-            
-            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_LAND,
-                "[DELETE TOKEN] Extracted mayhem_id: %s", mayhem_id.c_str());
-
-            const char* mh_uid = ctx->FindRequestHeader("mh_uid");
-            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_LAND,
-                "[DELETE TOKEN] mh_uid header: %s", mh_uid ? mh_uid : "not found");
-
-            if (!mh_uid || mayhem_id != mh_uid) {
-                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_LAND,
-                    "[DELETE TOKEN] mh_uid mismatch or missing. Expected: %s, Got: %s",
-                    mayhem_id.c_str(), mh_uid ? mh_uid : "null");
-                headers::set_xml_response(ctx);
-                ctx->set_response_http_code(404);
-                cb("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<error code=\"404\" type=\"NOT_FOUND\" field=\"mayhemId\"/>");
-                return;
-            }
-
-            const char* auth_header = ctx->FindRequestHeader("mh_auth_params");
-            if (!auth_header) {
-                auth_header = ctx->FindRequestHeader("nucleus_token");
-            }
-
-            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_LAND,
-                "[DELETE TOKEN] Auth header present: %s", auth_header ? "yes" : "no");
-
-            if (!auth_header) {
-                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_LAND,
-                    "[DELETE TOKEN] Missing authentication token");
-                headers::set_xml_response(ctx);
-                ctx->set_response_http_code(400);
-                cb("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<error code=\"400\" type=\"MISSING_VALUE\" field=\"nucleus_token\"/>");
-                return;
-            }
-
-            auto& session = tsto::Session::get();
-
-            const evpp::Slice& body = ctx->body();
-            Data::DeleteTokenRequest request;
-            
-            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_LAND,
-                "[DELETE TOKEN] Request body size: %zu bytes", body.size());
-
-            if (!request.ParseFromArray(body.data(), body.size())) {
-                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_LAND,
-                    "[DELETE TOKEN] Failed to parse delete token request");
-                headers::set_xml_response(ctx);
-                ctx->set_response_http_code(400);
-                cb("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<error code=\"400\" type=\"BAD_REQUEST\" field=\"Invalid request format\"/>");
-                return;
-            }
-
-            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_LAND,
-                "[DELETE TOKEN] Request token: %s", request.token().c_str());
-            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_LAND,
-                "[DELETE TOKEN] Land token: %s", session.land_token.c_str());
-            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_LAND,
-                "[DELETE TOKEN] Session key: %s", session.session_key.c_str());
-
-            // Check if tokens match - compare with either land_token or session_key
-            if (request.token() != session.land_token && request.token() != session.session_key) {
-                // Return result "0" if tokens don't match
-                Data::DeleteTokenResponse response;
-                response.set_result("0");
-                headers::set_protobuf_response(ctx);
-                std::string serialized;
-                response.SerializeToString(&serialized);
-                cb(serialized);
-                return;
-            }
-
-            // Clear both tokens and return success
-            session.land_token.clear();
-            session.session_key.clear();
-            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_LAND,
-                "[DELETE TOKEN] Successfully deleted token");
-
-
-            Data::DeleteTokenResponse response;
-            response.set_result("1");
-            headers::set_protobuf_response(ctx);
-            std::string serialized;
-            response.SerializeToString(&serialized);
-            cb(serialized);
-        }
-        catch (const std::exception& ex) {
-            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_LAND,
-                "[DELETE TOKEN] Error in delete token request: %s", ex.what());
-            headers::set_xml_response(ctx);
-            ctx->set_response_http_code(500);
-            cb("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<error code=\"500\" type=\"INTERNAL_SERVER_ERROR\"/>");
-        }
-    }
-
     void Land::handle_extraland_update(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
         const evpp::http::HTTPSendResponseCallback& cb) {
         try {
@@ -548,6 +420,134 @@ namespace tsto::land {
             logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_LAND, "[EXTRALAND] Error: %s", ex.what());
             ctx->set_response_http_code(500);
             cb("");
+        }
+    }
+
+    void Land::handle_delete_token(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
+        const evpp::http::HTTPSendResponseCallback& cb) {
+        try {
+            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_LAND,
+                "[DELETE TOKEN] Received request: RemoteIP: '%s', URI: '%s'",
+                std::string(ctx->remote_ip()).c_str(),
+                std::string(ctx->uri()).c_str());
+
+            std::string uri = ctx->uri();
+            size_t mayhem_id_start = uri.find("/deleteToken/");
+            if (mayhem_id_start == std::string::npos) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_LAND,
+                    "[DELETE TOKEN] Invalid URI format - could not find /deleteToken/");
+                headers::set_xml_response(ctx);
+                ctx->set_response_http_code(400);
+                cb("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<error code=\"400\" type=\"BAD_REQUEST\" field=\"Invalid URI format\"/>");
+                return;
+            }
+            mayhem_id_start += 12;
+
+            size_t mayhem_id_end = uri.find("/protoWholeLandToken/", mayhem_id_start);
+            if (mayhem_id_end == std::string::npos) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_LAND,
+                    "[DELETE TOKEN] Invalid URI format - could not find /protoWholeLandToken/");
+                headers::set_xml_response(ctx);
+                ctx->set_response_http_code(400);
+                cb("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<error code=\"400\" type=\"BAD_REQUEST\" field=\"Invalid URI format\"/>");
+                return;
+            }
+
+            std::string mayhem_id = uri.substr(mayhem_id_start, mayhem_id_end - mayhem_id_start);
+            if (!mayhem_id.empty() && mayhem_id[0] == '/') {
+                mayhem_id = mayhem_id.substr(1);
+            }
+
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_LAND,
+                "[DELETE TOKEN] Extracted mayhem_id: %s", mayhem_id.c_str());
+
+            const char* mh_uid = ctx->FindRequestHeader("mh_uid");
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_LAND,
+                "[DELETE TOKEN] mh_uid header: %s", mh_uid ? mh_uid : "not found");
+
+            if (!mh_uid || mayhem_id != mh_uid) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_LAND,
+                    "[DELETE TOKEN] mh_uid mismatch or missing. Expected: %s, Got: %s",
+                    mayhem_id.c_str(), mh_uid ? mh_uid : "null");
+                headers::set_xml_response(ctx);
+                ctx->set_response_http_code(404);
+                cb("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<error code=\"404\" type=\"NOT_FOUND\" field=\"mayhemId\"/>");
+                return;
+            }
+
+            const char* auth_header = ctx->FindRequestHeader("mh_auth_params");
+            if (!auth_header) {
+                auth_header = ctx->FindRequestHeader("nucleus_token");
+            }
+
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_LAND,
+                "[DELETE TOKEN] Auth header present: %s", auth_header ? "yes" : "no");
+
+            if (!auth_header) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_LAND,
+                    "[DELETE TOKEN] Missing authentication token");
+                headers::set_xml_response(ctx);
+                ctx->set_response_http_code(400);
+                cb("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<error code=\"400\" type=\"MISSING_VALUE\" field=\"nucleus_token\"/>");
+                return;
+            }
+
+            auto& session = tsto::Session::get();
+
+            const evpp::Slice& body = ctx->body();
+            Data::DeleteTokenRequest request;
+
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_LAND,
+                "[DELETE TOKEN] Request body size: %zu bytes", body.size());
+
+            if (!request.ParseFromArray(body.data(), body.size())) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_LAND,
+                    "[DELETE TOKEN] Failed to parse delete token request");
+                headers::set_xml_response(ctx);
+                ctx->set_response_http_code(400);
+                cb("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<error code=\"400\" type=\"BAD_REQUEST\" field=\"Invalid request format\"/>");
+                return;
+            }
+
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_LAND,
+                "[DELETE TOKEN] Request token: %s", request.token().c_str());
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_LAND,
+                "[DELETE TOKEN] Land token: %s", session.land_token.c_str());
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_LAND,
+                "[DELETE TOKEN] Session key: %s", session.session_key.c_str());
+
+            // Check if tokens match - compare with either land_token or session_key
+            if (request.token() != session.land_token && request.token() != session.session_key) {
+                // Return result "0" if tokens don't match
+                Data::DeleteTokenResponse response;
+                response.set_result("0");
+                headers::set_protobuf_response(ctx);
+                std::string serialized;
+                response.SerializeToString(&serialized);
+                cb(serialized);
+                return;
+            }
+
+            // Clear both tokens and return success
+            session.land_token.clear();
+            session.session_key.clear();
+            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_LAND,
+                "[DELETE TOKEN] Successfully deleted token");
+
+
+            Data::DeleteTokenResponse response;
+            response.set_result("1");
+            headers::set_protobuf_response(ctx);
+            std::string serialized;
+            response.SerializeToString(&serialized);
+            cb(serialized);
+        }
+        catch (const std::exception& ex) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_LAND,
+                "[DELETE TOKEN] Error in delete token request: %s", ex.what());
+            headers::set_xml_response(ctx);
+            ctx->set_response_http_code(500);
+            cb("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<error code=\"500\" type=\"INTERNAL_SERVER_ERROR\"/>");
         }
     }
 
