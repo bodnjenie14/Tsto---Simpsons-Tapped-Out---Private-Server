@@ -357,72 +357,6 @@ namespace tsto::land {
         }
     }
 
-    void Land::handle_extraland_update(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
-        const evpp::http::HTTPSendResponseCallback& cb) {
-        try {
-            std::string uri = ctx->uri();
-            size_t land_start = uri.find("/extraLandUpdate/") + 16;
-            size_t land_end = uri.find("/protoland/", land_start);
-            std::string land_id = uri.substr(land_start, land_end - land_start);
-
-            logger::write(logger::LOG_LEVEL_INCOMING, logger::LOG_LABEL_LAND, "[EXTRALAND] Request from %s for land_id: %s", ctx->remote_ip().data(), land_id.c_str());
-
-
-            const std::string method = ctx->GetMethod(); // 
-
-            if (method == "POST") {
-
-                const evpp::Slice& body = ctx->body();
-                std::string compressed_data(body.data(), body.size());
-
-                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_LAND, "[EXTRALAND] Received compressed data size: %zu bytes", compressed_data.size());
-
-                std::string decompressed = utils::compression::zlib::decompress(compressed_data);
-
-                Data::ExtraLandMessage request;
-                if (request.ParseFromString(decompressed)) {
-                    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_LAND, "[EXTRALAND] Successfully parsed request data");
-
-                    // Debug log the contents
-                    if (request.currencydelta_size() > 0) {
-                        for (const auto& delta : request.currencydelta()) {
-                            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_LAND, "[EXTRALAND] Currency Delta - ID: %d, Reason: %s, Amount: %d",
-                                delta.id(), delta.reason().c_str(), delta.amount());
-                        }
-                    }
-
-                    if (request.event_size() > 0) {
-                        logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_LAND, "[EXTRALAND] Contains %d events", request.event_size());
-                    }
-
-                    if (request.pushnotification_size() > 0) {
-                        for (const auto& notif : request.pushnotification()) {
-                            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_LAND, "[EXTRALAND] Push Notification - Template: %s, Message: %s", notif.templatename().c_str(), notif.message().c_str());
-                        }
-                    }
-
-                    if (request.communitygoaldelta_size() > 0) {
-                        for (const auto& goal : request.communitygoaldelta()) {
-                            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_LAND, "[EXTRALAND] Community Goal Delta - Category: %s, Amount: %lld", goal.category().c_str(), goal.amount());
-                        }
-                    }
-                }
-            }
-
-            Data::ExtraLandResponse response;
-
-            logger::write(logger::LOG_LEVEL_RESPONSE, logger::LOG_LABEL_LAND, "[EXTRALAND] Sending response for land_id: %s", land_id.c_str());
-
-            headers::set_protobuf_response(ctx);
-            cb(utils::serialization::serialize_protobuf(response));
-        }
-        catch (const std::exception& ex) {
-            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_LAND, "[EXTRALAND] Error: %s", ex.what());
-            ctx->set_response_http_code(500);
-            cb("");
-        }
-    }
-
     void Land::handle_delete_token(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
         const evpp::http::HTTPSendResponseCallback& cb) {
         try {
@@ -548,6 +482,73 @@ namespace tsto::land {
             headers::set_xml_response(ctx);
             ctx->set_response_http_code(500);
             cb("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<error code=\"500\" type=\"INTERNAL_SERVER_ERROR\"/>");
+        }
+    }
+
+
+    void Land::handle_extraland_update(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
+        const evpp::http::HTTPSendResponseCallback& cb) {
+        try {
+            std::string uri = ctx->uri();
+            size_t land_start = uri.find("/extraLandUpdate/") + 16;
+            size_t land_end = uri.find("/protoland/", land_start);
+            std::string land_id = uri.substr(land_start, land_end - land_start);
+
+            logger::write(logger::LOG_LEVEL_INCOMING, logger::LOG_LABEL_LAND, "[EXTRALAND] Request from %s for land_id: %s", ctx->remote_ip().data(), land_id.c_str());
+
+
+            const std::string method = ctx->GetMethod(); // 
+
+            if (method == "POST") {
+
+                const evpp::Slice& body = ctx->body();
+                std::string compressed_data(body.data(), body.size());
+
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_LAND, "[EXTRALAND] Received compressed data size: %zu bytes", compressed_data.size());
+
+                std::string decompressed = utils::compression::zlib::decompress(compressed_data);
+
+                Data::ExtraLandMessage request;
+                if (request.ParseFromString(decompressed)) {
+                    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_LAND, "[EXTRALAND] Successfully parsed request data");
+
+                    // Debug log the contents
+                    if (request.currencydelta_size() > 0) {
+                        for (const auto& delta : request.currencydelta()) {
+                            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_LAND, "[EXTRALAND] Currency Delta - ID: %d, Reason: %s, Amount: %d",
+                                delta.id(), delta.reason().c_str(), delta.amount());
+                        }
+                    }
+
+                    if (request.event_size() > 0) {
+                        logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_LAND, "[EXTRALAND] Contains %d events", request.event_size());
+                    }
+
+                    if (request.pushnotification_size() > 0) {
+                        for (const auto& notif : request.pushnotification()) {
+                            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_LAND, "[EXTRALAND] Push Notification - Template: %s, Message: %s", notif.templatename().c_str(), notif.message().c_str());
+                        }
+                    }
+
+                    if (request.communitygoaldelta_size() > 0) {
+                        for (const auto& goal : request.communitygoaldelta()) {
+                            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_LAND, "[EXTRALAND] Community Goal Delta - Category: %s, Amount: %lld", goal.category().c_str(), goal.amount());
+                        }
+                    }
+                }
+            }
+
+            Data::ExtraLandResponse response;
+
+            logger::write(logger::LOG_LEVEL_RESPONSE, logger::LOG_LABEL_LAND, "[EXTRALAND] Sending response for land_id: %s", land_id.c_str());
+
+            headers::set_protobuf_response(ctx);
+            cb(utils::serialization::serialize_protobuf(response));
+        }
+        catch (const std::exception& ex) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_LAND, "[EXTRALAND] Error: %s", ex.what());
+            ctx->set_response_http_code(500);
+            cb("");
         }
     }
 

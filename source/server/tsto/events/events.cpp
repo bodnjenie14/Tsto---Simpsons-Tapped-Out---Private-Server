@@ -89,7 +89,7 @@ namespace tsto::events {
         {1415188800, "Episode Tie-in : Matt Groening"},
         {1415793600, "Level 46"},
         {1416484800, "Event : Thanksgiving 2014 and Episode Tie-in : Covercraft"},
-        {1417176000, "Gil Offer : Black Friday 2014 and Truckasaurus"},
+        {1417176000, "Gil Offer : Black Friday 2014"},
         {1417608000, "Event : Winter 2014"},
         {1418731200, "Level 47"},
         {1421323200, "Gil Offer : Queen Helvetica"},
@@ -171,11 +171,19 @@ namespace tsto::events {
         {1490097600, "Hellfish Bonanza"},
         {1490702400, "Event : Secret Agents"},
         {1492344000, "Easter 2017"},
-        {1600862400, "Event : All This Jazz"},
+        {1600862400, "Event : All This Jazz" },
         {1602676800, "Event : Treehouse of Horror XXXI"},
-        {1605700800, "Event : Blargsgiving"},
+        {1605700800, "Event : Blargsgiving" },
         {1607428800, "Event : Clash of Creeds: Christmas Royale"},
-        {1611144000, "Event : New Year New You"}
+        {1611144000, "Event : New Year New You"},
+        {1712750400, "Event: The Simpsanos"},
+        {1716379200, "Event : Charity Case"},
+        {1717588800, "Event : Summer of Our Discontent"},
+        {1717675200, "Donut Day 2024 Promotion"},
+        {1719835200, "4th of July 2024 Promotion"},
+        {1721217600, "Event : The Mayflower Maple Bowl"},
+        {1723032000, "Event : A Bart Future"},
+        {1735689600, "Final Event : Taps"} // shud be 1727352000 changed to jan for taps 5
     };
 
     static time_t current_event_override = 0;
@@ -291,8 +299,9 @@ namespace tsto::events {
     Event Events::get_current_event() {
         Event current_event;
         current_event.name = "Normal Play";
-        // Set default time to January 1, 2025
-        current_event.start_time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());       // current_event.end_time = 1738368000;   // January 31, 2025 00:00:00 UTC
+        current_event.start_time = std::time(nullptr); // Current time
+        current_event.end_time = 4070908800;   // January 1, 2099 00:00:00 UTC
+
         current_event.is_active = true;
 
         if (current_event_override != 0) {

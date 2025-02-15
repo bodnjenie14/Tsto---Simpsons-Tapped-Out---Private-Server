@@ -153,10 +153,12 @@ namespace tsto {
 
             headers::set_xml_response(ctx);
 
-            auto now = std::chrono::system_clock::now();
-            auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(
-                now.time_since_epoch()
-            ).count();
+            // Get current event time
+            auto current_event = tsto::events::Events::get_current_event();
+            time_t event_time = current_event.start_time;
+
+            // Convert to milliseconds
+            auto millis = event_time * 1000;
 
             std::string response =
                 "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>"
@@ -164,12 +166,17 @@ namespace tsto {
                 std::to_string(millis) +
                 "</epochMilliseconds></Time>";
 
-            logger::write(logger::LOG_LEVEL_RESPONSE, logger::LOG_LABEL_LOBBY, "[LOBBY TIME] Sending time: %lld ms", millis);
+            logger::write(logger::LOG_LEVEL_RESPONSE, logger::LOG_LABEL_LOBBY,
+                "[LOBBY TIME] Sending time: %lld ms (Event: %s)",
+                millis,
+                current_event.name.c_str());
 
             cb(response);
         }
         catch (const std::exception& ex) {
-            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_LOBBY, "[LOBBY TIME] Error: %s", ex.what()); ctx->set_response_http_code(500); cb("");
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_LOBBY, "[LOBBY TIME] Error: %s", ex.what());
+            ctx->set_response_http_code(500);
+            cb("");
         }
     }
 
