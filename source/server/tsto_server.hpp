@@ -93,14 +93,13 @@ namespace tsto {
         void handle_progreg_code(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx, const evpp::http::HTTPSendResponseCallback& cb);
         void handle_proto_currency(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx, const evpp::http::HTTPSendResponseCallback& cb);
         void handle_plugin_event_protoland(evpp::EventLoop*, const evpp::http::ContextPtr&, const evpp::http::HTTPSendResponseCallback&);
-
+        void handle_update_initial_donuts(evpp::EventLoop*, const evpp::http::ContextPtr&, const evpp::http::HTTPSendResponseCallback&);
+        void handle_update_current_donuts(evpp::EventLoop*, const evpp::http::ContextPtr&, const evpp::http::HTTPSendResponseCallback&);
 
         std::string generate_random_id();
         std::string generate_session_key() {
             return utils::cryptography::random::get_challenge();
         }
-
-
     };
 
 }

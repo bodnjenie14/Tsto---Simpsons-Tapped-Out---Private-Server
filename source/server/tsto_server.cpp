@@ -10,6 +10,7 @@
 #include <rapidjson/writer.h>
 
 #include "compression.hpp"  
+#include "configuration.hpp" 
 
 #include "tsto/events/events.hpp"
 namespace tsto {
@@ -349,7 +350,6 @@ namespace tsto {
         cb(buffer.GetString());
     }
 
-	//TODO : Implement this properly
     void TSTOServer::handle_proto_currency(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx,
         const evpp::http::HTTPSendResponseCallback& cb) {
         try {
@@ -358,24 +358,58 @@ namespace tsto {
             size_t land_end = uri.find("/", land_start);
             std::string land_id = uri.substr(land_start, land_end - land_start);
 
-            Data::CurrencyData currency;
-            currency.set_id(land_id);                     
-            currency.set_vctotalpurchased(0);
-            currency.set_vctotalawarded(0);
-            currency.set_vcbalance(1234567);             
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
+                "[CURRENCY] Processing currency request for land_id: %s", land_id.c_str());
 
-            int64_t current_time = std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::system_clock::now().time_since_epoch()
-            ).count();
+            std::string data_directory = "towns";
+            std::string currency_path = data_directory + "/currency.txt";
 
-            currency.set_createdat(current_time);
-            currency.set_updatedat(current_time);
+            std::filesystem::create_directories(data_directory);
 
-            headers::set_protobuf_response(ctx);
-            cb(utils::serialization::serialize_protobuf(currency));
+            int balance = std::stoi(utils::configuration::ReadString("Server", "InitialDonutAmount", "1000"));
+            if (std::filesystem::exists(currency_path)) {
+                std::ifstream input(currency_path);
+                if (input.good()) {
+                    input >> balance;
+                    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
+                        "[CURRENCY] Loaded existing currency data for land_id: %s (Balance: %d)",
+                        land_id.c_str(), balance);
+                }
+                input.close();
+            }
+            else {
+                //create new donut file with initial balance
+                std::ofstream output(currency_path);
+                output << balance;
+                output.close();
 
-            logger::write(logger::LOG_LEVEL_RESPONSE, logger::LOG_LABEL_GAME,
-                "[CURRENCY] Sent currency data for land_id: %s", land_id.c_str());
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
+                    "[CURRENCY] Created new currency data for land_id: %s with initial balance: %d",
+                    land_id.c_str(), balance);
+            }
+
+            //set currency data
+            Data::CurrencyData currency_data;
+            currency_data.set_id(land_id);
+            currency_data.set_vctotalpurchased(0);
+            currency_data.set_vctotalawarded(balance);
+            currency_data.set_vcbalance(balance);
+            currency_data.set_createdat(1715911362);
+            currency_data.set_updatedat(std::time(nullptr));
+
+            //return the current currency data
+            std::string response;
+            if (currency_data.SerializeToString(&response)) {
+                headers::set_protobuf_response(ctx);
+                cb(response);
+
+                logger::write(logger::LOG_LEVEL_RESPONSE, logger::LOG_LABEL_GAME,
+                    "[CURRENCY] Sent currency data for land_id: %s (Balance: %d)",
+                    land_id.c_str(), balance);
+            }
+            else {
+                throw std::runtime_error("Failed to serialize currency data");
+            }
         }
         catch (const std::exception& ex) {
             logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
@@ -394,8 +428,8 @@ namespace tsto {
             std::string land_id = uri.substr(land_start, land_end - land_start);
 
             logger::write(logger::LOG_LEVEL_INCOMING, logger::LOG_LABEL_LAND,
-                "[PLUGIN EVENT PROTOLAND] Request from %s for land_id: %s",
-                ctx->remote_ip().data(), land_id.c_str());
+                "[PLUGIN EVENT PROTOLAND] Request from {}: {}",
+                ctx->remote_ip().data(), land_id);
 
             Data::EventsMessage event;
 
@@ -408,16 +442,16 @@ namespace tsto {
             ctx->set_response_http_code(200); // 200
 
             logger::write(logger::LOG_LEVEL_RESPONSE, logger::LOG_LABEL_LAND,
-                "[PLUGIN EVENT PROTOLAND] Sending event data for land_id: %s (size: %zu bytes)",
-                land_id.c_str(), serialized.length());
+                "[PLUGIN EVENT PROTOLAND] Sending event data for land_id: {} (size: {} bytes)",
+                land_id, serialized.length());
 
             cb(serialized);
         }
         catch (const std::exception& ex) {
             logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_LAND,
-                "[PLUGIN EVENT PROTOLAND] Error: %s", ex.what());
-            ctx->set_response_http_code(500); 
-            cb(""); 
+                "[PLUGIN EVENT PROTOLAND] Error: {}", ex.what());
+            ctx->set_response_http_code(500);
+            cb("");
         }
     }
 
@@ -438,16 +472,16 @@ namespace tsto {
             PROCESS_INFORMATION pi;
 
             if (CreateProcessA(
-                exePath,                
-                NULL,                   
-                NULL,                   
-                NULL,                   
-                FALSE,                  
-                0,                      
-                NULL,                   
-                NULL,                   
-                &si,                    
-                &pi                     
+                exePath,
+                NULL,
+                NULL,
+                NULL,
+                FALSE,
+                0,
+                NULL,
+                NULL,
+                &si,
+                &pi
             )) {
                 CloseHandle(pi.hProcess);
                 CloseHandle(pi.hThread);
@@ -456,7 +490,7 @@ namespace tsto {
             }
             else {
                 logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP,
-                    "Failed to restart server: %lu", GetLastError());
+                    "Failed to restart server: {}", GetLastError());
             }
             });
     }
@@ -471,7 +505,7 @@ namespace tsto {
 
             if (!std::filesystem::exists(templatePath)) {
                 logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_INITIALIZER,
-                    "Dashboard template not found at %s", templatePath.string().c_str());
+                    "Dashboard template not found at {}", templatePath.string().c_str());
                 cb("Error: Dashboard template file not found");
                 return;
             }
@@ -479,7 +513,7 @@ namespace tsto {
             std::ifstream file(templatePath, std::ios::binary);
             if (!file.is_open()) {
                 logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_INITIALIZER,
-                    "Failed to open dashboard template: %s", templatePath.string().c_str());
+                    "Failed to open dashboard template: {}", templatePath.string().c_str());
                 cb("Error: Failed to open dashboard template");
                 return;
             }
@@ -510,9 +544,23 @@ namespace tsto {
             std::string current_event_name = current_event.is_active ? current_event.name : "No Active Event";
             html_template = std::regex_replace(html_template, std::regex("%CURRENT_EVENT%"), current_event_name);
 
+            int initial_donuts = std::stoi(utils::configuration::ReadString("Server", "InitialDonutAmount", "1000"));
+            int current_donuts = initial_donuts;
+            std::string currency_path = "towns/currency.txt";
+            if (std::filesystem::exists(currency_path)) {
+                std::ifstream input(currency_path);
+                if (input.good()) {
+                    input >> current_donuts;
+                }
+                input.close();
+            }
+
+            html_template = std::regex_replace(html_template, std::regex("%INITIAL_DONUTS%"), std::to_string(initial_donuts));
+            html_template = std::regex_replace(html_template, std::regex("%CURRENT_DONUTS%"), std::to_string(current_donuts));
+
             std::stringstream rows;
             for (const auto& event_pair : tsto::events::tsto_events) {
-                if (event_pair.first == 0) continue; 
+                if (event_pair.first == 0) continue;
 
                 rows << "<option value=\"" << event_pair.first << "\"";
                 if (event_pair.first == current_event.start_time) {
@@ -530,7 +578,7 @@ namespace tsto {
         }
         catch (const std::exception& ex) {
             logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_INITIALIZER,
-                "Dashboard error: %s", ex.what());
+                "Dashboard error: {}", ex.what());
             cb("Error: Failed to generate dashboard");
         }
     }
@@ -546,6 +594,70 @@ namespace tsto {
                 "Server stopping...");
             ExitProcess(0);
             });
+    }
+
+    void TSTOServer::handle_update_initial_donuts(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
+        const evpp::http::HTTPSendResponseCallback& cb) {
+        try {
+            std::string body = ctx->body().ToString();
+            rapidjson::Document doc;
+            doc.Parse(body.c_str());
+
+            if (!doc.HasMember("initialDonuts") || !doc["initialDonuts"].IsInt()) {
+                ctx->set_response_http_code(400);
+                cb("{\"error\": \"Invalid request body\"}");
+                return;
+            }
+
+            int initial_donuts = doc["initialDonuts"].GetInt();
+            utils::configuration::WriteString("Server", "InitialDonutAmount", std::to_string(initial_donuts));
+
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
+                "[DONUTS] Updated initial donuts amount to: %d", initial_donuts);
+
+            headers::set_json_response(ctx);
+            cb("{\"success\": true}");
+        }
+        catch (const std::exception& ex) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                "[DONUTS] Error updating initial donuts: %s", ex.what());
+            ctx->set_response_http_code(500);
+            cb("{\"error\": \"Internal server error\"}");
+        }
+    }
+
+    void TSTOServer::handle_update_current_donuts(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
+        const evpp::http::HTTPSendResponseCallback& cb) {
+        try {
+            std::string body = ctx->body().ToString();
+            rapidjson::Document doc;
+            doc.Parse(body.c_str());
+
+            if (!doc.HasMember("currentDonuts") || !doc["currentDonuts"].IsInt()) {
+                ctx->set_response_http_code(400);
+                cb("{\"error\": \"Invalid request body\"}");
+                return;
+            }
+
+            int current_donuts = doc["currentDonuts"].GetInt();
+            std::string currency_path = "towns/currency.txt";
+
+            std::ofstream output(currency_path);
+            output << current_donuts;
+            output.close();
+
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
+                "[DONUTS] Updated current donuts amount to: %d", current_donuts);
+
+            headers::set_json_response(ctx);
+            cb("{\"success\": true}");
+        }
+        catch (const std::exception& ex) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                "[DONUTS] Error updating current donuts: %s", ex.what());
+            ctx->set_response_http_code(500);
+            cb("{\"error\": \"Internal server error\"}");
+        }
     }
 
 }

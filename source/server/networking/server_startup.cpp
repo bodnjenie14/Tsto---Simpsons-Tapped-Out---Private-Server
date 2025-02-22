@@ -4,6 +4,7 @@
 #include "debugging/console.hpp"
 #include "debugging/serverlog.hpp"
 #include "configuration.hpp"
+#include "../discord/discord_rpc.hpp"
 #include <WS2tcpip.h>
 #include <iphlpapi.h>
 #pragma comment(lib, "iphlpapi.lib")
@@ -43,8 +44,30 @@ void initialize_servers() {  //for now dlc on same port as game
     logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_INITIALIZER, "Version 0.04");
 
     const char* CONFIG_SECTION = "ServerConfig";
+    
+    // check for json
+    bool enable_discord = utils::configuration::ReadBoolean(CONFIG_SECTION, "EnableDiscord", true);
+    if (enable_discord) {
+        //iitialize shitcord RPC
+        server::discord::DiscordRPC::Initialize("1342631539657146378");
+    }
+
+    //set initial donut amount in config if not exists
+    std::string initial_donuts = utils::configuration::ReadString("Server", "InitialDonutAmount", "1000");
+    utils::configuration::WriteString("Server", "InitialDonutAmount", initial_donuts);
+
     std::string detected_ip = get_local_ipv4();
-    std::string server_ip = utils::configuration::ReadString(CONFIG_SECTION, "ServerIP", detected_ip);
+    bool auto_detect_ip = utils::configuration::ReadBoolean(CONFIG_SECTION, "AutoDetectIP", true);
+    utils::configuration::WriteBoolean(CONFIG_SECTION, "AutoDetectIP", auto_detect_ip);
+    
+    std::string server_ip;
+    if (auto_detect_ip) {
+        server_ip = detected_ip;
+        utils::configuration::WriteString(CONFIG_SECTION, "ServerIP", server_ip);
+    } else {
+        server_ip = utils::configuration::ReadString(CONFIG_SECTION, "ServerIP", detected_ip);
+    }
+
     int game_port = static_cast<int>(utils::configuration::ReadUnsignedInteger(CONFIG_SECTION, "GamePort", 80));
     //int dlc_port = static_cast<int>(utils::configuration::ReadUnsignedInteger(CONFIG_SECTION, "DLCPort", 3074));
 
@@ -86,14 +109,27 @@ void initialize_servers() {  //for now dlc on same port as game
     game_server.Start();
 
     logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_INITIALIZER, "Server IP: %s", server_ip.c_str());
-    //logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_INITIALIZER, "DLC HTTP Server started on port %d", dlc_port);
     logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_INITIALIZER, "Game HTTP Server started on port %d", game_port);
 
-    // Run event loops
-    //std::thread dlc_thread([&dlc_loop]() {
-    //    dlc_loop.Run();
-    //    });
+    // Update Discord presence if enabled
+    if (enable_discord) {
+        std::string details = "The Simpsons Tapped Out";
+        std::string state = "Private Server By BodnJenie";
+        server::discord::DiscordRPC::UpdatePresence(details, state);
+        std::thread discord_thread([]() {
+            while (true) {
+                server::discord::DiscordRPC::RunCallbacks();
+                std::this_thread::sleep_for(std::chrono::milliseconds(16)); 
+            }
+            });
+        discord_thread.detach();
+    }
 
     game_loop.Run();
     //dlc_thread.join();
+
+    // clean shitcord
+    if (enable_discord) {
+        server::discord::DiscordRPC::Shutdown();
+    }
 }

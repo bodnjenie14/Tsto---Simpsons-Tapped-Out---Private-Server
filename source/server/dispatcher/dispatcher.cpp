@@ -57,6 +57,16 @@ namespace server::dispatcher::http {
                 return;
             }
 
+            if (uri == "/update_initial_donuts") {
+                tsto_server_->handle_update_initial_donuts(loop, ctx, cb);
+                return;
+            }
+
+            if (uri == "/update_current_donuts") {
+                tsto_server_->handle_update_current_donuts(loop, ctx, cb);
+                return;
+            }
+
             if (uri == "/api/events/set") {
                 tsto::events::Events::handle_events_set(loop, ctx, cb);
                 return;
@@ -236,7 +246,21 @@ namespace server::dispatcher::http {
             //land
 
             if (uri.find("/mh/games/bg_gameserver_plugin/extraLandUpdate/") == 0) {
-                tsto::land::Land::handle_extraland_update(loop, ctx, cb);
+                // Extract land_id from URI for extraland update
+                std::string uri = ctx->uri();
+                size_t land_start = uri.find("/extraLandUpdate/") + 16;
+                size_t land_end = uri.find("/protoland/", land_start);
+                std::string land_id = uri.substr(land_start, land_end - land_start);
+
+                // Remove any leading or trailing slashes
+                while (!land_id.empty() && land_id[0] == '/') {
+                    land_id = land_id.substr(1);
+                }
+                while (!land_id.empty() && land_id.back() == '/') {
+                    land_id.pop_back();
+                }
+                
+                tsto::land::Land::handle_extraland_update(loop, ctx, cb, land_id);
                 return;
             }
 

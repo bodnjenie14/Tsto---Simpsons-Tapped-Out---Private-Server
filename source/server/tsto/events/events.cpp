@@ -171,6 +171,7 @@ namespace tsto::events {
         {1490097600, "Hellfish Bonanza"},
         {1490702400, "Event : Secret Agents"},
         {1492344000, "Easter 2017"},
+        {1533081600, "Moe's Ark"}, 
         {1600862400, "Event : All This Jazz" },
         {1602676800, "Event : Treehouse of Horror XXXI"},
         {1605700800, "Event : Blargsgiving" },

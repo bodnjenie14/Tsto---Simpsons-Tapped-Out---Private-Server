@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TSTO Server Dashboard</title>
+    <style>
+        :root {
+            --bg-primary: #1a1a1a;
+            --bg-secondary: #2d2d2d;
+            --text-primary: #ffffff;
+            --text-secondary: #b3b3b3;
+            --accent: #007bff;
+            --accent-hover: #0056b3;
+            --success: #28a745;
+            --danger: #dc3545;
+            --warning: #ffc107;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .panel {
+            background-color: var(--bg-secondary);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .server-info {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .server-info label {
+            color: var(--accent);
+            font-weight: bold;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            background-color: var(--accent);
+            color: var(--text-primary);
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            background-color: var(--accent-hover);
+        }
+
+        button.danger {
+            background-color: var(--danger);
+        }
+
+        button.danger:hover {
+            background-color: #c82333;
+        }
+
+        .event-section {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .event-status {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 15px;
+            background-color: rgba(40,167,69,0.1);
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: var(--success);
+            box-shadow: 0 0 8px var(--success);
+        }
+
+        .event-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        select {
+            flex: 1;
+            padding: 10px;
+            border-radius: 4px;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            border: 1px solid var(--accent);
+            font-size: 14px;
+            min-width: 200px;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: var(--accent-hover);
+            box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
+        }
+
+        select option {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            padding: 8px;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--text-primary);
+            margin-bottom: 30px;
+        }
+
+        h2 {
+            color: var(--accent);
+            margin-top: 0;
+        }
+
+        .status {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+
+        .status.online {
+            background-color: var(--success);
+            box-shadow: 0 0 8px var(--success);
+        }
+
+        .status.offline {
+            background-color: var(--danger);
+            box-shadow: 0 0 8px var(--danger);
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+            .event-controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            select {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>TSTO Server Dashboard</h1>
+    <div class="container">
+        <div class="panel">
+            <h2>Server Information</h2>
+            <div class="server-info">
+                <label>Status:</label>
+                <div><span class="status online"></span> Online</div>
+                
+                <label>Server IP:</label>
+                <div>%SERVER_IP%</div>
+                
+                <label>Game Port:</label>
+                <div>{{ GAME_PORT }}</div>
+                
+                <label>Uptime:</label>
+                <div>%UPTIME%</div>
+                
+                <label>Active Sessions:</label>
+                <div>%ACTIVE_SESSIONS%</div>
+                
+                <label>Initial Donuts:</label>
+                <div>
+                    <input type="number" id="initialDonuts" value="%INITIAL_DONUTS%" min="0" style="background: var(--bg-primary); color: var(--text-primary); border: 1px solid var(--accent); padding: 5px; border-radius: 4px;">
+                    <button onclick="updateInitialDonuts()" style="padding: 5px 10px; margin-left: 10px;">Update</button>
+                </div>
+                
+                <label>Current Donuts:</label>
+                <div>
+                    <input type="number" id="currentDonuts" value="%CURRENT_DONUTS%" min="0" style="background: var(--bg-primary); color: var(--text-primary); border: 1px solid var(--accent); padding: 5px; border-radius: 4px;">
+                    <button onclick="updateCurrentDonuts()" style="padding: 5px 10px; margin-left: 10px;">Update</button>
+                </div>
+            </div>
+            
+            <div class="controls">
+                <button onclick="restartServer()">Restart Server</button>
+                <button class="danger" onclick="stopServer()">Stop Server</button>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>Events System</h2>
+            <div class="event-section">
+                <div class="event-status">
+                    <div class="status-indicator"></div>
+                    <strong>Current Event:</strong>
+                    <span>%CURRENT_EVENT%</span>
+                </div>
+
+                <div class="event-controls">
+                    <select id="eventSelect" onchange="updateSelectedEvent()">
+                        <option value="0">Normal Play</option>
+                        %EVENT_ROWS%
+                    </select>
+                    <button onclick="setSelectedEvent()">Set Event</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let selectedEventTime = 0;
+
+        function updateSelectedEvent() {
+            selectedEventTime = document.getElementById('eventSelect').value;
+        }
+
+        function setSelectedEvent() {
+            if (confirm('Are you sure you want to change the current event?')) {
+                console.log('Setting event time:', selectedEventTime);
+                
+                fetch('/api/events/set', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        event_time: selectedEventTime
+                    })
+                })
+                .then(response => {
+                    console.log('Response status:', response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Response data:', data);
+                    if (data.error) {
+                        alert('Error: ' + data.error);
+                    } else {
+                        location.reload();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error setting event: ' + error);
+                });
+            }
+        }
+
+        function restartServer() {
+            if (confirm('Are you sure you want to restart the server?')) {
+                fetch('/api/server/restart', { 
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => alert(data.message))
+                .catch(error => alert('Error: ' + error));
+            }
+        }
+
+        function stopServer() {
+            if (confirm('Are you sure you want to stop the server?')) {
+                fetch('/api/server/stop', { 
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => alert(data.message))
+                .catch(error => alert('Error: ' + error));
+            }
+        }
+
+        async function updateInitialDonuts() {
+            const initialDonuts = document.getElementById('initialDonuts').value;
+            try {
+                const response = await fetch('/update_initial_donuts', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ initialDonuts: parseInt(initialDonuts) })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to update initial donuts');
+                }
+                
+                alert('Initial donuts updated successfully!');
+            } catch (error) {
+                alert('Error updating initial donuts: ' + error.message);
+            }
+        }
+
+        async function updateCurrentDonuts() {
+            const currentDonuts = document.getElementById('currentDonuts').value;
+            try {
+                const response = await fetch('/update_current_donuts', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ currentDonuts: parseInt(currentDonuts) })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to update current donuts');
+                }
+                
+                alert('Current donuts updated successfully!');
+            } catch (error) {
+                alert('Error updating current donuts: ' + error.message);
+            }
+        }
+
+        // Auto-refresh the page every 30 seconds
+        setTimeout(() => location.reload(), 30000);
+    </script>
+</body>
+</html>

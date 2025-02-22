@@ -36,7 +36,8 @@ namespace logger
         "LAND",
         "SESSION",
         "FILESERVER",
-        "EVENTS"
+        "EVENTS",
+		"DISCORD",
 
 
     };
