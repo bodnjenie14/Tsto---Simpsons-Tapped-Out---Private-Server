@@ -2,7 +2,10 @@
 
 ## UPDATE NOTES
 
-Update 1 v0.03
+Update v0.05
+- **Discord Rpc:** Need that advertising haha (can be disabled in server config)
+- **Real donut system:** Donuts are now saved and earnt
+- **Donuts:** Can be editied from dashboard
 - **RESTART BUG FIXED:** No longer need to reboot server if you close game.
 - **Ios/Apple Support:** Fully supports ios/apple devices. Non jailbroke via sideloady and jailbroke devices.
 - **Taps Event can be completed:** Dont need to minuplate time to finish taps.
