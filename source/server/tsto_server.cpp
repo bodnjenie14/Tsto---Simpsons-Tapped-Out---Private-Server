@@ -358,10 +358,8 @@ namespace tsto {
             logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
                 "[CURRENCY] Processing currency request for land_id: %s", land_id.c_str());
 
-            std::string data_directory = utils::configuration::ReadString("Server", "DataDirectory", "data");
-            std::string currency_path = data_directory + "/towns/currency.txt";
-
-            std::filesystem::create_directories(data_directory + "/towns");
+            std::string currency_path = "towns/currency.txt";
+            std::filesystem::create_directories("towns");
 
             int balance = std::stoi(utils::configuration::ReadString("Server", "InitialDonutAmount", "1000"));
             if (std::filesystem::exists(currency_path)) {

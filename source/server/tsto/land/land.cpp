@@ -124,10 +124,9 @@ namespace tsto::land {
         friend_data->set_boardwalktilecount(0);
 
         int initial_donuts = std::stoi(utils::configuration::ReadString("Server", "InitialDonutAmount", "1000"));
-        std::string data_directory = utils::configuration::ReadString("Server", "DataDirectory", "data");
-        std::string currency_path = data_directory + "/towns/currency.txt";
+        std::string currency_path = "towns/currency.txt";
         
-        std::filesystem::create_directories(data_directory + "/towns");
+        std::filesystem::create_directories("towns");
         std::ofstream output(currency_path);
         output << initial_donuts;
         output.close();
@@ -149,6 +148,17 @@ namespace tsto::land {
         std::filesystem::path town_file_path = towns_dir / "mytown.pb";
 
         std::filesystem::create_directories(towns_dir);
+
+        std::string data_directory = utils::configuration::ReadString("Server", "DataDirectory", "data");
+        std::string currency_path = data_directory + "/towns/currency.txt";
+        if (!std::filesystem::exists(currency_path)) {
+            int initial_donuts = std::stoi(utils::configuration::ReadString("Server", "InitialDonutAmount", "1000"));
+            std::ofstream output(currency_path);
+            output << initial_donuts;
+            output.close();
+            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME, 
+                "[LAND] Created new currency file with initial donuts: %d", initial_donuts);
+        }
 
         std::ofstream file(town_file_path, std::ios::binary);
         if (!file.is_open()) {
