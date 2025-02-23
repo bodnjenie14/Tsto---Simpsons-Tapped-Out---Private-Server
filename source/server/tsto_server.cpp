@@ -1,18 +1,15 @@
 #include <std_include.hpp>
-
 #include "tsto_server.hpp"
 #include <chrono>
 #include <ctime>
 #include <iomanip>
-
 #include <rapidjson/document.h>
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
-
 #include "compression.hpp"  
 #include "configuration.hpp" 
-
 #include "tsto/events/events.hpp"
+
 namespace tsto {
 
     std::string TSTOServer::generate_random_id() {
@@ -361,10 +358,10 @@ namespace tsto {
             logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
                 "[CURRENCY] Processing currency request for land_id: %s", land_id.c_str());
 
-            std::string data_directory = "towns";
-            std::string currency_path = data_directory + "/currency.txt";
+            std::string data_directory = utils::configuration::ReadString("Server", "DataDirectory", "data");
+            std::string currency_path = data_directory + "/towns/currency.txt";
 
-            std::filesystem::create_directories(data_directory);
+            std::filesystem::create_directories(data_directory + "/towns");
 
             int balance = std::stoi(utils::configuration::ReadString("Server", "InitialDonutAmount", "1000"));
             if (std::filesystem::exists(currency_path)) {
@@ -378,7 +375,6 @@ namespace tsto {
                 input.close();
             }
             else {
-                //create new donut file with initial balance
                 std::ofstream output(currency_path);
                 output << balance;
                 output.close();
@@ -388,7 +384,6 @@ namespace tsto {
                     land_id.c_str(), balance);
             }
 
-            //set currency data
             Data::CurrencyData currency_data;
             currency_data.set_id(land_id);
             currency_data.set_vctotalpurchased(0);
@@ -397,7 +392,6 @@ namespace tsto {
             currency_data.set_createdat(1715911362);
             currency_data.set_updatedat(std::time(nullptr));
 
-            //return the current currency data
             std::string response;
             if (currency_data.SerializeToString(&response)) {
                 headers::set_protobuf_response(ctx);
@@ -531,22 +525,14 @@ namespace tsto {
             auto hours = std::chrono::duration_cast<std::chrono::hours>(uptime);
             auto minutes = std::chrono::duration_cast<std::chrono::minutes>(uptime % std::chrono::hours(1));
             auto seconds = uptime % std::chrono::minutes(1);
-
             std::stringstream uptime_str;
             uptime_str << hours.count() << "h " << minutes.count() << "m " << seconds.count() << "s";
-
             html_template = std::regex_replace(html_template, std::regex("%UPTIME%"), uptime_str.str());
 
-            // Get active sessions count
-            //html_template = std::regex_replace(html_template, std::regex("%ACTIVE_SESSIONS%"), std::to_string(active_sessions_.load()));
-
-            auto current_event = tsto::events::Events::get_current_event();
-            std::string current_event_name = current_event.is_active ? current_event.name : "No Active Event";
-            html_template = std::regex_replace(html_template, std::regex("%CURRENT_EVENT%"), current_event_name);
-
-            int initial_donuts = std::stoi(utils::configuration::ReadString("Server", "InitialDonutAmount", "1000"));
-            int current_donuts = initial_donuts;
-            std::string currency_path = "towns/currency.txt";
+            std::string data_directory = utils::configuration::ReadString("Server", "DataDirectory", "data");
+            std::string currency_path = data_directory + "/towns/currency.txt";
+            int current_donuts = std::stoi(utils::configuration::ReadString("Server", "InitialDonutAmount", "1000"));
+            
             if (std::filesystem::exists(currency_path)) {
                 std::ifstream input(currency_path);
                 if (input.good()) {
@@ -555,31 +541,19 @@ namespace tsto {
                 input.close();
             }
 
-            html_template = std::regex_replace(html_template, std::regex("%INITIAL_DONUTS%"), std::to_string(initial_donuts));
             html_template = std::regex_replace(html_template, std::regex("%CURRENT_DONUTS%"), std::to_string(current_donuts));
+            html_template = std::regex_replace(html_template, std::regex("%INITIAL_DONUTS%"), 
+                utils::configuration::ReadString("Server", "InitialDonutAmount", "1000"));
 
-            std::stringstream rows;
-            for (const auto& event_pair : tsto::events::tsto_events) {
-                if (event_pair.first == 0) continue;
-
-                rows << "<option value=\"" << event_pair.first << "\"";
-                if (event_pair.first == current_event.start_time) {
-                    rows << " selected";
-                }
-                rows << ">" << event_pair.second << "</option>\n";
-            }
-
-            size_t event_pos = html_template.find("%EVENT_ROWS%");
-            if (event_pos != std::string::npos) {
-                html_template.replace(event_pos, 12, rows.str());
-            }
+            auto current_event = tsto::events::Events::get_current_event();
+            html_template = std::regex_replace(html_template, std::regex("%CURRENT_EVENT%"), current_event.name);
 
             cb(html_template);
         }
         catch (const std::exception& ex) {
             logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_INITIALIZER,
                 "Dashboard error: {}", ex.what());
-            cb("Error: Failed to generate dashboard");
+            cb("Error: Internal server error");
         }
     }
 
@@ -640,8 +614,10 @@ namespace tsto {
             }
 
             int current_donuts = doc["currentDonuts"].GetInt();
-            std::string currency_path = "towns/currency.txt";
+            std::string data_directory = utils::configuration::ReadString("Server", "DataDirectory", "data");
+            std::string currency_path = data_directory + "/towns/currency.txt";
 
+            std::filesystem::create_directories(data_directory + "/towns");
             std::ofstream output(currency_path);
             output << current_donuts;
             output.close();

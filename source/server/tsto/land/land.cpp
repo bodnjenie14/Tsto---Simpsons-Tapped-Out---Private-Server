@@ -123,7 +123,18 @@ namespace tsto::land {
         friend_data->set_rating(0);
         friend_data->set_boardwalktilecount(0);
 
-        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME, "[LAND] Created new blank town with data version %d", friend_data->dataversion());
+        int initial_donuts = std::stoi(utils::configuration::ReadString("Server", "InitialDonutAmount", "1000"));
+        std::string data_directory = utils::configuration::ReadString("Server", "DataDirectory", "data");
+        std::string currency_path = data_directory + "/towns/currency.txt";
+        
+        std::filesystem::create_directories(data_directory + "/towns");
+        std::ofstream output(currency_path);
+        output << initial_donuts;
+        output.close();
+
+        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME, 
+            "[LAND] Created new blank town with data version %d and initial donuts: %d", 
+            friend_data->dataversion(), initial_donuts);
     }
 
 
