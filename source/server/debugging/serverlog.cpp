@@ -38,6 +38,7 @@ namespace logger
         "FILESERVER",
         "EVENTS",
 		"DISCORD",
+		"UPDATE",
 
 
     };
@@ -62,6 +63,13 @@ namespace logger
 
     void write(LogLevel level, LogLabel label, const char* fmt, ...)
     {
+        // Set console output to UTF-8
+        static bool utf8_initialized = false;
+        if (!utf8_initialized) {
+            SetConsoleOutputCP(CP_UTF8);
+            utf8_initialized = true;
+        }
+
         char va_buffer[85768] = { 0 }; // Increased from 0x1000 to 8192
 
         va_list ap;

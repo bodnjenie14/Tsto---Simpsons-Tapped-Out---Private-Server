@@ -5,10 +5,12 @@
 #include "debugging/serverlog.hpp"
 #include "configuration.hpp"
 #include "../discord/discord_rpc.hpp"
+#include "../updater/updater.hpp"
 #include <WS2tcpip.h>
 #include <iphlpapi.h>
 #pragma comment(lib, "iphlpapi.lib")
 #pragma comment(lib, "ws2_32.lib")
+
 
 std::string get_local_ipv4() {
     ULONG bufferSize = 0;
@@ -41,7 +43,19 @@ std::string get_local_ipv4() {
 
 void initialize_servers() {  //for now dlc on same port as game
     logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_INITIALIZER, "Initializing HTTP Servers...");
-    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_INITIALIZER, "Version 0.04");
+
+    // Show server version on startup
+    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_INITIALIZER, "=== TSTO Server %s ===", updater::get_server_version().c_str());
+
+    // Check for updates
+    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_INITIALIZER, "Checking for updates...");
+
+    bool updateAvailable = updater::check_for_updates();
+    if (updateAvailable) {
+        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_INITIALIZER, "Update available - starting update process");
+        updater::download_and_update();
+        return; // Server will restart with new version
+    }
 
     const char* CONFIG_SECTION = "ServerConfig";
     
@@ -96,7 +110,7 @@ void initialize_servers() {  //for now dlc on same port as game
  /*   if (!dlc_server.Init({ static_cast<uint16_t>(dlc_port) })) {
         logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_INITIALIZER, "Failed to initialize DLC HTTP server.");
         return;
-    }*/
+   }*/
 
     if (!game_server.Init({ static_cast<uint16_t>(game_port) })) {
         logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_INITIALIZER, "Failed to initialize Game HTTP server.");

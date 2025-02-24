@@ -46,9 +46,11 @@ namespace tsto {
         }
 
         create_console();  // Launch debug console
+        logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_INITIALIZER, "Bods Evpp Server Console Started");
         logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_INITIALIZER, "Starting server...");
 
         blackbox::initialize_exception_handler();
+        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_INITIALIZER, "Initialized Exception handler");
         initialize_servers();
 
         logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_INITIALIZER, "Server shutting down...");
