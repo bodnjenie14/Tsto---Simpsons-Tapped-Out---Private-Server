@@ -10,7 +10,7 @@
 
 namespace updater {
 
-    const std::string SERVER_VERSION = "v0.07";
+    const std::string SERVER_VERSION = "v0.08";
     const std::string GITHUB_API_URL = "https://api.github.com/repos/bodnjenie14/Tsto---Simpsons-Tapped-Out---Private-Server/releases/latest";
     const std::string DOWNLOAD_URL_BASE = "https://github.com/bodnjenie14/Tsto---Simpsons-Tapped-Out---Private-Server/releases/download/";
 
