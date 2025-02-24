@@ -2,7 +2,9 @@
 
 ## UPDATE NOTES
 
-Update v0.05
+Update v0.07
+- **Auto Updater** No more downloading binarys.
+- **Fixed Donuts:** Real donut saving
 - **Discord Rpc:** Need that advertising haha (can be disabled in server config)
 - **Real donut system:** Donuts are now saved and earnt
 - **Donuts:** Can be editied from dashboard
