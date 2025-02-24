@@ -149,8 +149,7 @@ namespace tsto::land {
 
         std::filesystem::create_directories(towns_dir);
 
-        std::string data_directory = utils::configuration::ReadString("Server", "DataDirectory", "data");
-        std::string currency_path = data_directory + "/towns/currency.txt";
+        std::string currency_path = "towns/currency.txt";
         if (!std::filesystem::exists(currency_path)) {
             int initial_donuts = std::stoi(utils::configuration::ReadString("Server", "InitialDonutAmount", "1000"));
             std::ofstream output(currency_path);
@@ -517,10 +516,9 @@ namespace tsto::land {
                 throw std::runtime_error("Failed to parse ExtraLandMessage");
             }
 
-            std::string data_directory = utils::configuration::ReadString("Server", "DataDirectory", "data");
-            std::string currency_path = data_directory + "/towns/currency.txt";
+            std::string currency_path = "towns/currency.txt";
             
-            std::filesystem::create_directories(data_directory + "/towns");
+            std::filesystem::create_directories("towns");
             
             int balance = std::stoi(utils::configuration::ReadString("Server", "InitialDonutAmount", "1000"));
             if (std::filesystem::exists(currency_path)) {
@@ -542,7 +540,7 @@ namespace tsto::land {
                 if (delta.amount() > 0) {
                     total_earned += delta.amount();
                 } else {
-                    total_spent -= delta.amount();
+                    total_spent += std::abs(delta.amount());  // Use absolute value for spent amount
                 }
                 
                 auto* processed = response.add_processedcurrencydelta();

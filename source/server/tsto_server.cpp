@@ -527,8 +527,7 @@ namespace tsto {
             uptime_str << hours.count() << "h " << minutes.count() << "m " << seconds.count() << "s";
             html_template = std::regex_replace(html_template, std::regex("%UPTIME%"), uptime_str.str());
 
-            std::string data_directory = utils::configuration::ReadString("Server", "DataDirectory", "data");
-            std::string currency_path = data_directory + "/towns/currency.txt";
+            std::string currency_path = "towns/currency.txt";
             int current_donuts = std::stoi(utils::configuration::ReadString("Server", "InitialDonutAmount", "1000"));
             
             if (std::filesystem::exists(currency_path)) {
@@ -612,10 +611,9 @@ namespace tsto {
             }
 
             int current_donuts = doc["currentDonuts"].GetInt();
-            std::string data_directory = utils::configuration::ReadString("Server", "DataDirectory", "data");
-            std::string currency_path = data_directory + "/towns/currency.txt";
+            std::string currency_path = "towns/currency.txt";
 
-            std::filesystem::create_directories(data_directory + "/towns");
+            std::filesystem::create_directories("towns");
             std::ofstream output(currency_path);
             output << current_donuts;
             output.close();
