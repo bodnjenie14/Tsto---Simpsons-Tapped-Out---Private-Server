@@ -95,6 +95,11 @@ namespace server::dispatcher::http {
                 return;
             }
 
+            if (uri == "/api/browseDirectory") {
+                tsto::dashboard::Dashboard::handle_browse_directory(loop, ctx, cb);
+                return;
+            }
+
             if (uri == "/api/events/set") {
                 tsto::events::Events::handle_events_set(loop, ctx, cb);
                 return;

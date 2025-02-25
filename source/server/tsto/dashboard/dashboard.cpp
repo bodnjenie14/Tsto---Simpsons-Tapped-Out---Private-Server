@@ -1,17 +1,19 @@
 #include <std_include.hpp>
 #include "dashboard.hpp"
+#include "configuration.hpp"
+#include "debugging/serverlog.hpp"
+#include <Windows.h>
+#include <ShlObj.h>
+#include <rapidjson/document.h>
+#include <rapidjson/stringbuffer.h>
+#include <rapidjson/writer.h>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
-#include <rapidjson/document.h>
-#include <rapidjson/writer.h>
-#include <rapidjson/stringbuffer.h>
 
-#include "debugging/serverlog.hpp"
 #include "tsto/land/land.hpp"
 #include "tsto/events/events.hpp"
-#include "configuration.hpp"
 
 namespace tsto::dashboard {
 
@@ -346,6 +348,46 @@ namespace tsto::dashboard {
         catch (const std::exception& ex) {
             logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP,
                 "[CONFIG] Error updating server port: %s", ex.what());
+            ctx->set_response_http_code(500);
+            cb("{\"error\": \"Internal server error\"}");
+        }
+    }
+
+    void Dashboard::handle_browse_directory(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
+        const evpp::http::HTTPSendResponseCallback& cb) {
+        try {
+            BROWSEINFO bi = { 0 };
+            bi.lpszTitle = "Select DLC Directory";
+            bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
+
+            LPITEMIDLIST pidl = SHBrowseForFolder(&bi);
+            if (pidl != nullptr) {
+                char path[MAX_PATH];
+                if (SHGetPathFromIDList(pidl, path)) {
+                    CoTaskMemFree(pidl);
+                    
+                    rapidjson::StringBuffer buffer;
+                    rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+                    writer.StartObject();
+                    writer.Key("success");
+                    writer.Bool(true);
+                    writer.Key("path");
+                    writer.String(path);
+                    writer.EndObject();
+
+                    headers::set_json_response(ctx);
+                    cb(buffer.GetString());
+                    return;
+                }
+                CoTaskMemFree(pidl);
+            }
+
+            headers::set_json_response(ctx);
+            cb("{\"success\":false,\"error\":\"No directory selected\"}");
+        }
+        catch (const std::exception& ex) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP,
+                "[CONFIG] Error browsing directory: %s", ex.what());
             ctx->set_response_http_code(500);
             cb("{\"error\": \"Internal server error\"}");
         }
