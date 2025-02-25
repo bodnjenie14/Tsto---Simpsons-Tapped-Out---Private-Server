@@ -193,8 +193,6 @@
                 <label>Uptime:</label>
                 <div>%UPTIME%</div>
                 
-                <label>Active Sessions:</label>
-                <div>%ACTIVE_SESSIONS%</div>
                 
                 <label>Initial Donuts:</label>
                 <div>
@@ -207,11 +205,18 @@
                     <input type="number" id="currentDonuts" value="%CURRENT_DONUTS%" min="0" style="background: var(--bg-primary); color: var(--text-primary); border: 1px solid var(--accent); padding: 5px; border-radius: 4px;">
                     <button onclick="updateCurrentDonuts()" style="padding: 5px 10px; margin-left: 10px;">Update</button>
                 </div>
+
+                <label>DLC Directory:</label>
+                <div>
+                    <input type="text" id="dlcDirectory" value="%DLC_DIRECTORY%" style="background: var(--bg-primary); color: var(--text-primary); border: 1px solid var(--accent); padding: 5px; border-radius: 4px;">
+                    <button onclick="updateDlcDirectory()" style="padding: 5px 10px; margin-left: 10px;">Update</button>
+                </div>
             </div>
             
             <div class="controls">
                 <button onclick="restartServer()">Restart Server</button>
                 <button class="danger" onclick="stopServer()">Stop Server</button>
+                <button onclick="forceSaveProtoland()" style="background-color: var(--success);">Save Town</button>
             </div>
         </div>
 
@@ -239,7 +244,7 @@
         let selectedEventTime = 0;
 
         function updateSelectedEvent() {
-            selectedEventTime = document.getElementById('eventSelect').value;
+            selectedEventTime = parseInt(document.getElementById('eventSelect').value);
         }
 
         function setSelectedEvent() {
@@ -341,6 +346,43 @@
                 alert('Current donuts updated successfully!');
             } catch (error) {
                 alert('Error updating current donuts: ' + error.message);
+            }
+        }
+
+        async function updateDlcDirectory() {
+            const dlcDirectory = document.getElementById('dlcDirectory').value;
+            try {
+                const response = await fetch('/api/updateDlcDirectory', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ dlcDirectory })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    alert('DLC directory updated successfully');
+                } else {
+                    alert('Failed to update DLC directory: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('Failed to update DLC directory: ' + error);
+            }
+        }
+
+        async function forceSaveProtoland() {
+            try {
+                const response = await fetch('/api/forceSaveProtoland', {
+                    method: 'POST'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to save town');
+                }
+                
+                alert('Town saved successfully!');
+            } catch (error) {
+                alert('Error saving town: ' + error.message);
             }
         }
 

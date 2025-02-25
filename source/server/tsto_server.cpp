@@ -9,6 +9,7 @@
 #include "compression.hpp"  
 #include "configuration.hpp" 
 #include "tsto/events/events.hpp"
+#include "tsto/land/land.hpp"
 
 namespace tsto {
 
@@ -347,6 +348,7 @@ namespace tsto {
         cb(buffer.GetString());
     }
 
+    //shud move to land IG
     void TSTOServer::handle_proto_currency(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx,
         const evpp::http::HTTPSendResponseCallback& cb) {
         try {
@@ -447,6 +449,9 @@ namespace tsto {
         }
     }
 
+
+    //move to new file getting messy now this dash 
+
     void TSTOServer::handle_server_restart(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx,
         const evpp::http::HTTPSendResponseCallback& cb) {
         ctx->AddResponseHeader("Content-Type", "application/json");
@@ -528,6 +533,9 @@ namespace tsto {
             html_template = std::regex_replace(html_template, std::regex("%UPTIME%"), uptime_str.str());
 
             std::string currency_path = "towns/currency.txt";
+            std::string dlc_directory = utils::configuration::ReadString("Server", "DLCDirectory", "dlc");
+            html_template = std::regex_replace(html_template, std::regex("%DLC_DIRECTORY%"), dlc_directory);
+
             int current_donuts = std::stoi(utils::configuration::ReadString("Server", "InitialDonutAmount", "1000"));
             
             if (std::filesystem::exists(currency_path)) {
@@ -544,6 +552,22 @@ namespace tsto {
 
             auto current_event = tsto::events::Events::get_current_event();
             html_template = std::regex_replace(html_template, std::regex("%CURRENT_EVENT%"), current_event.name);
+
+            std::stringstream rows;
+            for (const auto& event_pair : tsto::events::tsto_events) {
+                if (event_pair.first == 0) continue;
+
+                rows << "<option value=\"" << event_pair.first << "\"";
+                if (event_pair.first == current_event.start_time) {
+                    rows << " selected";
+                }
+                rows << ">" << event_pair.second << "</option>\n";
+            }
+
+            size_t event_pos = html_template.find("%EVENT_ROWS%");
+            if (event_pos != std::string::npos) {
+                html_template.replace(event_pos, 12, rows.str());
+            }
 
             cb(html_template);
         }
@@ -627,6 +651,69 @@ namespace tsto {
         catch (const std::exception& ex) {
             logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
                 "[DONUTS] Error updating current donuts: %s", ex.what());
+            ctx->set_response_http_code(500);
+            cb("{\"error\": \"Internal server error\"}");
+        }
+    }
+
+    void TSTOServer::handle_force_save_protoland(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
+        const evpp::http::HTTPSendResponseCallback& cb) {
+        try {
+            auto& session = tsto::Session::get();
+            
+            if (!session.land_proto.IsInitialized()) {
+                ctx->AddResponseHeader("Content-Type", "application/json");
+                ctx->set_response_http_code(400);
+                cb("{\"status\":\"error\",\"message\":\"No land data to save\"}");
+                return;
+            }
+
+            if (tsto::land::Land::save_town()) {
+                ctx->AddResponseHeader("Content-Type", "application/json");
+                cb("{\"status\":\"success\"}");
+                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME, 
+                    "[LAND] Force saved town successfully");
+            } else {
+                ctx->AddResponseHeader("Content-Type", "application/json");
+                ctx->set_response_http_code(500);
+                cb("{\"status\":\"error\",\"message\":\"Failed to save town\"}");
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME, 
+                    "[LAND] Failed to force save town");
+            }
+        } catch (const std::exception& ex) {
+            ctx->AddResponseHeader("Content-Type", "application/json");
+            ctx->set_response_http_code(500);
+            cb("{\"status\":\"error\",\"message\":\"" + std::string(ex.what()) + "\"}");
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME, 
+                "[LAND] Error during force save: %s", ex.what());
+        }
+    }
+
+    void TSTOServer::handle_update_dlc_directory(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
+        const evpp::http::HTTPSendResponseCallback& cb) {
+        try {
+            std::string body = ctx->body().ToString();
+            rapidjson::Document doc;
+            doc.Parse(body.c_str());
+
+            if (!doc.HasMember("dlcDirectory") || !doc["dlcDirectory"].IsString()) {
+                ctx->set_response_http_code(400);
+                cb("{\"error\": \"Invalid request body\"}");
+                return;
+            }
+
+            std::string dlc_directory = doc["dlcDirectory"].GetString();
+            utils::configuration::WriteString("Server", "DLCDirectory", dlc_directory);
+
+            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_FILESERVER,
+                "[DLC] Updated DLC directory to: %s", dlc_directory.c_str());
+
+            headers::set_json_response(ctx);
+            cb("{\"success\": true}");
+        }
+        catch (const std::exception& ex) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_FILESERVER,
+                "[DLC] Error updating DLC directory: %s", ex.what());
             ctx->set_response_http_code(500);
             cb("{\"error\": \"Internal server error\"}");
         }

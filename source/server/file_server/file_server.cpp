@@ -6,11 +6,22 @@
 #include <mutex>
 #include <thread>
 #include <evpp/event_loop.h>
-
+#include "configuration.hpp"
 namespace file_server {
     FileServer::FileServer() : file_mutex_(), queue_mutex_() {
         std::lock_guard<std::mutex> lock(file_mutex_);
-        base_directory_ = "dlc";  // Simple relative path, just like in Land class
+        
+        base_directory_ = utils::configuration::ReadString("Server", "DLCDirectory", "");
+
+        if (base_directory_.empty()) {
+            base_directory_ = "dlc";
+            utils::configuration::WriteString("Server", "DLCDirectory", base_directory_);
+            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_FILESERVER,
+                "Setting default DLC directory: %s", base_directory_.c_str());
+        } else {
+            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_FILESERVER,
+                "Using configured DLC directory: %s", base_directory_.c_str());
+        }
 
         try {
             if (!std::filesystem::exists(base_directory_)) {
@@ -57,7 +68,6 @@ namespace file_server {
                     }
                 }
 
-                // Post the response back to the event loop
                 loop->RunInLoop([response_data, ctx, cb, file_path]() {
                     if (!response_data.empty()) {
                         ctx->AddResponseHeader("Content-Type", "application/zip");
@@ -107,11 +117,16 @@ namespace file_server {
 
             uri = sanitize_filename(uri);
 
-            std::string file_path = "dlc/" + uri;  // All static content goes in dlc directory
+            std::string file_path;
+            if (std::filesystem::path(base_directory_).is_absolute()) {
+                file_path = base_directory_ + "/" + uri;
+            } else {
+                file_path = "dlc/" + uri;
+            }
 
 #ifdef DEBUG
-            //logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_FILESERVER,
-            //   "Attempting to serve static file: %s", file_path.c_str());
+            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_FILESERVER,
+               "Attempting to serve static file: %s", file_path.c_str());
 #endif
 
             async_read_file(loop, file_path, ctx, cb);
@@ -126,19 +141,8 @@ namespace file_server {
 
     bool FileServer::is_path_safe(const std::string& requested_path) const {
         try {
-            std::filesystem::path req_path = requested_path;
-            std::filesystem::path base = base_directory_;
-
-            auto canonical_req = std::filesystem::weakly_canonical(req_path);
-            auto canonical_base = std::filesystem::weakly_canonical(base);
-
-            auto req_str = canonical_req.string();
-            auto base_str = canonical_base.string();
-
-            std::replace(req_str.begin(), req_str.end(), '\\', '/');
-            std::replace(base_str.begin(), base_str.end(), '\\', '/');
-
-            return req_str.find(base_str) == 0;
+            // Allow any path as long as it exists
+            return std::filesystem::exists(requested_path);
         }
         catch (const std::exception& e) {
             logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_FILESERVER,

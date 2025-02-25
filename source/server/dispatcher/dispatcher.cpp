@@ -41,6 +41,8 @@ namespace server::dispatcher::http {
                 return;
             }
 
+            //dashboard 
+
 
             if (uri == "/dashboard") {
                 tsto_server_->handle_dashboard(loop, ctx, cb);
@@ -57,6 +59,11 @@ namespace server::dispatcher::http {
                 return;
             }
 
+            if (uri == "/api/forceSaveProtoland") {
+                tsto_server_->handle_force_save_protoland(loop, ctx, cb);
+                return;
+            }
+
             if (uri == "/update_initial_donuts") {
                 tsto_server_->handle_update_initial_donuts(loop, ctx, cb);
                 return;
@@ -67,10 +74,22 @@ namespace server::dispatcher::http {
                 return;
             }
 
+            if (uri == "/api/updateCurrentDonuts") {
+                tsto_server_->handle_update_current_donuts(loop, ctx, cb);
+                return;
+            }
+
+            if (uri == "/api/updateDlcDirectory") {
+                tsto_server_->handle_update_dlc_directory(loop, ctx, cb);
+                return;
+            }
+
             if (uri == "/api/events/set") {
                 tsto::events::Events::handle_events_set(loop, ctx, cb);
                 return;
             }
+
+            //dlc
 
             if (uri.find("/static") == 0) {
                 logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP,
