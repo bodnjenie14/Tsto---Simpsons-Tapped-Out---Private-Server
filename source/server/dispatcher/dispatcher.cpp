@@ -5,6 +5,7 @@
 #include "tsto/tracking/tracking.hpp"
 #include "tsto/device/device.hpp"
 #include "tsto/game/game.hpp"
+#include "tsto/dashboard/dashboard.hpp"
 #include "tsto/auth/auth.hpp"
 #include "tsto/user/user.hpp"
 #include "tsto/land/land.hpp"
@@ -45,42 +46,52 @@ namespace server::dispatcher::http {
 
 
             if (uri == "/dashboard") {
-                tsto_server_->handle_dashboard(loop, ctx, cb);
+                tsto::dashboard::Dashboard::handle_dashboard(loop, ctx, cb);
                 return;
             }
 
             if (uri == "/api/server/restart") {
-                tsto_server_->handle_server_restart(loop, ctx, cb);
+                tsto::dashboard::Dashboard::handle_server_restart(loop, ctx, cb);
                 return;
             }
 
             if (uri == "/api/server/stop") {
-                tsto_server_->handle_server_stop(loop, ctx, cb);
+                tsto::dashboard::Dashboard::handle_server_stop(loop, ctx, cb);
                 return;
             }
 
             if (uri == "/api/forceSaveProtoland") {
-                tsto_server_->handle_force_save_protoland(loop, ctx, cb);
+                tsto::dashboard::Dashboard::handle_force_save_protoland(loop, ctx, cb);
                 return;
             }
 
             if (uri == "/update_initial_donuts") {
-                tsto_server_->handle_update_initial_donuts(loop, ctx, cb);
+                tsto::dashboard::Dashboard::handle_update_initial_donuts(loop, ctx, cb);
                 return;
             }
 
             if (uri == "/update_current_donuts") {
-                tsto_server_->handle_update_current_donuts(loop, ctx, cb);
+                tsto::dashboard::Dashboard::handle_update_current_donuts(loop, ctx, cb);
                 return;
             }
 
             if (uri == "/api/updateCurrentDonuts") {
-                tsto_server_->handle_update_current_donuts(loop, ctx, cb);
+                tsto::dashboard::Dashboard::handle_update_current_donuts(loop, ctx, cb);
                 return;
             }
 
             if (uri == "/api/updateDlcDirectory") {
-                tsto_server_->handle_update_dlc_directory(loop, ctx, cb);
+                tsto::dashboard::Dashboard::handle_update_dlc_directory(loop, ctx, cb);
+                return;
+            }
+
+            if (uri == "/api/updateServerIp") {
+                tsto::dashboard::Dashboard::handle_update_server_ip(loop, ctx, cb);
+                return;
+            }
+
+            if (uri == "/api/updateServerPort") {
+                tsto::dashboard::Dashboard::handle_update_server_port(loop, ctx, cb);
                 return;
             }
 

@@ -2,25 +2,28 @@
 <html>
 <head>
     <title>TSTO Server Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-primary: #1a1a1a;
-            --bg-secondary: #2d2d2d;
-            --text-primary: #ffffff;
-            --text-secondary: #b3b3b3;
-            --accent: #007bff;
-            --accent-hover: #0056b3;
-            --success: #28a745;
-            --danger: #dc3545;
-            --warning: #ffc107;
+            --simpsons-yellow: #FED90F;
+            --simpsons-blue: #3E67B1;
+            --simpsons-red: #E53935;
+            --simpsons-green: #7BC142;
+            --simpsons-white: #ffffff;
+            --simpsons-black: #333333;
+            --simpsons-orange: #F57C00;
+            --simpsons-panel: #FFF3D4;
+            --simpsons-shadow: rgba(0, 0, 0, 0.3);
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Comic Neue', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
             padding: 20px;
-            background-color: var(--bg-primary);
-            color: var(--text-primary);
+            background-color: #75B7E5; /* Blue sky background */
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cpath fill='%23ffffff' fill-opacity='0.4' d='M96.5,40.1c-1.9-2.2-5.7-2.2-8.2-0.5c-0.9-3.5-4.2-5.5-7.7-5.5c-2.7,0-5,1.2-6.6,3.3c-0.5-0.2-1-0.3-1.5-0.3c-2.2,0-4,1.6-4,3.6c0,0.2,0,0.4,0.1,0.6c-3.4,0.8-5.9,3.4-5.9,6.5c0,3.8,3.5,6.8,7.9,6.8h22.9c4.4,0,7.9-3.1,7.9-6.8C101.5,44.4,99.5,41.6,96.5,40.1z M24.5,26.1c-1.9-2.2-5.7-2.2-8.2-0.5c-0.9-3.5-4.2-5.5-7.7-5.5c-2.7,0-5,1.2-6.6,3.3c-0.5-0.2-1-0.3-1.5-0.3c-2.2,0-4,1.6-4,3.6c0,0.2,0,0.4,0.1,0.6c-3.4,0.8-5.9,3.4-5.9,6.5c0,3.8,3.5,6.8,7.9,6.8h22.9c4.4,0,7.9-3.1,7.9-6.8C29.5,30.4,27.5,27.6,24.5,26.1z'/%3E%3C/svg%3E");
+            color: var(--simpsons-black);
+            background-attachment: fixed;
         }
 
         .container {
@@ -32,10 +35,11 @@
         }
 
         .panel {
-            background-color: var(--bg-secondary);
+            background-color: var(--simpsons-panel);
             padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            border-radius: 15px;
+            box-shadow: 0 6px 10px var(--simpsons-shadow);
+            border: 4px solid var(--simpsons-yellow);
         }
 
         .server-info {
@@ -46,8 +50,9 @@
         }
 
         .server-info label {
-            color: var(--accent);
+            color: var(--simpsons-blue);
             font-weight: bold;
+            font-size: 16px;
         }
 
         .controls {
@@ -59,24 +64,42 @@
         button {
             padding: 10px 20px;
             border: none;
-            border-radius: 4px;
-            background-color: var(--accent);
-            color: var(--text-primary);
+            border-radius: 10px;
+            background-color: var(--simpsons-blue);
+            color: var(--simpsons-white);
             cursor: pointer;
-            font-size: 14px;
+            font-size: 16px;
+            font-weight: bold;
+            font-family: 'Comic Neue', cursive;
             transition: all 0.3s ease;
+            box-shadow: 0 4px 0 #2A4B85;
+            position: relative;
+            top: 0;
         }
 
         button:hover {
-            background-color: var(--accent-hover);
+            background-color: #5482D0;
+            top: -2px;
+            box-shadow: 0 6px 0 #2A4B85;
+        }
+        
+        button:active {
+            top: 4px;
+            box-shadow: 0 0 0 #2A4B85;
         }
 
         button.danger {
-            background-color: var(--danger);
+            background-color: var(--simpsons-red);
+            box-shadow: 0 4px 0 #B71C1C;
         }
 
         button.danger:hover {
-            background-color: #c82333;
+            background-color: #F06292;
+            box-shadow: 0 6px 0 #B71C1C;
+        }
+        
+        button.danger:active {
+            box-shadow: 0 0 0 #B71C1C;
         }
 
         .event-section {
@@ -90,17 +113,18 @@
             align-items: center;
             gap: 15px;
             padding: 15px;
-            background-color: rgba(40,167,69,0.1);
-            border-radius: 8px;
+            background-color: rgba(254, 217, 15, 0.2);
+            border-radius: 12px;
             margin-bottom: 10px;
+            border: 2px dashed var(--simpsons-orange);
         }
 
         .status-indicator {
-            width: 12px;
-            height: 12px;
+            width: 16px;
+            height: 16px;
             border-radius: 50%;
-            background-color: var(--success);
-            box-shadow: 0 0 8px var(--success);
+            background-color: var(--simpsons-green);
+            box-shadow: 0 0 8px var(--simpsons-green);
         }
 
         .event-controls {
@@ -112,53 +136,124 @@
         select {
             flex: 1;
             padding: 10px;
-            border-radius: 4px;
-            background-color: var(--bg-primary);
-            color: var(--text-primary);
-            border: 1px solid var(--accent);
-            font-size: 14px;
+            border-radius: 10px;
+            background-color: var(--simpsons-white);
+            color: var(--simpsons-black);
+            border: 3px solid var(--simpsons-blue);
+            font-size: 16px;
             min-width: 200px;
+            font-family: 'Comic Neue', cursive;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);
         }
 
         select:focus {
             outline: none;
-            border-color: var(--accent-hover);
-            box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
+            border-color: var(--simpsons-orange);
+            box-shadow: 0 0 0 3px rgba(245, 124, 0, 0.25);
         }
 
         select option {
-            background-color: var(--bg-primary);
-            color: var(--text-primary);
+            background-color: var(--simpsons-white);
+            color: var(--simpsons-black);
             padding: 8px;
+            font-family: 'Comic Neue', cursive;
         }
 
         h1 {
             text-align: center;
-            color: var(--text-primary);
+            color: var(--simpsons-yellow);
             margin-bottom: 30px;
+            font-size: 42px;
+            text-shadow: 2px 2px 0 var(--simpsons-black), 
+                        -2px -2px 0 var(--simpsons-black),
+                        2px -2px 0 var(--simpsons-black),
+                        -2px 2px 0 var(--simpsons-black),
+                        0 2px 0 var(--simpsons-black),
+                        2px 0 0 var(--simpsons-black),
+                        0 -2px 0 var(--simpsons-black),
+                        -2px 0 0 var(--simpsons-black);
+            letter-spacing: 1px;
         }
 
         h2 {
-            color: var(--accent);
+            color: var(--simpsons-blue);
             margin-top: 0;
+            font-size: 24px;
+            border-bottom: 2px solid var(--simpsons-yellow);
+            padding-bottom: 8px;
+            display: inline-block;
         }
 
         .status {
             display: inline-block;
-            width: 10px;
-            height: 10px;
+            width: 14px;
+            height: 14px;
             border-radius: 50%;
             margin-right: 5px;
         }
 
         .status.online {
-            background-color: var(--success);
-            box-shadow: 0 0 8px var(--success);
+            background-color: var(--simpsons-green);
+            box-shadow: 0 0 8px var(--simpsons-green);
         }
 
         .status.offline {
-            background-color: var(--danger);
-            box-shadow: 0 0 8px var(--danger);
+            background-color: var(--simpsons-red);
+            box-shadow: 0 0 8px var(--simpsons-red);
+        }
+
+        input[type="text"], input[type="number"] {
+            background: var(--simpsons-white); 
+            color: var(--simpsons-black); 
+            border: 2px solid var(--simpsons-blue); 
+            padding: 8px 10px; 
+            border-radius: 10px;
+            font-family: 'Comic Neue', cursive;
+            font-size: 15px;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--simpsons-orange);
+            box-shadow: 0 0 0 3px rgba(245, 124, 0, 0.25);
+        }
+
+        button.save {
+            background-color: var(--simpsons-green);
+            box-shadow: 0 4px 0 #4B913B;
+        }
+
+        button.save:hover {
+            background-color: #8ED554;
+            box-shadow: 0 6px 0 #4B913B;
+        }
+        
+        button.save:active {
+            box-shadow: 0 0 0 #4B913B;
+        }
+
+        /*donut decoration*/
+        .donut {
+            position: fixed;
+            z-index: -1;
+            opacity: 0.3;
+            transform: rotate(15deg);
+            filter: drop-shadow(5px 5px 8px rgba(0,0,0,0.2));
+        }
+        
+        .donut1 {
+            top: 10%;
+            left: 5%;
+            width: 100px;
+            height: 100px;
+        }
+        
+        .donut2 {
+            bottom: 8%;
+            right: 5%;
+            width: 80px;
+            height: 80px;
         }
 
         @media (max-width: 768px) {
@@ -172,10 +267,30 @@
             select {
                 width: 100%;
             }
+            .donut {
+                display: none;
+            }
         }
     </style>
 </head>
 <body>
+    <!--decorative donuts-->
+    <svg class="donut donut1" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="40" fill="#FFA0B7" />
+        <circle cx="50" cy="50" r="15" fill="#FFF3D4" />
+        <circle cx="60" cy="35" r="5" fill="#FF80AB" />
+        <circle cx="35" cy="60" r="5" fill="#FF80AB" />
+        <circle cx="70" cy="55" r="3" fill="#FF80AB" />
+    </svg>
+    
+    <svg class="donut donut2" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="40" fill="#FFA0B7" />
+        <circle cx="50" cy="50" r="15" fill="#FFF3D4" />
+        <circle cx="60" cy="35" r="5" fill="#FF80AB" />
+        <circle cx="35" cy="60" r="5" fill="#FF80AB" />
+        <circle cx="70" cy="55" r="3" fill="#FF80AB" />
+    </svg>
+
     <h1>TSTO Server Dashboard</h1>
     <div class="container">
         <div class="panel">
@@ -183,32 +298,38 @@
             <div class="server-info">
                 <label>Status:</label>
                 <div><span class="status online"></span> Online</div>
-                
-                <label>Server IP:</label>
-                <div>%SERVER_IP%</div>
-                
-                <label>Game Port:</label>
-                <div>{{ GAME_PORT }}</div>
-                
+
                 <label>Uptime:</label>
                 <div>%UPTIME%</div>
-                
-                
+
+                <label>Server IP:</label>
+                <div>
+                    <input type="text" id="serverIp" value="%SERVER_IP%">
+                    <button onclick="updateServerIp()" style="padding: 5px 10px; margin-left: 10px;">Update</button>
+                </div>
+
+                <label>Server Port:</label>
+                <div>
+                    <input type="number" id="serverPort" value="{{ GAME_PORT }}">
+                    <button onclick="updateServerPort()" style="padding: 5px 10px; margin-left: 10px;">Update</button>
+                </div>
+
+
                 <label>Initial Donuts:</label>
                 <div>
-                    <input type="number" id="initialDonuts" value="%INITIAL_DONUTS%" min="0" style="background: var(--bg-primary); color: var(--text-primary); border: 1px solid var(--accent); padding: 5px; border-radius: 4px;">
+                    <input type="number" id="initialDonuts" value="%INITIAL_DONUTS%" min="0">
                     <button onclick="updateInitialDonuts()" style="padding: 5px 10px; margin-left: 10px;">Update</button>
                 </div>
-                
+
                 <label>Current Donuts:</label>
                 <div>
-                    <input type="number" id="currentDonuts" value="%CURRENT_DONUTS%" min="0" style="background: var(--bg-primary); color: var(--text-primary); border: 1px solid var(--accent); padding: 5px; border-radius: 4px;">
+                    <input type="number" id="currentDonuts" value="%CURRENT_DONUTS%" min="0">
                     <button onclick="updateCurrentDonuts()" style="padding: 5px 10px; margin-left: 10px;">Update</button>
                 </div>
 
                 <label>DLC Directory:</label>
                 <div>
-                    <input type="text" id="dlcDirectory" value="%DLC_DIRECTORY%" style="background: var(--bg-primary); color: var(--text-primary); border: 1px solid var(--accent); padding: 5px; border-radius: 4px;">
+                    <input type="text" id="dlcDirectory" value="%DLC_DIRECTORY%">
                     <button onclick="updateDlcDirectory()" style="padding: 5px 10px; margin-left: 10px;">Update</button>
                 </div>
             </div>
@@ -216,7 +337,7 @@
             <div class="controls">
                 <button onclick="restartServer()">Restart Server</button>
                 <button class="danger" onclick="stopServer()">Stop Server</button>
-                <button onclick="forceSaveProtoland()" style="background-color: var(--success);">Save Town</button>
+                <button onclick="forceSaveProtoland()" class="save">Save Town</button>
             </div>
         </div>
 
@@ -361,12 +482,54 @@
                 });
                 const data = await response.json();
                 if (data.success) {
-                    alert('DLC directory updated successfully');
+                    alert('DLC directory updated successfully. Please restart the server for changes to take effect.');
                 } else {
                     alert('Failed to update DLC directory: ' + (data.error || 'Unknown error'));
                 }
             } catch (error) {
                 alert('Failed to update DLC directory: ' + error);
+            }
+        }
+
+        async function updateServerIp() {
+            const serverIp = document.getElementById('serverIp').value;
+            try {
+                const response = await fetch('/api/updateServerIp', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ serverIp })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    alert('Server IP updated successfully');
+                } else {
+                    alert('Failed to update server IP: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('Failed to update server IP: ' + error);
+            }
+        }
+
+        async function updateServerPort() {
+            const serverPort = document.getElementById('serverPort').value;
+            try {
+                const response = await fetch('/api/updateServerPort', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ serverPort: parseInt(serverPort) })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    alert(data.message || 'Server port updated successfully');
+                } else {
+                    alert('Failed to update server port: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('Failed to update server port: ' + error);
             }
         }
 
@@ -386,8 +549,11 @@
             }
         }
 
-        // Auto-refresh the page every 30 seconds
+        //auto refresh the page every 30 seconds
         setTimeout(() => location.reload(), 30000);
     </script>
+	<footer style="text-align: center; padding: 20px; margin-top: 30px; color: var(--text-primary); font-size: 14px; border-top: 1px solid var(--border-color);">
+        Server created and designed by BodNJenie™
+    </footer>
 </body>
 </html>

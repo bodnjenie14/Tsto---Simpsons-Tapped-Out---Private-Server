@@ -11,7 +11,7 @@ namespace file_server {
     FileServer::FileServer() : file_mutex_(), queue_mutex_() {
         std::lock_guard<std::mutex> lock(file_mutex_);
         
-        base_directory_ = utils::configuration::ReadString("Server", "DLCDirectory", "");
+        base_directory_ = utils::configuration::ReadString("Server", "DLCDirectory", "dlc");
 
         if (base_directory_.empty()) {
             base_directory_ = "dlc";

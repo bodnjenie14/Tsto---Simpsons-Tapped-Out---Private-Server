@@ -6,6 +6,7 @@
 #include "configuration.hpp"
 #include "../discord/discord_rpc.hpp"
 #include "../updater/updater.hpp"
+#include "../tsto/dashboard/dashboard.hpp"
 #include <WS2tcpip.h>
 #include <iphlpapi.h>
 #pragma comment(lib, "iphlpapi.lib")
@@ -89,6 +90,9 @@ void initialize_servers() {  //for now dlc on same port as game
     tsto_server->server_ip_ = server_ip;
     tsto_server->server_port_ = static_cast<uint16_t>(game_port);
     
+    //dashboard server info
+    tsto::dashboard::Dashboard::set_server_info(server_ip, static_cast<uint16_t>(game_port));
+    
     auto dispatcher = std::make_shared<server::dispatcher::http::Dispatcher>(tsto_server);
 
     //// DLC Server on port 3074
@@ -125,10 +129,10 @@ void initialize_servers() {  //for now dlc on same port as game
     logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_INITIALIZER, "Server IP: %s", server_ip.c_str());
     logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_INITIALIZER, "Game HTTP Server started on port %d", game_port);
 
-    // Update Discord presence if enabled
+    //discord presence if enabled
     if (enable_discord) {
-        std::string details = "The Simpsons Tapped Out";
-        std::string state = "Private Server By BodnJenie";
+        std::string details = "The Simpsons™ Tapped Out";
+        std::string state = "Private Server By BodNJenie";
         server::discord::DiscordRPC::UpdatePresence(details, state);
         std::thread discord_thread([]() {
             while (true) {
