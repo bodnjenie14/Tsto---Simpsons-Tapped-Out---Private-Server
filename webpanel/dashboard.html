@@ -328,9 +328,11 @@
                 </div>
 
                 <label>DLC Directory:</label>
-                <div>
-                    <input type="text" id="dlcDirectory" value="%DLC_DIRECTORY%">
-                    <button onclick="updateDlcDirectory()" style="padding: 5px 10px; margin-left: 10px;">Update</button>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <input type="text" id="dlcDirectory" value="%DLC_DIRECTORY%" style="flex: 1;">
+                    <input type="file" id="dlcDirectoryPicker" webkitdirectory directory style="display: none;">
+                    <button onclick="browseDlcDirectory()" style="padding: 5px 10px;">Browse</button>
+                    <button onclick="updateDlcDirectory()" style="padding: 5px 10px;">Update</button>
                 </div>
             </div>
             
@@ -469,6 +471,20 @@
                 alert('Error updating current donuts: ' + error.message);
             }
         }
+
+        async function browseDlcDirectory() {
+            document.getElementById('dlcDirectoryPicker').click();
+        }
+
+        // Add directory picker change handler
+        document.getElementById('dlcDirectoryPicker').addEventListener('change', function(event) {
+            const files = event.target.files;
+            if (files.length > 0) {
+                // Get the directory path from the first file
+                const path = files[0].webkitRelativePath.split('/')[0];
+                document.getElementById('dlcDirectory').value = path;
+            }
+        });
 
         async function updateDlcDirectory() {
             const dlcDirectory = document.getElementById('dlcDirectory').value;
