@@ -10,6 +10,7 @@
 #include "configuration.hpp" 
 #include "tsto/events/events.hpp"
 #include "tsto/land/land.hpp"
+#include "tsto/auth/auth.hpp"
 
 namespace tsto {
 
@@ -327,25 +328,74 @@ namespace tsto {
         }
     }
 
-
     void TSTOServer::handle_progreg_code(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx,
         const evpp::http::HTTPSendResponseCallback& cb) {
+        try {
+            logger::write(logger::LOG_LEVEL_INCOMING, logger::LOG_LABEL_AUTH,
+                "[PROGREG CODE] Request from %s", ctx->remote_ip().data());
 
-        rapidjson::Document response;
-        response.SetObject();
-        auto& allocator = response.GetAllocator();
+            std::string body = ctx->body().ToString();
+            rapidjson::Document doc;
+            doc.Parse(body.c_str());
 
-        response.AddMember("status", "error", allocator);
-        response.AddMember("code", 501, allocator);
-        response.AddMember("message", "Program registration not implemented", allocator);
+            if (!doc.IsObject()) {
+                throw std::runtime_error("Invalid JSON request body");
+            }
 
-        rapidjson::StringBuffer buffer;
-        rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-        response.Accept(writer);
+            std::string code_type;
+            std::string filename;
 
-        ctx->set_response_http_code(501);
-        ctx->AddResponseHeader("Content-Type", "application/json");
-        cb(buffer.GetString());
+            if (doc.HasMember("codeType") && doc["codeType"].IsString()) {
+                code_type = doc["codeType"].GetString();
+            }
+            else {
+                throw std::runtime_error("Missing or invalid codeType");
+            }
+
+            if (code_type == "EMAIL") {
+                if (!doc.HasMember("email") || !doc["email"].IsString()) {
+                    throw std::runtime_error("Missing or invalid email");
+                }
+                filename = doc["email"].GetString();
+                if (filename.empty()) {
+                    throw std::runtime_error("Email cannot be empty");
+                }
+                
+                // Validate email format
+                if (filename.find('@') == std::string::npos || filename.find('.') == std::string::npos) {
+                    throw std::runtime_error("Invalid email format");
+                }
+            }
+            else {
+                throw std::runtime_error("Unknown codeType: " + code_type);
+            }
+
+            //town filename based on the user identifier
+            auto& session = tsto::Session::get();
+            std::string town_filename = filename + ".pb";
+            session.town_filename = town_filename;
+
+            // Load or create the town
+            tsto::land::Land land;
+            if (!land.load_town()) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                    "[PROGREG CODE] Failed to load/create town for user: %s", filename.c_str());
+                throw std::runtime_error("Failed to load/create town");
+            }
+
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                "[PROGREG CODE] Successfully loaded/created town for user: %s with filename: %s", 
+                filename.c_str(), town_filename.c_str());
+
+            headers::set_json_response(ctx);
+            cb(""); // errors client i dont mind for now
+        }
+        catch (const std::exception& ex) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                "[PROGREG CODE] Error: %s", ex.what());
+            ctx->set_response_http_code(500);
+            cb("");
+        }
     }
 
     //shud move to land IG
@@ -357,10 +407,27 @@ namespace tsto {
             size_t land_end = uri.find("/", land_start);
             std::string land_id = uri.substr(land_start, land_end - land_start);
 
-            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
-                "[CURRENCY] Processing currency request for land_id: %s", land_id.c_str());
+            //grab current session to access the email-based filename
+            auto& session = tsto::Session::get();
+            if (session.town_filename.empty()) {
+                throw std::runtime_error("No town file associated with session");
+            }
 
-            std::string currency_path = "towns/currency.txt";
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
+                "[CURRENCY] Processing currency request for user: %s, land_id: %s", 
+                session.town_filename.c_str(), land_id.c_str());
+
+            //create currency file path based on email
+            std::string email_base = session.town_filename;
+            size_t pb_pos = email_base.find(".pb");
+            if (pb_pos != std::string::npos) {
+                email_base = email_base.substr(0, pb_pos);
+            }
+            size_t txt_pos = email_base.find(".txt");
+            if (txt_pos != std::string::npos) {
+                email_base = email_base.substr(0, txt_pos);
+            }
+            std::string currency_path = "towns/currency_" + email_base + ".txt";
             std::filesystem::create_directories("towns");
 
             int balance = std::stoi(utils::configuration::ReadString("Server", "InitialDonutAmount", "1000"));
@@ -369,8 +436,8 @@ namespace tsto {
                 if (input.good()) {
                     input >> balance;
                     logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
-                        "[CURRENCY] Loaded existing currency data for land_id: %s (Balance: %d)",
-                        land_id.c_str(), balance);
+                        "[CURRENCY] Loaded existing currency data for user: %s (Balance: %d)",
+                        session.town_filename.c_str(), balance);
                 }
                 input.close();
             }
@@ -380,8 +447,8 @@ namespace tsto {
                 output.close();
 
                 logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
-                    "[CURRENCY] Created new currency data for land_id: %s with initial balance: %d",
-                    land_id.c_str(), balance);
+                    "[CURRENCY] Created new currency data for user: %s with initial balance: %d",
+                    session.town_filename.c_str(), balance);
             }
 
             Data::CurrencyData currency_data;
@@ -398,8 +465,8 @@ namespace tsto {
                 cb(response);
 
                 logger::write(logger::LOG_LEVEL_RESPONSE, logger::LOG_LABEL_GAME,
-                    "[CURRENCY] Sent currency data for land_id: %s (Balance: %d)",
-                    land_id.c_str(), balance);
+                    "[CURRENCY] Sent currency data for user: %s (Balance: %d)",
+                    session.town_filename.c_str(), balance);
             }
             else {
                 throw std::runtime_error("Failed to serialize currency data");

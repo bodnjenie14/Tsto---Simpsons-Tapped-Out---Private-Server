@@ -393,4 +393,155 @@ namespace tsto::dashboard {
         }
     }
 
+    void Dashboard::handle_edit_user_currency(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
+        const evpp::http::HTTPSendResponseCallback& cb) {
+        try {
+            std::string body = ctx->body().ToString();
+            rapidjson::Document doc;
+            doc.Parse(body.c_str());
+
+            if (!doc.IsObject() || !doc.HasMember("email") || !doc.HasMember("amount") || 
+                !doc["email"].IsString() || !doc["amount"].IsInt()) {
+                throw std::runtime_error("Invalid request. Required fields: email (string), amount (integer)");
+            }
+
+            std::string email = doc["email"].GetString();
+            int amount = doc["amount"].GetInt();
+
+            //clean up the email/username string
+            size_t pb_pos = email.find(".pb");
+            if (pb_pos != std::string::npos) {
+                email = email.substr(0, pb_pos);
+            }
+            size_t txt_pos = email.find(".txt");
+            if (txt_pos != std::string::npos) {
+                email = email.substr(0, txt_pos);
+            }
+
+            //unique currency file for each user
+            std::string currency_path;
+            if (email == "mytown") {
+                currency_path = "towns/currency.txt"; //legacy default path
+            } else {
+                currency_path = "towns/currency_" + email + ".txt";
+            }
+
+            std::filesystem::create_directories("towns");
+
+            std::ofstream output(currency_path);
+            if (!output.good()) {
+                throw std::runtime_error("Failed to open currency file for writing");
+            }
+            output << amount;
+            output.close();
+
+            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                "[CURRENCY] Updated currency for user %s to %d donuts (file: %s)", 
+                email.c_str(), amount, currency_path.c_str());
+
+            rapidjson::Document response;
+            response.SetObject();
+            response.AddMember("status", "success", response.GetAllocator());
+            response.AddMember("message", "Currency updated successfully", response.GetAllocator());
+            response.AddMember("email", rapidjson::StringRef(email.c_str()), response.GetAllocator());
+            response.AddMember("amount", amount, response.GetAllocator());
+
+            rapidjson::StringBuffer buffer;
+            rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+            response.Accept(writer);
+
+            ctx->AddResponseHeader("Content-Type", "application/json");
+            cb(buffer.GetString());
+        }
+        catch (const std::exception& ex) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                "[CURRENCY] Error updating currency: %s", ex.what());
+            ctx->set_response_http_code(500);
+            cb("{\"error\": \"Failed to update currency\"}");
+        }
+    }
+
+    void Dashboard::handle_list_users(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
+        const evpp::http::HTTPSendResponseCallback& cb) {
+        ctx->AddResponseHeader("Content-Type", "application/json");
+
+        try {
+            std::string users_file = "users.json";
+            rapidjson::Document users_doc;
+
+            if (!std::filesystem::exists(users_file)) {
+                std::ofstream file(users_file);
+                file << "{\"users\": []}" << std::endl;
+                file.close();
+            }
+
+            std::ifstream file(users_file);
+            std::string json_str((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+            file.close();
+
+            if (users_doc.Parse(json_str.c_str()).HasParseError()) {
+                throw std::runtime_error("Failed to parse users.json");
+            }
+
+            std::vector<std::string> town_files;
+            for (const auto& entry : std::filesystem::directory_iterator("towns")) {
+                if (entry.path().extension() == ".pb") {
+                    town_files.push_back(entry.path().filename().string());
+                }
+            }
+
+            rapidjson::Document response;
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+
+            rapidjson::Value users_array(rapidjson::kArrayType);
+            for (const auto& town_file : town_files) {
+                rapidjson::Value user_obj(rapidjson::kObjectType);
+                
+                std::string username = town_file;
+                size_t pos = username.find(".pb");
+                if (pos != std::string::npos) {
+                    username = username.substr(0, pos);
+                }
+
+                //currency using the same logic as handle_edit_user_currency
+                std::string currency_file;
+                if (username == "mytown") {
+                    currency_file = "towns/currency.txt";
+                } else {
+                    currency_file = "towns/currency_" + username + ".txt";
+                }
+                
+                int currency = 0;
+                if (std::filesystem::exists(currency_file)) {
+                    std::ifstream curr_file(currency_file);
+                    curr_file >> currency;
+                    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
+                        "[CURRENCY] Read currency for user %s: %d donuts (file: %s)",
+                        username.c_str(), currency, currency_file.c_str());
+                }
+
+                user_obj.AddMember("username", rapidjson::Value(username.c_str(), allocator), allocator);
+                user_obj.AddMember("townFile", rapidjson::Value(town_file.c_str(), allocator), allocator);
+                user_obj.AddMember("currency", currency, allocator);
+                user_obj.AddMember("isLegacy", username == "mytown", allocator);
+
+                users_array.PushBack(user_obj, allocator);
+            }
+
+            response.AddMember("users", users_array, allocator);
+
+            rapidjson::StringBuffer buffer;
+            rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+            response.Accept(writer);
+
+            cb(buffer.GetString());
+        }
+        catch (const std::exception& ex) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP,
+                "[DASHBOARD] Error listing users: %s", ex.what());
+            cb("{\"error\": \"Failed to list users\"}");
+        }
+    }
+
 }

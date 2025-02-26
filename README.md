@@ -2,7 +2,14 @@
 
 ## UPDATE NOTES
 
-Update v0.07
+Update v.009
+**Events fixed:** True event handling on dashboard.
+**Custom Dlc folder location:** Edit via server config json or dashboard.
+**Force save game from dashboard:** Use dashboard to force save (if needed).
+**New Design for dashboard ** Few improvements and new design.
+**IP and Port adjustable via dashboard:** Will disable auto-detect IP when manually set.
+**Town Switching system:** Option to switch towns using the login system. ( Not true multiuser - but could be used as 1 )
+**User Donuts:** Edit on the dashboard.
 - **Auto Updater** No more downloading binarys.
 - **Fixed Donuts:** Real donut saving
 - **Discord Rpc:** Need that advertising haha (can be disabled in server config)
@@ -103,6 +110,31 @@ This guide provides instructions to set up the TSTO server, patch the `tsto.apk`
 
 ### 8. Run the APK
 - Once the server is running, open the patched APK on your mobile device or BlueStacks.
+
+---
+
+
+### 9.How to townswitch
+
+Log in with a fake or invalid email.( no sign up required )
+**Ignore** the error message that appears.
+Return to the main screen and click "Play Anonymously."
+
+To **Reload** login same email and "Play Anonymously."
+
+How to sync (you can use any email you want these are just examples) 
+
+open game go to login make a email you want example: Bods@server.goat you will get an error that’s fine before going farther go to my towns and note the new file it created in this case it will be Bods@server.goat.pb
+
+ Delete it the new file and take your Town save you wanna load and change it to the same name Bod@server.goat.pb
+
+Now you you may enter 
+
+Want more towns Rince and repeat
+
+Want to reload just enter the account again 
+
+Bods@server.goat 
 
 ---
 

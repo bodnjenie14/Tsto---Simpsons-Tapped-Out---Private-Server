@@ -11,6 +11,8 @@ namespace file_server {
         FileServer();
         void handle_dlc_download(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx,
             const evpp::http::HTTPSendResponseCallback& cb);
+        void handle_webpanel_file(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx,
+            const evpp::http::HTTPSendResponseCallback& cb);
 
     private:
         std::string base_directory_;

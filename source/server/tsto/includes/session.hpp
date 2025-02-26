@@ -33,6 +33,7 @@ namespace tsto {
         std::string personal_id;
         std::string display_name;
         std::string persona_name;
+        std::string town_filename;
 
         std::string me_persona_id;
         std::string me_persona_pid_id;

@@ -44,9 +44,14 @@ namespace server::dispatcher::http {
 
             //dashboard 
 
-
             if (uri == "/dashboard") {
                 tsto::dashboard::Dashboard::handle_dashboard(loop, ctx, cb);
+                return;
+            }
+
+            // Handle dashboard static files
+            if (uri.find("/dashboard/") == 0 || uri.find("/images/") == 0) {
+                file_server_->handle_webpanel_file(loop, ctx, cb);
                 return;
             }
 
@@ -97,6 +102,16 @@ namespace server::dispatcher::http {
 
             if (uri == "/api/browseDirectory") {
                 tsto::dashboard::Dashboard::handle_browse_directory(loop, ctx, cb);
+                return;
+            }
+
+            if (uri == "/edit_user_currency") {
+                tsto::dashboard::Dashboard::handle_edit_user_currency(loop, ctx, cb);
+                return;
+            }
+
+            if (uri == "/list_users") {
+                tsto::dashboard::Dashboard::handle_list_users(loop, ctx, cb);
                 return;
             }
 

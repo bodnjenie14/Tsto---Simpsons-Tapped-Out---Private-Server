@@ -19,9 +19,9 @@ namespace tsto::land {
         static void handle_extraland_update(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx, const evpp::http::HTTPSendResponseCallback& cb, const std::string& land_id);
         static void handle_delete_token(evpp::EventLoop*, const evpp::http::ContextPtr&, const evpp::http::HTTPSendResponseCallback&);
         static bool save_town();
+        static bool load_town();
 
     private:
-        static bool load_town();
         static void create_blank_town();
         static bool validate_land_data(const Data::LandMessage& land_data);
         static void handle_get_request(const evpp::http::ContextPtr&, const evpp::http::HTTPSendResponseCallback&, const std::string&);

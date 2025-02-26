@@ -59,10 +59,31 @@ namespace tsto::land {
 
     bool Land::load_town() {
         auto& session = tsto::Session::get();
-        std::filesystem::path town_file_path = "towns/mytown.pb";
+        std::string filename = session.town_filename;
 
-        logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME, "[LAND] Attempting to load %s", town_file_path.string().c_str());
+        //legacy users or when not logged in
+        if (filename.empty()) {
+            filename = "mytown.pb";
+            session.town_filename = filename;  //set session filename to mytown.pb
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
+                "[LAND] Using default town file: %s", filename.c_str());
+        }
+        //logged in users, validate email format
+        else if (filename != "mytown.pb" && (filename.find('@') == std::string::npos || !filename.ends_with(".pb"))) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                "[LAND] Invalid town filename format: %s", filename.c_str());
+            return false;
+        }
 
+        std::filesystem::path town_file_path = "towns/" + filename;
+
+        logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME, 
+            "[LAND] Attempting to load %s", town_file_path.string().c_str());
+
+        //create towns directory if it doesn't exist
+        std::filesystem::create_directories("towns");
+
+        //try to load existing town or create new one
         if (!std::filesystem::exists(town_file_path)) {
             logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME, "[LAND] No existing town found at %s, creating new town", town_file_path.string().c_str());
             create_blank_town();
@@ -110,6 +131,49 @@ namespace tsto::land {
         }
     }
 
+    bool Land::save_town() {
+        auto& session = tsto::Session::get();
+        std::string filename = session.town_filename;
+
+        //legacy users or when not logged in, use mytown.pb
+        if (filename.empty()) {
+            filename = "mytown.pb";
+        }
+
+        std::filesystem::path town_file_path = "towns/" + filename;
+        
+        try {
+            std::filesystem::create_directories("towns");
+
+            std::ofstream file(town_file_path, std::ios::binary);
+            if (!file.is_open()) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                    "[LAND] Failed to open town file for writing: %s", town_file_path.string().c_str());
+                return false;
+            }
+
+            std::string serialized;
+            if (!session.land_proto.SerializeToString(&serialized)) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                    "[LAND] Failed to serialize town data");
+                return false;
+            }
+
+            file.write(serialized.data(), serialized.size());
+            file.close();
+
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
+                "[LAND] Successfully saved town file: %s", town_file_path.string().c_str());
+            return true;
+        }
+        catch (const std::exception& ex) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                "[LAND] Error saving town file: %s", ex.what());
+            return false;
+        }
+    }
+
+
     void Land::create_blank_town() {
         auto& session = tsto::Session::get();
 
@@ -134,50 +198,6 @@ namespace tsto::land {
         logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME, 
             "[LAND] Created new blank town with data version %d and initial donuts: %d", 
             friend_data->dataversion(), initial_donuts);
-    }
-
-
-    bool Land::save_town() {
-        auto& session = tsto::Session::get();
-
-        if (!session.land_proto.IsInitialized()) {
-            return false;
-        }
-
-        std::filesystem::path towns_dir = "towns";
-        std::filesystem::path town_file_path = towns_dir / "mytown.pb";
-
-        std::filesystem::create_directories(towns_dir);
-
-        std::string currency_path = "towns/currency.txt";
-        if (!std::filesystem::exists(currency_path)) {
-            int initial_donuts = std::stoi(utils::configuration::ReadString("Server", "InitialDonutAmount", "1000"));
-            std::ofstream output(currency_path);
-            output << initial_donuts;
-            output.close();
-            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME, 
-                "[LAND] Created new currency file with initial donuts: %d", initial_donuts);
-        }
-
-        std::ofstream file(town_file_path, std::ios::binary);
-        if (!file.is_open()) {
-            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
-                "[PROTOLAND] Failed to open town file for writing: %s",
-                town_file_path.string().c_str());
-            return false;
-        }
-
-        std::string serialized;
-        if (!session.land_proto.SerializeToString(&serialized)) {
-            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
-                "[PROTOLAND] Failed to serialize town data");
-            return false;
-        }
-
-        file.write(serialized.data(), serialized.size());
-        file.close();
-
-        return true;
     }
 
 
@@ -516,7 +536,36 @@ namespace tsto::land {
                 throw std::runtime_error("Failed to parse ExtraLandMessage");
             }
 
-            std::string currency_path = "towns/currency.txt";
+            //grab the current session to access the email-based filename // this cud cause dementia
+            auto& session = tsto::Session::get();
+            std::string currency_path;
+            std::string user_identifier;
+
+            //check if we're using mytown.pb (non-logged in) or email-based town (logged in)
+            std::string current_town = session.town_filename.empty() ? "mytown.pb" : session.town_filename;
+            
+            if (current_town == "mytown.pb") {
+                //non logged in user - use currency.txt
+                currency_path = "towns/currency.txt";
+                user_identifier = "default";
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
+                    "[CURRENCY] Using legacy currency file for non-logged in user");
+            } else {
+                //logged in user - use email-based currency file
+                std::string email_base = current_town;
+                size_t pb_pos = email_base.find(".pb");
+                if (pb_pos != std::string::npos) {
+                    email_base = email_base.substr(0, pb_pos);
+                }
+                size_t txt_pos = email_base.find(".txt");
+                if (txt_pos != std::string::npos) {
+                    email_base = email_base.substr(0, txt_pos);
+                }
+                currency_path = "towns/currency_" + email_base + ".txt";
+                user_identifier = email_base;
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
+                    "[CURRENCY] Using email-based currency file for user: %s", email_base.c_str());
+            }
             
             std::filesystem::create_directories("towns");
             
@@ -526,10 +575,14 @@ namespace tsto::land {
                 if (input.good()) {
                     input >> balance;
                     logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
-                        "[CURRENCY] Loaded existing currency data for land_id: %s (Balance: %d)", 
-                        land_id.c_str(), balance);
+                        "[CURRENCY] Loaded existing currency data for user: %s (Balance: %d)", 
+                        user_identifier.c_str(), balance);
                 }
                 input.close();
+            } else {
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
+                    "[CURRENCY] Creating new currency file for user: %s with initial balance: %d", 
+                    user_identifier.c_str(), balance);
             }
 
             int32_t total_earned = 0;
@@ -540,7 +593,7 @@ namespace tsto::land {
                 if (delta.amount() > 0) {
                     total_earned += delta.amount();
                 } else {
-                    total_spent += std::abs(delta.amount());  // Use absolute value for spent amount
+                    total_spent += std::abs(delta.amount());  //absolute value for spent amount
                 }
                 
                 auto* processed = response.add_processedcurrencydelta();
@@ -550,6 +603,9 @@ namespace tsto::land {
             balance = balance + total_earned - total_spent;
 
             std::ofstream output(currency_path);
+            if (!output.is_open()) {
+                throw std::runtime_error("Failed to open currency file for writing: " + currency_path);
+            }
             output << balance;
             output.close();
 
@@ -562,8 +618,8 @@ namespace tsto::land {
             }
 
             logger::write(logger::LOG_LEVEL_RESPONSE, logger::LOG_LABEL_GAME,
-                "[CURRENCY] Updated currency for land_id: %s (Balance: %d, Earned: %d, Spent: %d)",
-                land_id.c_str(), balance, total_earned, total_spent);
+                "[CURRENCY] Updated currency for user: %s (Balance: %d, Earned: %d, Spent: %d)",
+                user_identifier.c_str(), balance, total_earned, total_spent);
         }
         catch (const std::exception& ex) {
             logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,

@@ -139,6 +139,31 @@ namespace file_server {
         }
     }
 
+    void FileServer::handle_webpanel_file(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx,
+        const evpp::http::HTTPSendResponseCallback& cb) {
+
+        cleanup_completed_ops();  // Clean up completed operations
+
+        try {
+            std::string uri = ctx->uri();
+            uri = sanitize_filename(uri);
+
+            std::string file_path = "webpanel" + uri;
+
+            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_FILESERVER,
+               "Original URI: %s, Sanitized URI: %s, Final path: %s", 
+               ctx->uri().c_str(), uri.c_str(), file_path.c_str());
+
+            async_read_file(loop, file_path, ctx, cb);
+        }
+        catch (const std::exception& e) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_FILESERVER,
+                "Error in handle_webpanel_file: %s", e.what());
+            ctx->set_response_http_code(500);
+            cb("Internal server error");
+        }
+    }
+
     bool FileServer::is_path_safe(const std::string& requested_path) const {
         try {
             // Allow any path as long as it exists

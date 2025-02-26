@@ -20,10 +20,8 @@
             font-family: 'Comic Neue', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
             padding: 20px;
-            background-color: #75B7E5; /* Blue sky background */
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cpath fill='%23ffffff' fill-opacity='0.4' d='M96.5,40.1c-1.9-2.2-5.7-2.2-8.2-0.5c-0.9-3.5-4.2-5.5-7.7-5.5c-2.7,0-5,1.2-6.6,3.3c-0.5-0.2-1-0.3-1.5-0.3c-2.2,0-4,1.6-4,3.6c0,0.2,0,0.4,0.1,0.6c-3.4,0.8-5.9,3.4-5.9,6.5c0,3.8,3.5,6.8,7.9,6.8h22.9c4.4,0,7.9-3.1,7.9-6.8C101.5,44.4,99.5,41.6,96.5,40.1z M24.5,26.1c-1.9-2.2-5.7-2.2-8.2-0.5c-0.9-3.5-4.2-5.5-7.7-5.5c-2.7,0-5,1.2-6.6,3.3c-0.5-0.2-1-0.3-1.5-0.3c-2.2,0-4,1.6-4,3.6c0,0.2,0,0.4,0.1,0.6c-3.4,0.8-5.9,3.4-5.9,6.5c0,3.8,3.5,6.8,7.9,6.8h22.9c4.4,0,7.9-3.1,7.9-6.8C29.5,30.4,27.5,27.6,24.5,26.1z'/%3E%3C/svg%3E");
+            background: url('images/background.png');
             color: var(--simpsons-black);
-            background-attachment: fixed;
         }
 
         .container {
@@ -233,6 +231,96 @@
             box-shadow: 0 0 0 #4B913B;
         }
 
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: var(--simpsons-blue);
+            font-weight: bold;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 10px;
+            border-radius: 10px;
+            border: 3px solid var(--simpsons-blue);
+            font-size: 16px;
+            font-family: 'Comic Neue', cursive;
+            background-color: var(--simpsons-white);
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: var(--simpsons-orange);
+            box-shadow: 0 0 0 3px rgba(245, 124, 0, 0.25);
+        }
+
+        .currency-editor {
+            padding: 15px;
+            background-color: rgba(254, 217, 15, 0.2);
+            border-radius: 12px;
+            border: 2px dashed var(--simpsons-orange);
+        }
+
+        .currency-editor .input-group {
+            margin-bottom: 15px;
+        }
+
+        .currency-editor label {
+            display: block;
+            color: var(--simpsons-blue);
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .currency-editor input[type="text"],
+        .currency-editor input[type="number"] {
+            width: 250px;
+            padding: 8px;
+            border-radius: 8px;
+            border: 2px solid var(--simpsons-blue);
+            font-size: 14px;
+            font-family: 'Comic Neue', cursive;
+        }
+
+        .currency-editor input[type="text"]:focus,
+        .currency-editor input[type="number"]:focus {
+            outline: none;
+            border-color: var(--simpsons-orange);
+            box-shadow: 0 0 0 2px rgba(245, 124, 0, 0.25);
+        }
+
+        .currency-editor button {
+            margin-top: 10px;
+            background-color: var(--simpsons-orange);
+            box-shadow: 0 4px 0 #E65100;
+        }
+
+        .currency-editor button:hover {
+            background-color: #FB8C00;
+            box-shadow: 0 6px 0 #E65100;
+        }
+
+        .currency-editor button:active {
+            box-shadow: 0 0 0 #E65100;
+        }
+
+        .section-divider {
+            border-top: 2px dashed var(--simpsons-orange);
+            margin: 20px 0;
+            padding-top: 20px;
+        }
+
+        .section-title {
+            color: var(--simpsons-blue);
+            font-weight: bold;
+            font-size: 18px;
+            margin-bottom: 15px;
+        }
+
         /*donut decoration*/
         .donut {
             position: fixed;
@@ -294,7 +382,7 @@
     <h1>TSTO Server Dashboard</h1>
     <div class="container">
         <div class="panel">
-            <h2>Server Information</h2>
+            <h2>Server Configuration</h2>
             <div class="server-info">
                 <label>Status:</label>
                 <div><span class="status online"></span> Online</div>
@@ -314,35 +402,15 @@
                     <button onclick="updateServerPort()" style="padding: 5px 10px; margin-left: 10px;">Update</button>
                 </div>
 
-
-                <label>Initial Donuts:</label>
-                <div>
-                    <input type="number" id="initialDonuts" value="%INITIAL_DONUTS%" min="0">
-                    <button onclick="updateInitialDonuts()" style="padding: 5px 10px; margin-left: 10px;">Update</button>
-                </div>
-
-                <label>Current Donuts:</label>
-                <div>
-                    <input type="number" id="currentDonuts" value="%CURRENT_DONUTS%" min="0">
-                    <button onclick="updateCurrentDonuts()" style="padding: 5px 10px; margin-left: 10px;">Update</button>
-                </div>
-
                 <label>DLC Directory:</label>
                 <div style="display: flex; gap: 10px; align-items: center;">
                     <input type="text" id="dlcDirectory" value="%DLC_DIRECTORY%" style="flex: 1;">
                     <button onclick="browseDlcDirectory()" style="padding: 5px 10px;">Select Folder</button>
                 </div>
             </div>
-            
-            <div class="controls">
-                <button onclick="restartServer()">Restart Server</button>
-                <button class="danger" onclick="stopServer()">Stop Server</button>
-                <button onclick="forceSaveProtoland()" class="save">Save Town</button>
-            </div>
-        </div>
 
-        <div class="panel">
-            <h2>Events System</h2>
+            <div class="section-divider"></div>
+            <div class="section-title">Event Configuration</div>
             <div class="event-section">
                 <div class="event-status">
                     <div class="status-indicator"></div>
@@ -358,11 +426,96 @@
                     <button onclick="setSelectedEvent()">Set Event</button>
                 </div>
             </div>
+            
+            <div class="controls" style="margin-top: 20px;">
+                <button onclick="restartServer()">Restart Server</button>
+                <button class="danger" onclick="stopServer()">Stop Server</button>
+                <button onclick="forceSaveProtoland()" class="save">Save Town</button>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>Donut Management</h2>
+            <div class="section-title">Global Donut Configuration</div>
+            <div class="server-info">
+                <label>Initial Donuts:</label>
+                <div>
+                    <input type="number" id="initialDonuts" value="%INITIAL_DONUTS%" min="0" style="width: 120px;">
+                    <button onclick="updateInitialDonuts()" style="padding: 5px 10px; margin-left: 10px;">Update</button>
+                </div>
+
+                <label>Current Donuts:</label>
+                <div>
+                    <input type="number" id="currentDonuts" value="%CURRENT_DONUTS%" min="0" style="width: 120px;">
+                    <button onclick="updateCurrentDonuts()" style="padding: 5px 10px; margin-left: 10px;">Update</button>
+                </div>
+            </div>
+
+            <div class="section-divider"></div>
+            <div class="section-title">User Currency Editor</div>
+            <div class="currency-editor">
+                <div class="input-group">
+                    <label for="userSelect">Select User:</label>
+                    <select id="userSelect" onchange="userSelected()" style="width: 250px;">
+                        <option value="">Select a user...</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label for="userEmail">User Email:</label>
+                    <input type="text" id="userEmail" placeholder="Enter user email">
+                </div>
+                <div class="input-group">
+                    <label for="donutAmount">Donut Amount:</label>
+                    <input type="number" id="donutAmount" placeholder="Enter donut amount" min="0">
+                </div>
+                <button onclick="updateUserCurrency()">Update User Currency</button>
+            </div>
         </div>
     </div>
 
     <script>
         let selectedEventTime = 0;
+
+        async function loadUsers() {
+            try {
+                const response = await fetch('/list_users');
+                if (!response.ok) {
+                    throw new Error('Failed to fetch users');
+                }
+                const data = await response.json();
+                const userSelect = document.getElementById('userSelect');
+                
+                // Clear existing options except the first one
+                while (userSelect.options.length > 1) {
+                    userSelect.remove(1);
+                }
+
+                // Add users to dropdown
+                data.users.forEach(user => {
+                    const option = document.createElement('option');
+                    option.value = JSON.stringify(user);
+                    option.textContent = user.isLegacy ? 'Legacy User (mytown)' : user.username;
+                    userSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading users:', error);
+            }
+        }
+
+        function userSelected() {
+            const userSelect = document.getElementById('userSelect');
+            const userEmail = document.getElementById('userEmail');
+            const donutAmount = document.getElementById('donutAmount');
+            
+            if (userSelect.value) {
+                const userData = JSON.parse(userSelect.value);
+                userEmail.value = userData.username;
+                donutAmount.value = userData.currency;
+            } else {
+                userEmail.value = '';
+                donutAmount.value = '';
+            }
+        }
 
         function updateSelectedEvent() {
             selectedEventTime = parseInt(document.getElementById('eventSelect').value);
@@ -570,8 +723,47 @@
             }
         }
 
+        async function updateUserCurrency() {
+            const email = document.getElementById('userEmail').value;
+            const amount = parseInt(document.getElementById('donutAmount').value);
+
+            if (!email || !amount) {
+                alert('Please fill in both email and amount fields');
+                return;
+            }
+
+            try {
+                const response = await fetch('/edit_user_currency', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: email,
+                        amount: amount
+                    })
+                });
+
+                const data = await response.json();
+                if (data.status === 'success') {
+                    alert(`Successfully updated currency for ${email} to ${amount} donuts`);
+                    // Refresh the user list to show updated currency
+                    await loadUsers();
+                } else {
+                    alert(`Error: ${data.message}`);
+                }
+            } catch (error) {
+                alert('Failed to update currency: ' + error.message);
+            }
+        }
+
+        // Load users when page loads
+        document.addEventListener('DOMContentLoaded', loadUsers);
+
         //auto refresh the page every 30 seconds
-        setTimeout(() => location.reload(), 30000);
+        setInterval(() => {
+            loadUsers();
+        }, 30000);
     </script>
 	<footer style="text-align: center; padding: 20px; margin-top: 30px; color: var(--text-primary); font-size: 14px; border-top: 1px solid var(--border-color);">
         Server created and designed by BodNJenie™
