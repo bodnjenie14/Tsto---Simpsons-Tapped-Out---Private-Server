@@ -138,6 +138,12 @@ Bods@server.goat
 
 ---
 
+## Dashboard preview
+
+![image](https://github.com/user-attachments/assets/cf0d7de6-1c9a-4350-a408-352cbcffebf4)
+
+---
+
 ## Additional Notes
 - **GUI Patcher Location:** The `windows_gui_patcher.py` script is located in the `apk_patcher` folder.
 - **IP and Port Configuration:**
@@ -153,6 +159,7 @@ Follow these steps sequentially for proper setup. Enjoy!
 - abseil libary
   ( vcpkg install abseil )
 ---
+
 
 
 
