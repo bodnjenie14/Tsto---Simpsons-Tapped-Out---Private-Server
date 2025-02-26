@@ -140,7 +140,8 @@ Bods@server.goat
 
 ## Dashboard preview
 
-![image](https://github.com/user-attachments/assets/cf0d7de6-1c9a-4350-a408-352cbcffebf4)
+![image](https://github.com/user-attachments/assets/c9dc9fbc-c8a0-4bf7-8995-b868fe0a0ec0)
+
 
 ---
 
