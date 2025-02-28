@@ -69,7 +69,7 @@ namespace server::dispatcher::http {
                 return;
             }
 
-            if (uri == "/api/browse-directory") {
+            if (uri == "/api/browseDirectory") {
                 tsto::dashboard::Dashboard::handle_browse_directory(loop, ctx, cb);
                 return;
             }
