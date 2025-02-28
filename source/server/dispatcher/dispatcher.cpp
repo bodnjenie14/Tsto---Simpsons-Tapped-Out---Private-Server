@@ -64,7 +64,7 @@ namespace server::dispatcher::http {
                 return;
             }
 
-            if (uri == "/api/edit-user-currency") {
+            if (uri == "/edit_user_currency") {
                 tsto::dashboard::Dashboard::handle_edit_user_currency(loop, ctx, cb);
                 return;
             }
