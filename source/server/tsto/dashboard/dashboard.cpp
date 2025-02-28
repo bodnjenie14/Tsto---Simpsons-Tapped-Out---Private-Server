@@ -556,8 +556,10 @@ namespace tsto::dashboard {
         logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP, "Handling get-user-save request");
         
         std::string requestBody = std::string(ctx->body().data(), ctx->body().size());
-        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP, "Request body: %s", 
-            requestBody.c_str());
+        
+        // logger had me off again
+        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP, "Request body:");
+        logger::write("tsto_server.log", requestBody + "\n");
         
         std::string username;
         bool isLegacy = false;
@@ -685,8 +687,10 @@ namespace tsto::dashboard {
         ctx->AddResponseHeader("Content-Type", "application/json");
         
         std::string requestBody = std::string(ctx->body().data(), ctx->body().size());
-        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP, 
-            "Received save request body: %s", requestBody.c_str());
+        
+        //lol logger had me off here 
+        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP, "Received save request body:");
+        logger::write("tsto_server.log", requestBody + "\n");
 
         rapidjson::Document request;
         if (request.Parse(requestBody.c_str()).HasParseError()) {
@@ -697,8 +701,25 @@ namespace tsto::dashboard {
         }
 
         logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP, 
-            "Request has fields - username: %d, isLegacy: %d, save: %d", 
-            request.HasMember("username"), request.HasMember("isLegacy"), request.HasMember("save"));
+            "Request has fields - username: %s, isLegacy: %s, save: %s", 
+            request.HasMember("username") ? "true" : "false",
+            request.HasMember("isLegacy") ? "true" : "false",
+            request.HasMember("save") ? "true" : "false");
+
+        if (!request.HasMember("username") || !request.HasMember("isLegacy") || !request.HasMember("save")) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, "Missing required fields in request");
+            ctx->set_response_http_code(400);
+            cb("{\"error\": \"Missing required fields\"}");
+            return;
+        }
+
+        std::string usernamePresent = request.HasMember("username") ? request["username"].GetString() : "";
+        std::string isLegacyStr = request.HasMember("isLegacy") ? (request["isLegacy"].GetBool() ? "true" : "false") : "false";
+        std::string hasSaveStr = request.HasMember("save") ? "true" : "false";
+        
+        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP, 
+            "Request has fields - username: %s, isLegacy: %s, save: %s", 
+            usernamePresent.c_str(), isLegacyStr.c_str(), hasSaveStr.c_str());
 
         if (!request.HasMember("username") || !request.HasMember("isLegacy") || !request.HasMember("save")) {
             logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, "Missing required fields in request");
