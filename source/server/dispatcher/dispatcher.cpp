@@ -49,6 +49,31 @@ namespace server::dispatcher::http {
                 return;
             }
 
+            if (uri == "/api/get-user-save") {
+                tsto::dashboard::Dashboard::handle_get_user_save(loop, ctx, cb);
+                return;
+            }
+
+            if (uri == "/api/save-user-save") {
+                tsto::dashboard::Dashboard::handle_save_user_save(loop, ctx, cb);
+                return;
+            }
+
+            if (uri == "/list_users") {
+                tsto::dashboard::Dashboard::handle_list_users(loop, ctx, cb);
+                return;
+            }
+
+            if (uri == "/api/edit-user-currency") {
+                tsto::dashboard::Dashboard::handle_edit_user_currency(loop, ctx, cb);
+                return;
+            }
+
+            if (uri == "/api/browse-directory") {
+                tsto::dashboard::Dashboard::handle_browse_directory(loop, ctx, cb);
+                return;
+            }
+
             // Handle dashboard static files
             if (uri.find("/dashboard/") == 0 || uri.find("/images/") == 0) {
                 file_server_->handle_webpanel_file(loop, ctx, cb);
@@ -100,21 +125,6 @@ namespace server::dispatcher::http {
                 return;
             }
 
-            if (uri == "/api/browseDirectory") {
-                tsto::dashboard::Dashboard::handle_browse_directory(loop, ctx, cb);
-                return;
-            }
-
-            if (uri == "/edit_user_currency") {
-                tsto::dashboard::Dashboard::handle_edit_user_currency(loop, ctx, cb);
-                return;
-            }
-
-            if (uri == "/list_users") {
-                tsto::dashboard::Dashboard::handle_list_users(loop, ctx, cb);
-                return;
-            }
-
             if (uri == "/api/events/set") {
                 tsto::events::Events::handle_events_set(loop, ctx, cb);
                 return;
@@ -147,9 +157,6 @@ namespace server::dispatcher::http {
                     return;
                 }
             }
-
-
-
 
             if (uri == "/mh/games/lobby/time") {
                 tsto_server_->handle_lobby_time(loop, ctx, cb);
@@ -331,7 +338,6 @@ namespace server::dispatcher::http {
                 return;
             }
 
-
             //friends
 
             if (uri.find("/mh/games/bg_gameserver_plugin/friendData") == 0) {
@@ -351,20 +357,29 @@ namespace server::dispatcher::http {
 
             ctx->set_response_http_code(404);
             ctx->AddResponseHeader("Content-Type", "application/json");
-            cb(R"({"status": "error", "message": "Route not found"})");
+            ctx->AddResponseHeader("Server", "Basic-HTTPS-Server/1.0");
+
+            std::string response = R"({"status": "error", "message": "Unknown endpoint"})";
+            cb(response);
         }
 
         catch (const std::exception& ex) {
             logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, "Error handling request: %s", ex.what());
             ctx->set_response_http_code(500);
             ctx->AddResponseHeader("Content-Type", "application/json");
-            cb(R"({"status": "error", "message": "Internal Server Error"})");
+            ctx->AddResponseHeader("Server", "Basic-HTTPS-Server/1.0");
+
+            std::string response = R"({"status": "error", "message": "Internal Server Error"})";
+            cb(response);
         }
         catch (...) {
             logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, "Unknown error in request handler");
             ctx->set_response_http_code(500);
             ctx->AddResponseHeader("Content-Type", "application/json");
-            cb(R"({"status": "error", "message": "Internal Server Error"})");
+            ctx->AddResponseHeader("Server", "Basic-HTTPS-Server/1.0");
+
+            std::string response = R"({"status": "error", "message": "Internal Server Error"})";
+            cb(response);
         }
     }
 }

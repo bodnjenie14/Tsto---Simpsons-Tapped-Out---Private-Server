@@ -16,19 +16,28 @@
             --simpsons-shadow: rgba(0, 0, 0, 0.3);
         }
 
+        html {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
         body {
             font-family: 'Comic Neue', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
             padding: 20px;
-            background: url('images/background.png');
+            background: url('images/background.png') no-repeat center center fixed;
+            background-size: cover;
+            min-height: 100vh;
             color: var(--simpsons-black);
+            box-sizing: border-box;
         }
 
         .container {
             max-width: 1200px;
             margin: 0 auto;
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: repeat(2, 1fr);
             gap: 20px;
         }
 
@@ -321,6 +330,75 @@
             margin-bottom: 15px;
         }
 
+        /* Advanced Mode Toggle Styles */
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .toggle-slider {
+            background-color: var(--simpsons-blue);
+        }
+
+        input:checked + .toggle-slider:before {
+            transform: translateX(26px);
+        }
+
+        /* Hide advanced panels by default */
+        .advanced-panel {
+            display: none;
+        }
+
+        /* Show advanced panels when advanced mode is enabled */
+        body.advanced-mode .advanced-panel {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
         /*donut decoration*/
         .donut {
             position: fixed;
@@ -359,6 +437,46 @@
                 display: none;
             }
         }
+
+        .save-editor {
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        .save-editor textarea {
+            width: 100%;
+            height: 200px;
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 10px;
+            border: 3px solid var(--simpsons-blue);
+            font-family: monospace;
+            resize: vertical;
+            background-color: var(--simpsons-white);
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .save-editor textarea:focus {
+            outline: none;
+            border-color: var(--simpsons-orange);
+            box-shadow: 0 0 0 3px rgba(245, 124, 0, 0.25);
+        }
+
+        .disclaimer {
+            background-color: rgba(254, 217, 15, 0.2);
+            border: 2px dashed var(--simpsons-orange);
+            border-radius: 8px;
+            padding: 10px;
+            margin: 10px 0;
+            font-size: 14px;
+            color: var(--simpsons-black);
+        }
+
+        .disclaimer i {
+            color: var(--simpsons-orange);
+            font-style: normal;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -383,6 +501,13 @@
     <div class="container">
         <div class="panel">
             <h2>Server Configuration</h2>
+            <div class="toggle-container">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="advancedModeToggle" onchange="toggleAdvancedMode()">
+                    <span class="toggle-slider"></span>
+                </label>
+                <span>Advanced Mode</span>
+            </div>
             <div class="server-info">
                 <label>Status:</label>
                 <div><span class="status online"></span> Online</div>
@@ -450,25 +575,48 @@
                     <button onclick="updateCurrentDonuts()" style="padding: 5px 10px; margin-left: 10px;">Update</button>
                 </div>
             </div>
+        </div>
 
-            <div class="section-divider"></div>
-            <div class="section-title">User Currency Editor</div>
-            <div class="currency-editor">
-                <div class="input-group">
-                    <label for="userSelect">Select User:</label>
-                    <select id="userSelect" onchange="userSelected()" style="width: 250px;">
+        <div class="panel advanced-panel">
+            <h2>User Save Editor</h2>
+            <div class="save-editor">
+                <div class="disclaimer">
+                    <i>⚠️ Warning:</i> Editing save data directly can potentially break your save file. Don't worry though - a backup will be automatically created for safety!
+                </div>
+                <div class="server-info">
+                    <label>Select User:</label>
+                    <select id="userSelectSave" onchange="userSelectedSave()">
                         <option value="">Select a user...</option>
                     </select>
                 </div>
-                <div class="input-group">
-                    <label for="userEmail">User Email:</label>
-                    <input type="text" id="userEmail" placeholder="Enter user email">
+                <textarea id="saveContent" spellcheck="false"></textarea>
+                <div class="controls">
+                    <button onclick="loadUserSave()">Load Save</button>
+                    <button onclick="saveUserSave()">Save Changes</button>
                 </div>
-                <div class="input-group">
-                    <label for="donutAmount">Donut Amount:</label>
-                    <input type="number" id="donutAmount" placeholder="Enter donut amount" min="0">
+            </div>
+        </div>
+
+        <div class="panel advanced-panel">
+            <h2>User Currency Editor</h2>
+            <div class="currency-editor">
+                <div class="server-info">
+                    <label>Select User:</label>
+                    <select id="userSelect" onchange="userSelected()">
+                        <option value="">Select a user...</option>
+                    </select>
                 </div>
-                <button onclick="updateUserCurrency()">Update User Currency</button>
+                <div class="server-info">
+                    <label>User Email:</label>
+                    <input type="text" id="userEmail" readonly>
+                </div>
+                <div class="server-info">
+                    <label>Donut Amount:</label>
+                    <input type="number" id="donutAmount">
+                </div>
+                <div class="controls">
+                    <button onclick="updateUserCurrency()">Update User Currency</button>
+                </div>
             </div>
         </div>
     </div>
@@ -484,10 +632,15 @@
                 }
                 const data = await response.json();
                 const userSelect = document.getElementById('userSelect');
+                const userSelectSave = document.getElementById('userSelectSave');
                 
                 // Clear existing options except the first one
                 while (userSelect.options.length > 1) {
                     userSelect.remove(1);
+                }
+
+                while (userSelectSave.options.length > 1) {
+                    userSelectSave.remove(1);
                 }
 
                 // Add users to dropdown
@@ -496,6 +649,7 @@
                     option.value = JSON.stringify(user);
                     option.textContent = user.isLegacy ? 'Legacy User (mytown)' : user.username;
                     userSelect.appendChild(option);
+                    userSelectSave.appendChild(option.cloneNode(true));
                 });
             } catch (error) {
                 console.error('Error loading users:', error);
@@ -514,6 +668,18 @@
             } else {
                 userEmail.value = '';
                 donutAmount.value = '';
+            }
+        }
+
+        function userSelectedSave() {
+            const userSelectSave = document.getElementById('userSelectSave');
+            const saveEditor = document.getElementById('saveContent');
+            
+            if (userSelectSave.value) {
+                const userData = JSON.parse(userSelectSave.value);
+                loadUserSave();
+            } else {
+                saveEditor.value = '';
             }
         }
 
@@ -755,6 +921,98 @@
             } catch (error) {
                 alert('Failed to update currency: ' + error.message);
             }
+        }
+
+        async function loadUserSave() {
+            const userSelectSave = document.getElementById('userSelectSave');
+            const saveEditor = document.getElementById('saveContent');
+            
+            if (!userSelectSave.value) {
+                alert('Please select a user first');
+                return;
+            }
+
+            try {
+                const user = JSON.parse(userSelectSave.value);
+                const response = await fetch('/api/get-user-save', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: user.username,
+                        isLegacy: user.username === 'mytown'
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load user save');
+                }
+
+                const data = await response.json();
+                if (!data.status || data.status !== 'success') {
+                    throw new Error(data.error || 'Failed to load save data');
+                }
+
+                saveEditor.value = data.save;
+            } catch (error) {
+                console.error('Error loading user save:', error);
+                alert('Failed to load user save data: ' + error.message);
+            }
+        }
+
+        async function saveUserSave() {
+            const userSelectSave = document.getElementById('userSelectSave');
+            const saveEditor = document.getElementById('saveContent');
+            
+            if (!userSelectSave.value) {
+                alert('Please select a user first');
+                return;
+            }
+
+            if (!saveEditor.value.trim()) {
+                alert('Save data cannot be empty');
+                return;
+            }
+
+            try {
+                const user = JSON.parse(userSelectSave.value);
+                const requestBody = {
+                    username: user.username,
+                    isLegacy: user.username === 'mytown',
+                    save: saveEditor.value
+                };
+                console.log('Sending save request:', requestBody);
+
+                const response = await fetch('/api/save-user-save', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                if (!response.ok) {
+                    const data = await response.json();
+                    throw new Error(data.error || 'Failed to save user data');
+                }
+
+                const data = await response.json();
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to save data');
+                }
+
+                alert('Save data updated successfully!');
+            } catch (error) {
+                console.error('Error saving user data:', error);
+                alert('Failed to save user data: ' + error.message);
+            }
+        }
+
+        // Toggle advanced mode
+        function toggleAdvancedMode() {
+            const isAdvanced = document.getElementById('advancedModeToggle').checked;
+            document.body.classList.toggle('advanced-mode', isAdvanced);
         }
 
         // Load users when page loads
