@@ -3,18 +3,18 @@
 ## UPDATE NOTES
 
 Update v.010
-**Dob fix:** Attempt to fix dob screen
-**Whole new dashboard:** Town operations , save editing , game config editing.
-**Land:** Saving and loading improvement
-**Full event list:** Thanks to joee.
-**Much more:** Server optimizations and improvements.
-**Events fixed:** True event handling on dashboard.
-**Custom Dlc folder location:** Edit via server config json or dashboard.
-**Force save game from dashboard:** Use dashboard to force save (if needed).
-**New Design for dashboard ** Few improvements and new design.
-**IP and Port adjustable via dashboard:** Will disable auto-detect IP when manually set.
-**Town Switching system:** Option to switch towns using the login system. ( Not true multiuser - but could be used as 1 )
-**User Donuts:** Edit on the dashboard.
+- **Dob fix:** Attempt to fix dob screen
+- **Whole new dashboard:** Town operations , save editing , game config editing.
+- **Land:** Saving and loading improvement
+- **Full event list:** Thanks to joee.
+- **Much more:** Server improvements and bug fixes.
+- **Events fixed:** True event handling on dashboard.
+- **Custom Dlc folder location:** Edit via server config json or dashboard.
+- **Force save game from dashboard:** Use dashboard to force save (if needed).
+- **New Design for dashboard:** Few improvements and new design.
+- **IP and Port adjustable via dashboard:** Will disable auto-detect IP when manually set.
+- **Town Switching system:** Option to switch towns using the login system. ( Not true multiuser - but could be used as 1 )
+- **User Donuts:** Edit on the dashboard.
 - **Auto Updater** No more downloading binarys.
 - **Fixed Donuts:** Real donut saving
 - **Discord Rpc:** Need that advertising haha (can be disabled in server config)
