@@ -2,7 +2,7 @@
 
 ## UPDATE NOTES
 
-Update v.009
+Update v.010
 **Events fixed:** True event handling on dashboard.
 **Custom Dlc folder location:** Edit via server config json or dashboard.
 **Force save game from dashboard:** Use dashboard to force save (if needed).
