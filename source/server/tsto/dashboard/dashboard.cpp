@@ -10,14 +10,20 @@
 #include <rapidjson/writer.h>
 #include <rapidjson/prettywriter.h>
 #include <google/protobuf/text_format.h>
+#include <google/protobuf/util/json_util.h>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <iomanip> 
+#include <random>
+#include <ctime>
 
 #include "tsto/land/land.hpp"
 #include "tsto/events/events.hpp"
+#include "tsto/database/database.hpp"
+#include "tsto/includes/session.hpp"
+#include "headers/response_headers.hpp"
 
 namespace tsto::dashboard {
 
@@ -109,17 +115,6 @@ namespace tsto::dashboard {
             std::string dlc_directory = utils::configuration::ReadString("Server", "DLCDirectory", "dlc");
             html_template = std::regex_replace(html_template, std::regex("%DLC_DIRECTORY%"), dlc_directory);
 
-            int current_donuts = std::stoi(utils::configuration::ReadString("Server", "InitialDonutAmount", "1000"));
-
-            if (std::filesystem::exists(currency_path)) {
-                std::ifstream input(currency_path);
-                if (input.good()) {
-                    input >> current_donuts;
-                }
-                input.close();
-            }
-
-            html_template = std::regex_replace(html_template, std::regex("%CURRENT_DONUTS%"), std::to_string(current_donuts));
             html_template = std::regex_replace(html_template, std::regex("%INITIAL_DONUTS%"),
                 utils::configuration::ReadString("Server", "InitialDonutAmount", "1000"));
 
@@ -189,41 +184,6 @@ namespace tsto::dashboard {
         catch (const std::exception& ex) {
             logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
                 "[DONUTS] Error updating initial donuts: %s", ex.what());
-            ctx->set_response_http_code(500);
-            cb("{\"error\": \"Internal server error\"}");
-        }
-    }
-
-    void Dashboard::handle_update_current_donuts(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
-        const evpp::http::HTTPSendResponseCallback& cb) {
-        try {
-            std::string body = ctx->body().ToString();
-            rapidjson::Document doc;
-            doc.Parse(body.c_str());
-
-            if (!doc.HasMember("currentDonuts") || !doc["currentDonuts"].IsInt()) {
-                ctx->set_response_http_code(400);
-                cb("{\"error\": \"Invalid request body\"}");
-                return;
-            }
-
-            int current_donuts = doc["currentDonuts"].GetInt();
-            std::string currency_path = "towns/currency.txt";
-
-            std::filesystem::create_directories("towns");
-            std::ofstream output(currency_path);
-            output << current_donuts;
-            output.close();
-
-            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
-                "[DONUTS] Updated current donuts amount to: %d", current_donuts);
-
-            headers::set_json_response(ctx);
-            cb("{\"success\": true}");
-        }
-        catch (const std::exception& ex) {
-            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
-                "[DONUTS] Error updating current donuts: %s", ex.what());
             ctx->set_response_http_code(500);
             cb("{\"error\": \"Internal server error\"}");
         }
@@ -449,21 +409,179 @@ namespace tsto::dashboard {
 
             response.AddMember("status", "success", response.GetAllocator());
             response.AddMember("message", "Currency updated successfully", response.GetAllocator());
-            response.AddMember("email", rapidjson::StringRef(email.c_str()), response.GetAllocator());
             response.AddMember("amount", amount, response.GetAllocator());
 
             rapidjson::StringBuffer buffer;
             rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
             response.Accept(writer);
 
-            ctx->AddResponseHeader("Content-Type", "application/json");
+            headers::set_json_response(ctx);
             cb(buffer.GetString());
         }
         catch (const std::exception& ex) {
             logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
                 "[CURRENCY] Error updating currency: %s", ex.what());
+
+            rapidjson::Document response;
+            response.SetObject();
+            response.AddMember("status", "error", response.GetAllocator());
+            response.AddMember("message", rapidjson::StringRef(ex.what()), response.GetAllocator());
+
+            rapidjson::StringBuffer buffer;
+            rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+            response.Accept(writer);
+
             ctx->set_response_http_code(500);
-            cb("{\"error\": \"Failed to update currency\"}");
+            headers::set_json_response(ctx);
+            cb(buffer.GetString());
+        }
+    }
+    
+    void Dashboard::handle_upload_town_file(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
+        const evpp::http::HTTPSendResponseCallback& cb) {
+        try {
+            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                "[UPLOAD] Received town file upload request from: %s", std::string(ctx->remote_ip()).c_str());
+            
+            std::string content_type = ctx->FindRequestHeader("Content-Type");
+            if (content_type.find("multipart/form-data") == std::string::npos) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                    "[UPLOAD] Invalid content type: %s", content_type.c_str());
+                ctx->set_response_http_code(400);
+                headers::set_json_response(ctx);
+                cb("{\"success\":false,\"message\":\"Invalid content type. Expected multipart/form-data\"}");
+                return;
+            }
+            
+            const char* auth_header = ctx->FindRequestHeader("nucleus_token");
+            if (auth_header && strlen(auth_header) > 0) {
+                auto& db = tsto::database::Database::get_instance();
+                std::string token_email;
+                
+                if (db.validate_access_token(auth_header, token_email)) {
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                        "[UPLOAD] Valid token for user: %s", token_email.c_str());
+                } else {
+                    logger::write(logger::LOG_LEVEL_WARN, logger::LOG_LABEL_GAME,
+                        "[UPLOAD] Invalid token provided");
+                    //still allow the upload for now, just log the warning
+                }
+            } else {
+                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                    "[UPLOAD] No authentication token provided");
+            }
+            
+            // Create a temporary directory if it doesn't exist
+            std::filesystem::create_directories("temp");
+            
+            std::random_device rd;
+            std::mt19937 gen(rd());
+            std::uniform_int_distribution<> dis(0, 15);
+            std::uniform_int_distribution<> dis2(8, 11);
+            
+            std::stringstream ss;
+            ss << "temp/upload_" << std::time(nullptr) << "_";
+            for (int i = 0; i < 16; i++) {
+                ss << std::hex << dis(gen);
+            }
+            ss << ".pb";
+            
+            std::string temp_file_path = ss.str();
+            
+            auto& body = ctx->body();
+            
+            std::string boundary;
+            size_t boundary_pos = content_type.find("boundary=");
+            if (boundary_pos != std::string::npos) {
+                boundary = content_type.substr(boundary_pos + 9);
+                if (boundary.front() == '"' && boundary.back() == '"') {
+                    boundary = boundary.substr(1, boundary.length() - 2);
+                }
+            } else {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                    "[UPLOAD] No boundary found in content type");
+                ctx->set_response_http_code(400);
+                headers::set_json_response(ctx);
+                cb("{\"success\":false,\"message\":\"Invalid multipart form data format\"}");
+                return;
+            }
+            
+            std::string full_boundary = "--" + boundary;
+            std::string body_str = body.ToString();
+            
+            size_t pos = body_str.find(full_boundary);
+            if (pos == std::string::npos) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                    "[UPLOAD] Could not find boundary in request body");
+                ctx->set_response_http_code(400);
+                headers::set_json_response(ctx);
+                cb("{\"success\":false,\"message\":\"Invalid multipart form data format\"}");
+                return;
+            }
+            
+            pos = body_str.find("Content-Disposition:", pos);
+            if (pos == std::string::npos) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                    "[UPLOAD] Could not find Content-Disposition header");
+                ctx->set_response_http_code(400);
+                headers::set_json_response(ctx);
+                cb("{\"success\":false,\"message\":\"Invalid multipart form data format\"}");
+                return;
+            }
+            
+            size_t headers_end = body_str.find("\r\n\r\n", pos);
+            if (headers_end == std::string::npos) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                    "[UPLOAD] Could not find end of headers");
+                ctx->set_response_http_code(400);
+                headers::set_json_response(ctx);
+                cb("{\"success\":false,\"message\":\"Invalid multipart form data format\"}");
+                return;
+            }
+            
+            size_t data_start = headers_end + 4;
+            
+            size_t data_end = body_str.find(full_boundary, data_start);
+            if (data_end == std::string::npos) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                    "[UPLOAD] Could not find end boundary");
+                ctx->set_response_http_code(400);
+                headers::set_json_response(ctx);
+                cb("{\"success\":false,\"message\":\"Invalid multipart form data format\"}");
+                return;
+            }
+            
+            if (data_end > 2) {
+                data_end -= 2;
+            }
+            
+            std::string file_data = body_str.substr(data_start, data_end - data_start);
+            
+            std::ofstream out_file(temp_file_path, std::ios::binary);
+            if (!out_file.is_open()) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                    "[UPLOAD] Failed to open temporary file for writing: %s", temp_file_path.c_str());
+                ctx->set_response_http_code(500);
+                headers::set_json_response(ctx);
+                cb("{\"success\":false,\"message\":\"Failed to save uploaded file\"}");
+                return;
+            }
+            
+            out_file.write(file_data.c_str(), file_data.size());
+            out_file.close();
+            
+            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                "[UPLOAD] Successfully saved uploaded town file to: %s", temp_file_path.c_str());
+            
+            headers::set_json_response(ctx);
+            cb("{\"success\":true,\"message\":\"File uploaded successfully\",\"filePath\":\"" + temp_file_path + "\"}");
+        }
+        catch (const std::exception& ex) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                "[UPLOAD] Exception handling town file upload: %s", ex.what());
+            ctx->set_response_http_code(500);
+            headers::set_json_response(ctx);
+            cb("{\"success\":false,\"message\":\"Internal server error: " + std::string(ex.what()) + "\"}");
         }
     }
 
@@ -553,237 +671,359 @@ namespace tsto::dashboard {
     void Dashboard::handle_get_user_save(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx, const evpp::http::HTTPSendResponseCallback& cb) {
         ctx->AddResponseHeader("Content-Type", "application/json");
         
-        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP, "Handling get-user-save request");
-        
-        std::string requestBody = std::string(ctx->body().data(), ctx->body().size());
-        
-        // logger had me off again
-        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP, "Request body:");
-        logger::write("tsto_server.log", requestBody + "\n");
-        
-        std::string username;
-        bool isLegacy = false;
-
-        if (!requestBody.empty()) {
-            rapidjson::Document request;
-            if (request.Parse(requestBody.c_str()).HasParseError()) {
-                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, "Failed to parse request JSON");
-                ctx->set_response_http_code(400);
-                cb("{\"error\": \"Invalid JSON in request\"}");
-                return;
-            }
-
-            if (!request.HasMember("username")) {
-                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, "Missing username in request");
-                ctx->set_response_http_code(400);
-                cb("{\"error\": \"Missing username\"}");
-                return;
-            }
-
-            username = request["username"].GetString();
-            isLegacy = request.HasMember("isLegacy") && request["isLegacy"].GetBool();
-        } else {
-            const std::string& uri = ctx->original_uri();
-            size_t pos = uri.find("username=");
-            if (pos == std::string::npos) {
-                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, "Missing username parameter");
-                ctx->set_response_http_code(400);
-                cb("{\"error\": \"Missing username parameter\"}");
-                return;
-            }
+        try {
+            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP, "Handling get-user-save request");
             
-            username = uri.substr(pos + 9); 
-            pos = username.find('&');
-            if (pos != std::string::npos) {
-                username = username.substr(0, pos);
-            }
-
-            std::string decoded;
-            decoded.reserve(username.length());
+            std::string requestBody = std::string(ctx->body().data(), ctx->body().size());
+            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP, "Request body: %s", 
+                requestBody.c_str());
             
-            for (size_t i = 0; i < username.length(); ++i) {
-                if (username[i] == '%' && i + 2 < username.length()) {
-                    int value = 0;
-                    std::istringstream is(username.substr(i + 1, 2));
-                    if (is >> std::hex >> value) {
-                        decoded += static_cast<char>(value);
-                        i += 2;
+            std::string username;
+            bool isLegacy = false;
+    
+            if (!requestBody.empty()) {
+                rapidjson::Document request;
+                rapidjson::ParseResult parseResult = request.Parse(requestBody.c_str());
+                if (parseResult.IsError()) {
+                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, 
+                        "Failed to parse request JSON: error code %d at offset %zu", 
+                        parseResult.Code(), parseResult.Offset());
+                    ctx->set_response_http_code(400);
+                    cb("{\"error\": \"Invalid JSON in request\"}");
+                    return;
+                }
+    
+                if (!request.HasMember("username") || !request["username"].IsString()) {
+                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, "Missing username in request");
+                    ctx->set_response_http_code(400);
+                    cb("{\"error\": \"Missing username\"}");
+                    return;
+                }
+    
+                username = request["username"].GetString();
+                isLegacy = request.HasMember("isLegacy") && request["isLegacy"].IsBool() && request["isLegacy"].GetBool();
+            } else {
+                const std::string& uri = ctx->original_uri();
+                size_t pos = uri.find("username=");
+                if (pos == std::string::npos) {
+                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, "Missing username parameter");
+                    ctx->set_response_http_code(400);
+                    cb("{\"error\": \"Missing username parameter\"}");
+                    return;
+                }
+                
+                username = uri.substr(pos + 9); 
+                pos = username.find('&');
+                if (pos != std::string::npos) {
+                    username = username.substr(0, pos);
+                }
+    
+                std::string decoded;
+                decoded.reserve(username.length());
+                
+                for (size_t i = 0; i < username.length(); ++i) {
+                    if (username[i] == '%' && i + 2 < username.length()) {
+                        int value = 0;
+                        std::istringstream is(username.substr(i + 1, 2));
+                        if (is >> std::hex >> value) {
+                            decoded += static_cast<char>(value);
+                            i += 2;
+                        } else {
+                            decoded += username[i];
+                        }
+                    } else if (username[i] == '+') {
+                        decoded += ' ';
                     } else {
                         decoded += username[i];
                     }
-                } else if (username[i] == '+') {
-                    decoded += ' ';
-                } else {
-                    decoded += username[i];
                 }
+                
+                username = decoded;
+                isLegacy = (username == "mytown");
             }
-            
-            username = decoded;
-            isLegacy = (username == "mytown");
-        }
-
-        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP, 
-            "Loading save for user: %s%s", username.c_str(), isLegacy ? " (legacy)" : "");
-
-        try {
-            std::filesystem::path townsDir = std::filesystem::current_path() / "towns";
-            
-            if (!std::filesystem::exists(townsDir)) {
+    
+            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP, 
+                "Loading save for user: %s%s", username.c_str(), isLegacy ? " (legacy)" : "");
+    
+            try {
+                std::filesystem::path townsDir = std::filesystem::current_path() / "towns";
+                
+                if (!std::filesystem::exists(townsDir)) {
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP, 
+                        "Creating towns directory: %s", townsDir.string().c_str());
+                    if (!std::filesystem::create_directories(townsDir)) {
+                        logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, 
+                            "Failed to create towns directory: %s", townsDir.string().c_str());
+                        ctx->set_response_http_code(500);
+                        cb("{\"error\": \"Failed to create towns directory\"}");
+                        return;
+                    }
+                }
+    
+                std::filesystem::path savePath = townsDir;
+                if (isLegacy) {
+                    savePath /= "mytown.pb";
+                } else {
+                    savePath /= (username + ".pb");
+                }
+    
                 logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP, 
-                    "Creating towns directory: %s", townsDir.string().c_str());
-                std::filesystem::create_directory(townsDir);
+                    "Attempting to read save file: %s", savePath.string().c_str());
+    
+                if (!std::filesystem::exists(savePath)) {
+                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, 
+                        "Save file does not exist: %s", savePath.string().c_str());
+                    ctx->set_response_http_code(404);
+                    cb("{\"error\": \"Save file not found\"}");
+                    return;
+                }
+    
+                std::ifstream in(savePath, std::ios::binary);
+                if (!in.is_open()) {
+                    throw std::runtime_error("Failed to open save file for reading");
+                }
+
+                Data::LandMessage save_data;
+                if (!save_data.ParseFromIstream(&in)) {
+                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, 
+                        "Failed to parse save file for user: %s", username.c_str());
+                    ctx->set_response_http_code(500);
+                    cb("{\"error\": \"Failed to parse save file\"}");
+                    return;
+                }
+
+                // Convert protobuf to JSON
+                std::string json_string;
+                google::protobuf::util::JsonPrintOptions options;
+                options.add_whitespace = true;
+                options.preserve_proto_field_names = true;
+                
+                auto status = google::protobuf::util::MessageToJsonString(save_data, &json_string, options);
+                if (!status.ok()) {
+                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, 
+                        "Failed to convert save to JSON for user: %s - %s", username.c_str(), status.ToString().c_str());
+                    ctx->set_response_http_code(500);
+                    cb("{\"error\": \"Failed to convert save to JSON\"}");
+                    return;
+                }
+
+                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP, 
+                    "Successfully loaded save file for user: %s", username.c_str());
+
+                rapidjson::Document response;
+                response.SetObject();
+                auto& allocator = response.GetAllocator();
+
+                response.AddMember("status", "success", allocator);
+                response.AddMember("save", rapidjson::Value(json_string.c_str(), allocator), allocator);
+
+                rapidjson::StringBuffer buffer;
+                rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+                response.Accept(writer);
+
+                ctx->set_response_http_code(200);
+                cb(buffer.GetString());
+            } catch (const std::exception& e) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, 
+                    "Exception while loading save: %s", e.what());
+                ctx->set_response_http_code(500);
+                cb(std::string("{\"error\": \"Failed to read save file: ") + e.what() + "\"}");
             }
-
-            std::filesystem::path savePath = townsDir;
-            if (isLegacy) {
-                savePath /= "mytown.pb";
-            } else {
-                savePath /= (username + ".pb");
-            }
-
-            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP, 
-                "Attempting to read save file: %s", savePath.string().c_str());
-
-            std::ifstream in(savePath, std::ios::binary);
-            if (!in.is_open()) {
-                throw std::runtime_error("Failed to open save file for reading");
-            }
-
-            Data::LandMessage save_data;
-            if (!save_data.ParseFromIstream(&in)) {
-                throw std::runtime_error("Failed to parse protobuf save file");
-            }
-            in.close();
-
-            std::string text_format;
-            google::protobuf::TextFormat::PrintToString(save_data, &text_format);
-
-            rapidjson::Document response;
-            response.SetObject();
-            auto& allocator = response.GetAllocator();
-
-            response.AddMember("status", "success", allocator);
-            response.AddMember("save", rapidjson::StringRef(text_format.c_str()), allocator);
-
-            rapidjson::StringBuffer buffer;
-            rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
-            response.Accept(writer);
-
-            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP, 
-                "Successfully loaded save file for user: %s", username.c_str());
-
-            ctx->set_response_http_code(200);
-            cb(buffer.GetString());
-
         } catch (const std::exception& e) {
             logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, 
-                "Exception while loading save: %s", e.what());
+                "Exception in handle_get_user_save: %s", e.what());
             ctx->set_response_http_code(500);
-            cb(std::string(R"({"error": "Failed to read save file: )") + e.what() + "\"}");
+            cb(std::string("{\"error\": \"Server error: ") + e.what() + "\"}");
         }
     }
 
     void Dashboard::handle_save_user_save(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx, const evpp::http::HTTPSendResponseCallback& cb) {
         ctx->AddResponseHeader("Content-Type", "application/json");
         
-        std::string requestBody = std::string(ctx->body().data(), ctx->body().size());
-        
-        //lol logger had me off here 
-        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP, "Received save request body:");
-        logger::write("tsto_server.log", requestBody + "\n");
-
-        rapidjson::Document request;
-        if (request.Parse(requestBody.c_str()).HasParseError()) {
-            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, "Failed to parse request JSON");
-            ctx->set_response_http_code(400);
-            cb("{\"error\": \"Invalid JSON in request\"}");
-            return;
-        }
-
-        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP, 
-            "Request has fields - username: %s, isLegacy: %s, save: %s", 
-            request.HasMember("username") ? "true" : "false",
-            request.HasMember("isLegacy") ? "true" : "false",
-            request.HasMember("save") ? "true" : "false");
-
-        if (!request.HasMember("username") || !request.HasMember("isLegacy") || !request.HasMember("save")) {
-            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, "Missing required fields in request");
-            ctx->set_response_http_code(400);
-            cb("{\"error\": \"Missing required fields\"}");
-            return;
-        }
-
-        std::string usernamePresent = request.HasMember("username") ? request["username"].GetString() : "";
-        std::string isLegacyStr = request.HasMember("isLegacy") ? (request["isLegacy"].GetBool() ? "true" : "false") : "false";
-        std::string hasSaveStr = request.HasMember("save") ? "true" : "false";
-        
-        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP, 
-            "Request has fields - username: %s, isLegacy: %s, save: %s", 
-            usernamePresent.c_str(), isLegacyStr.c_str(), hasSaveStr.c_str());
-
-        if (!request.HasMember("username") || !request.HasMember("isLegacy") || !request.HasMember("save")) {
-            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, "Missing required fields in request");
-            ctx->set_response_http_code(400);
-            cb("{\"error\": \"Missing required fields\"}");
-            return;
-        }
-
-        const std::string username = request["username"].GetString();
-        const bool isLegacy = request["isLegacy"].GetBool();
-        const std::string saveText = request["save"].GetString();
-
         try {
-            Data::LandMessage save_data;
-            if (!google::protobuf::TextFormat::ParseFromString(saveText, &save_data)) {
+            std::string requestBody = std::string(ctx->body().data(), ctx->body().size());
+            //logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP, 
+            //    "Received save request body: %s", requestBody.c_str());
+    
+            rapidjson::Document request;
+            rapidjson::ParseResult parseResult = request.Parse(requestBody.c_str());
+            if (parseResult.IsError()) {
                 logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, 
-                    "Failed to parse text format for user: %s", username.c_str());
+                    "Failed to parse request JSON: error code %d at offset %zu", 
+                    parseResult.Code(), parseResult.Offset());
                 ctx->set_response_http_code(400);
-                cb("{\"error\": \"Invalid save data format\"}");
+                cb("{\"error\": \"Invalid JSON in request\"}");
                 return;
             }
-
-            std::filesystem::path savePath = std::filesystem::current_path() / "towns";
-            if (isLegacy) {
-                savePath /= "mytown.pb";
-            } else {
-                savePath /= (username + ".pb");
-            }
-
-            if (std::filesystem::exists(savePath)) {
-                std::filesystem::path backupPath = savePath;
-                backupPath += ".backup";
-                std::filesystem::copy_file(savePath, backupPath, std::filesystem::copy_options::overwrite_existing);
-            }
-
-            std::ofstream saveFile(savePath, std::ios::binary);
-            if (!saveFile.is_open()) {
-                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, 
-                    "Failed to open save file for writing: %s", savePath.string().c_str());
-                ctx->set_response_http_code(500);
-                cb("{\"error\": \"Failed to open save file for writing\"}");
-                return;
-            }
-
-            if (!save_data.SerializeToOstream(&saveFile)) {
-                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP,
-                    "Failed to serialize save data for user: %s", username.c_str());
-                ctx->set_response_http_code(500);
-                cb("{\"error\": \"Failed to write save data\"}");
-                return;
-            }
-
-            saveFile.close();
-
+    
             logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP, 
-                "Successfully saved data for user: %s", username.c_str());
+                "Request has fields - username: %d, isLegacy: %d, save: %d", 
+                request.HasMember("username"), request.HasMember("isLegacy"), request.HasMember("save"));
+    
+            if (!request.HasMember("username") || !request.HasMember("isLegacy") || !request.HasMember("save")) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, "Missing required fields in request");
+                ctx->set_response_http_code(400);
+                cb("{\"error\": \"Missing required fields\"}");
+                return;
+            }
+    
+            if (!request["username"].IsString() || !request["isLegacy"].IsBool() || !request["save"].IsString()) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, "Invalid field types in request");
+                ctx->set_response_http_code(400);
+                cb("{\"error\": \"Invalid field types\"}");
+                return;
+            }
+    
+            const std::string username = request["username"].GetString();
+            const bool isLegacy = request["isLegacy"].GetBool();
+            const std::string json_string = request["save"].GetString();
 
-            ctx->set_response_http_code(200);
-            cb("{\"success\": true}");
+            try {
+                Data::LandMessage save_data;
+                
+                // Convert JSON back to protobuf
+                auto status = google::protobuf::util::JsonStringToMessage(json_string, &save_data);
+                if (!status.ok()) {
+                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, 
+                        "Failed to parse JSON for user: %s - %s", username.c_str(), status.ToString().c_str());
+                    ctx->set_response_http_code(400);
+                    cb("{\"error\": \"Invalid save data format\"}");
+                    return;
+                }
+
+                std::filesystem::path savePath = std::filesystem::current_path() / "towns";
+                if (!std::filesystem::exists(savePath)) {
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP,
+                        "Creating towns directory: %s", savePath.string().c_str());
+                    if (!std::filesystem::create_directories(savePath)) {
+                        logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, 
+                            "Failed to create towns directory: %s", savePath.string().c_str());
+                        ctx->set_response_http_code(500);
+                        cb("{\"error\": \"Failed to create towns directory\"}");
+                        return;
+                    }
+                }
+
+                if (isLegacy) {
+                    savePath /= "mytown.pb";
+                } else {
+                    savePath /= (username + ".pb");
+                }
+
+                //backup
+                if (std::filesystem::exists(savePath)) {
+                    std::filesystem::path backupPath = savePath;
+                    backupPath += ".bak";
+                    std::filesystem::copy_file(savePath, backupPath, std::filesystem::copy_options::overwrite_existing);
+                }
+
+                //save the protobuf data using the same format as the game's load
+                std::string serialized;
+                if (!save_data.SerializeToString(&serialized)) {
+                    throw std::runtime_error("Failed to serialize protobuf data");
+                }
+
+                //to vector<char> like the game uses
+                std::vector<char> buffer(serialized.begin(), serialized.end());
+
+                std::ofstream out(savePath, std::ios::binary);
+                if (!out.is_open()) {
+                    throw std::runtime_error("Failed to open save file for writing");
+                }
+
+                out.write(buffer.data(), buffer.size());
+                out.close();
+
+                //verify we can read it back
+                std::ifstream verify(savePath, std::ios::binary);
+                if (verify.is_open()) {
+                    std::vector<char> check_buffer((std::istreambuf_iterator<char>(verify)), std::istreambuf_iterator<char>());
+                    verify.close();
+
+                    Data::LandMessage test_load;
+                    if (!test_load.ParseFromArray(check_buffer.data(), static_cast<int>(check_buffer.size()))) {
+                        throw std::runtime_error("Failed to verify saved protobuf data");
+                    }
+                }
+
+                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP, 
+                    "Successfully saved and verified file for user: %s", username.c_str());
+
+                ctx->set_response_http_code(200);
+                cb("{\"success\": true}");
+            } catch (const std::exception& e) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, 
+                    "Exception while saving: %s", e.what());
+                ctx->set_response_http_code(500);
+                cb(std::string("{\"error\": \"Failed to save file: ") + e.what() + "\"}");
+            }
         } catch (const std::exception& e) {
             logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, 
-                "Exception while saving: %s", e.what());
+                "Exception in handle_save_user_save: %s", e.what());
             ctx->set_response_http_code(500);
-            cb(std::string(R"({"error": "Failed to save file: )") + e.what() + "\"}");
+            cb(std::string("{\"error\": \"Server error: ") + e.what() + "\"}");
+        }
+    }
+
+    void Dashboard::handle_dashboard_data(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
+        const evpp::http::HTTPSendResponseCallback& cb) {
+        ctx->AddResponseHeader("Content-Type", "application/json");
+        ctx->AddResponseHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+        ctx->AddResponseHeader("Pragma", "no-cache");
+        ctx->AddResponseHeader("Expires", "0");
+
+        try {
+            rapidjson::Document doc;
+            doc.SetObject();
+            auto& allocator = doc.GetAllocator();
+
+            //server IP and port
+            doc.AddMember("server_ip", rapidjson::Value(server_ip_.c_str(), allocator), allocator);
+            doc.AddMember("server_port", server_port_, allocator);
+
+            //uptime
+            static auto start_time = std::chrono::system_clock::now();
+            auto now = std::chrono::system_clock::now();
+            auto uptime = std::chrono::duration_cast<std::chrono::seconds>(now - start_time);
+            auto hours = std::chrono::duration_cast<std::chrono::hours>(uptime);
+            auto minutes = std::chrono::duration_cast<std::chrono::minutes>(uptime % std::chrono::hours(1));
+            auto seconds = uptime % std::chrono::minutes(1);
+            std::stringstream uptime_str;
+            uptime_str << hours.count() << "h " << minutes.count() << "m " << seconds.count() << "s";
+            doc.AddMember("uptime", rapidjson::Value(uptime_str.str().c_str(), allocator), allocator);
+
+            //DLC directory
+            std::string dlc_directory = utils::configuration::ReadString("Server", "DLCDirectory", "dlc");
+            doc.AddMember("dlc_directory", rapidjson::Value(dlc_directory.c_str(), allocator), allocator);
+
+            //initial donuts
+            std::string initial_donuts = utils::configuration::ReadString("Server", "InitialDonutAmount", "1000");
+            doc.AddMember("initial_donuts", rapidjson::Value(initial_donuts.c_str(), allocator), allocator);
+
+            //current event
+            auto current_event = tsto::events::Events::get_current_event();
+            doc.AddMember("current_event", rapidjson::Value(current_event.name.c_str(), allocator), allocator);
+            doc.AddMember("current_event_time", current_event.start_time, allocator);
+
+            //events list
+            rapidjson::Value events_obj(rapidjson::kObjectType);
+            for (const auto& event_pair : tsto::events::tsto_events) {
+                rapidjson::Value key(std::to_string(event_pair.first).c_str(), allocator);
+                rapidjson::Value value(event_pair.second.c_str(), allocator);
+                events_obj.AddMember(key, value, allocator);
+            }
+            doc.AddMember("events", events_obj, allocator);
+
+            rapidjson::StringBuffer buffer;
+            rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+            doc.Accept(writer);
+
+            cb(buffer.GetString());
+        }
+        catch (const std::exception& ex) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_INITIALIZER,
+                "Dashboard data error: %s", ex.what());
+            cb("{\"error\": \"Internal server error\"}");
         }
     }
 

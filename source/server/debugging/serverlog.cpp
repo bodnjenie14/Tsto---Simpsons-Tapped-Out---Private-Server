@@ -39,6 +39,7 @@ namespace logger
         "EVENTS",
 		"DISCORD",
 		"UPDATE",
+		"DATABASE",
 
 
     };

@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TSTO Town Operations</title>
+    <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="town_operations.js"></script>
+    <style>
+        :root {
+            --simpsons-yellow: #FED90F;
+            --simpsons-blue: #3E67B1;
+            --simpsons-red: #E53935;
+            --simpsons-green: #7BC142;
+            --simpsons-white: #ffffff;
+            --simpsons-black: #333333;
+            --simpsons-orange: #F57C00;
+            --simpsons-panel: #FFF3D4;
+            --simpsons-shadow: rgba(0, 0, 0, 0.3);
+        }
+
+        html {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Comic Neue', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: url('images/background.png') no-repeat center center fixed;
+            background-size: cover;
+            min-height: 100vh;
+            color: var(--simpsons-black);
+            box-sizing: border-box;
+        }
+        
+        /* Dark mode */
+        body.dark-mode {
+            --background: #1a1a2e;
+            --panel-bg: #282838;
+            --text-color: var(--simpsons-yellow);
+            --text-primary: var(--simpsons-yellow);
+            --text-secondary: var(--simpsons-orange);
+            --border-color: var(--simpsons-blue);
+            --hover-bg: #2d2d44;
+            --input-bg: #1f1f2f;
+            --editor-bg: #1E1E2E;
+            background-color: var(--background);
+            color: var(--text-color);
+        }
+        
+        body.dark-mode .panel {
+            background-color: var(--panel-bg);
+            border-color: var(--text-color);
+        }
+        
+        body.dark-mode h2 {
+            color: var(--text-color);
+            border-bottom-color: var(--text-color);
+        }
+        
+        body.dark-mode .form-group label {
+            color: var(--text-color);
+        }
+        
+        body.dark-mode input[type="text"],
+        body.dark-mode input[type="email"],
+        body.dark-mode select {
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            border-color: var(--border-color);
+        }
+        
+        body.dark-mode .tab {
+            background-color: var(--background);
+            color: var(--text-color);
+        }
+        
+        body.dark-mode .tab.active {
+            background-color: var(--text-color);
+            color: var(--background);
+        }
+        
+        body.dark-mode .tab-content {
+            background-color: var(--panel-bg);
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .panel {
+            background-color: var(--simpsons-panel);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 6px 10px var(--simpsons-shadow);
+            border: 4px solid var(--simpsons-yellow);
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--simpsons-yellow);
+            margin-bottom: 30px;
+            font-size: 48px;
+            font-weight: bold;
+            text-shadow: 2px 2px 0 var(--simpsons-black), 
+                        -2px -2px 0 var(--simpsons-black),
+                        2px -2px 0 var(--simpsons-black),
+                        -2px 2px 0 var(--simpsons-black),
+                        0 2px 0 var(--simpsons-black),
+                        2px 0 0 var(--simpsons-black),
+                        0 -2px 0 var(--simpsons-black),
+                        -2px 0 0 var(--simpsons-black);
+            letter-spacing: 1px;
+        }
+
+        h2 {
+            color: var(--simpsons-blue);
+            margin-top: 0;
+            font-size: 24px;
+            border-bottom: 2px solid var(--simpsons-yellow);
+            padding-bottom: 8px;
+            display: inline-block;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: var(--simpsons-blue);
+            font-size: 16px;
+        }
+
+        input[type="text"], input[type="email"], select {
+            width: 100%;
+            padding: 10px;
+            border-radius: 10px;
+            background-color: var(--simpsons-white);
+            color: var(--simpsons-black);
+            border: 3px solid var(--simpsons-blue);
+            font-size: 16px;
+            font-family: 'Comic Neue', cursive;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);
+            box-sizing: border-box;
+        }
+
+        input[type="text"]:focus, input[type="email"]:focus, select:focus {
+            outline: none;
+            border-color: var(--simpsons-orange);
+            box-shadow: 0 0 0 3px rgba(245, 124, 0, 0.25);
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 10px;
+            background-color: var(--simpsons-blue);
+            color: var(--simpsons-white);
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            font-family: 'Comic Neue', cursive;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 0 #2A4B85;
+            position: relative;
+            top: 0;
+        }
+
+        button:hover {
+            background-color: #5482D0;
+            top: -2px;
+            box-shadow: 0 6px 0 #2A4B85;
+        }
+        
+        button:active {
+            top: 4px;
+            box-shadow: 0 0 0 #2A4B85;
+        }
+
+        .response {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 10px;
+            background-color: rgba(123, 193, 66, 0.2);
+            border-left: 4px solid var(--simpsons-green);
+            display: none;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+
+        .error {
+            background-color: rgba(229, 57, 53, 0.2);
+            border-left-color: var(--simpsons-red);
+        }
+
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            background-color: var(--simpsons-panel);
+            border-radius: 10px 10px 0 0;
+            cursor: pointer;
+            margin-right: 5px;
+            border: 4px solid var(--simpsons-yellow);
+            border-bottom: none;
+            font-weight: bold;
+            color: var(--simpsons-blue);
+            position: relative;
+            z-index: 1;
+        }
+
+        .tab.active {
+            background-color: var(--simpsons-yellow);
+            color: var(--simpsons-black);
+            font-weight: bold;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Decorative donuts */
+        .donut {
+            position: fixed;
+            width: 100px;
+            height: 100px;
+            z-index: -1;
+        }
+
+        .donut1 {
+            top: 10%;
+            left: 5%;
+            animation: float 8s ease-in-out infinite;
+        }
+
+        .donut2 {
+            top: 20%;
+            right: 5%;
+            animation: float 10s ease-in-out infinite;
+            animation-delay: 1s;
+        }
+
+        .donut3 {
+            bottom: 15%;
+            left: 10%;
+            animation: float 9s ease-in-out infinite;
+            animation-delay: 2s;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(0) rotate(0deg);
+            }
+            50% {
+                transform: translateY(-20px) rotate(10deg);
+            }
+            100% {
+                transform: translateY(0) rotate(0deg);
+            }
+        }
+
+        .back-button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 10px;
+            background-color: var(--simpsons-blue);
+            color: var(--simpsons-white);
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            font-family: 'Comic Neue', cursive;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 0 #2A4B85;
+            position: relative;
+            top: 0;
+            display: inline-block;
+            margin-bottom: 20px;
+            text-decoration: none;
+        }
+
+        .back-button:hover {
+            background-color: #5482D0;
+            top: -2px;
+            box-shadow: 0 6px 0 #2A4B85;
+        }
+        
+        .back-button:active {
+            top: 4px;
+            box-shadow: 0 0 0 #2A4B85;
+        }
+
+        .back-button .button-icon {
+            font-size: 18px;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+        
+        .back-button img {
+            width: 24px;
+            height: 24px;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+        
+        .optional {
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .help-text {
+            font-size: 14px;
+            color: #666;
+            display: block;
+            margin-bottom: 10px;
+        }
+        
+        .theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: var(--simpsons-yellow);
+            color: var(--simpsons-black);
+            border: 2px solid var(--simpsons-blue);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 24px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 1000;
+            font-weight: bold;
+        }
+        
+        .theme-toggle:hover {
+            background-color: #FFE44D;
+        }
+        
+        body.dark-mode .theme-toggle {
+            background-color: #333;
+            color: var(--simpsons-yellow);
+            border-color: var(--simpsons-yellow);
+        }
+        
+        body.dark-mode .theme-toggle:hover {
+            background-color: #444;
+        }
+    </style>
+</head>
+<body>
+    <!--decorative donuts-->
+    <svg class="donut donut1" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="40" fill="#FFA0B7" />
+        <circle cx="50" cy="50" r="15" fill="#FFF3D4" />
+    </svg>
+    <svg class="donut donut2" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="40" fill="#85C8F2" />
+        <circle cx="50" cy="50" r="15" fill="#FFF3D4" />
+    </svg>
+    <svg class="donut donut3" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="40" fill="#7BC142" />
+        <circle cx="50" cy="50" r="15" fill="#FFF3D4" />
+    </svg>
+    
+    <button class="theme-toggle" id="theme-toggle">
+        <i class="fas fa-moon"></i>
+    </button>
+
+    <h1>Town Operations</h1>
+    
+    <div class="container">
+        <a href="/dashboard.html" class="back-button">
+            <img src="images/donut.png" alt="Donut"> Back to Dashboard
+        </a>
+        
+        <div class="tabs">
+            <div class="tab active" data-tab="load-tab">Load Town</div>
+            <div class="tab" data-tab="save-tab">Save Town</div>
+            <div class="tab" data-tab="copy-tab">Copy Town</div>
+            <div class="tab" data-tab="import-tab">Import Town</div>
+        </div>
+        
+        <div class="panel tab-content active" id="load-tab">
+            <h2>Load Town</h2>
+            <div class="form-group">
+                <label for="load-user">Select User:</label>
+                <select id="load-user">
+                    <option value="">Select a user...</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="load-email">Or Enter Email:</label>
+                <input type="email" id="load-email" placeholder="Enter email to load town from">
+            </div>
+            <button id="load-button">Load Town</button>
+            <div class="response" id="load-response"></div>
+        </div>
+        
+        <div class="panel tab-content" id="save-tab">
+            <h2>Save Town</h2>
+            <div class="form-group">
+                <label for="save-user">Select User:</label>
+                <select id="save-user">
+                    <option value="">Select a user...</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="save-email">Or Enter Email:</label>
+                <input type="email" id="save-email" placeholder="Enter email to save town as">
+            </div>
+            <button id="save-button">Save Town</button>
+            <div class="response" id="save-response"></div>
+        </div>
+        
+        <div class="panel tab-content" id="copy-tab">
+            <h2>Copy Town</h2>
+            <div class="form-group">
+                <label for="source-user">Source User:</label>
+                <select id="source-user">
+                    <option value="">Select a user...</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="source-email">Or Enter Source Email:</label>
+                <input type="email" id="source-email" placeholder="Enter source email to copy from">
+            </div>
+            <div class="form-group">
+                <label for="target-user">Target User:</label>
+                <select id="target-user">
+                    <option value="">Select a user...</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="target-email">Or Enter Target Email:</label>
+                <input type="email" id="target-email" placeholder="Enter target email to copy to">
+            </div>
+            <button id="copy-button">Copy Town</button>
+            <div class="response" id="copy-response"></div>
+        </div>
+        
+        <div class="panel tab-content" id="import-tab">
+            <h2>Import Town</h2>
+            <div class="form-group">
+                <label for="import-email">Email for Imported Town: <span class="optional">(Optional for non-logged-in users)</span></label>
+                <input type="email" id="import-email" placeholder="Enter email or leave empty for default mytown.pb">
+                <small class="help-text">If left empty, the town will be imported as the default town (mytown.pb)</small>
+            </div>
+            <div class="form-group">
+                <label for="import-file">Select Town File (.pb):</label>
+                <input type="file" id="import-file" accept=".pb">
+            </div>
+            <button id="import-button">Import Town</button>
+            <div class="response" id="import-response"></div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Theme toggle functionality
+            const themeToggleButton = document.getElementById('theme-toggle');
+            const themeIcon = themeToggleButton.querySelector('i');
+            let isDarkMode = localStorage.getItem('darkMode') === 'true';
+            
+            // Set initial state
+            if (isDarkMode) {
+                document.body.classList.add('dark-mode');
+                themeIcon.className = 'fas fa-sun';
+            } else {
+                themeIcon.className = 'fas fa-moon';
+            }
+
+            function toggleTheme() {
+                isDarkMode = !isDarkMode;
+                // Toggle the dark-mode class on the body
+                document.body.classList.toggle('dark-mode');
+                // Save preference to localStorage
+                localStorage.setItem('darkMode', isDarkMode);
+                // Update the icon
+                if (isDarkMode) {
+                    themeIcon.className = 'fas fa-sun';
+                } else {
+                    themeIcon.className = 'fas fa-moon';
+                }
+            }
+
+            themeToggleButton.addEventListener('click', toggleTheme);
+            
+            // Load users
+            loadUsers();
+            
+            // Tab switching
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    // Remove active class from all tabs
+                    tabs.forEach(t => t.classList.remove('active'));
+                    // Add active class to clicked tab
+                    this.classList.add('active');
+                    
+                    // Hide all tab contents
+                    document.querySelectorAll('.tab-content').forEach(content => {
+                        content.classList.remove('active');
+                    });
+                    
+                    // Show the corresponding tab content
+                    const tabId = this.getAttribute('data-tab');
+                    document.getElementById(tabId).classList.add('active');
+                });
+            });
+            
+            // Load Town
+            document.getElementById('load-button').addEventListener('click', async function() {
+                const userSelect = document.getElementById('load-user');
+                const emailInput = document.getElementById('load-email');
+                
+                let email = emailInput.value;
+                if (!email && userSelect.value) {
+                    const userData = JSON.parse(userSelect.value);
+                    email = userData.username || userData.email;
+                }
+                
+                const responseElement = document.getElementById('load-response');
+                
+                if (!email) {
+                    showResponse(responseElement, 'Please select a user or enter an email', true);
+                    return;
+                }
+                
+                try {
+                    const response = await window.TownOperations.loadTown(email);
+                    showResponse(responseElement, JSON.stringify(response, null, 2));
+                } catch (error) {
+                    showResponse(responseElement, error.message, true);
+                }
+            });
+            
+            // Save Town
+            document.getElementById('save-button').addEventListener('click', async function() {
+                const userSelect = document.getElementById('save-user');
+                const emailInput = document.getElementById('save-email');
+                
+                let email = emailInput.value;
+                if (!email && userSelect.value) {
+                    const userData = JSON.parse(userSelect.value);
+                    email = userData.username || userData.email;
+                }
+                
+                const responseElement = document.getElementById('save-response');
+                
+                if (!email) {
+                    showResponse(responseElement, 'Please select a user or enter an email', true);
+                    return;
+                }
+                
+                try {
+                    const response = await window.TownOperations.saveTownAs(email);
+                    showResponse(responseElement, JSON.stringify(response, null, 2));
+                } catch (error) {
+                    showResponse(responseElement, error.message, true);
+                }
+            });
+            
+            // Copy Town
+            document.getElementById('copy-button').addEventListener('click', async function() {
+                const sourceUserSelect = document.getElementById('source-user');
+                const sourceEmailInput = document.getElementById('source-email');
+                const targetUserSelect = document.getElementById('target-user');
+                const targetEmailInput = document.getElementById('target-email');
+                
+                let sourceEmail = sourceEmailInput.value;
+                if (!sourceEmail && sourceUserSelect.value) {
+                    const userData = JSON.parse(sourceUserSelect.value);
+                    sourceEmail = userData.username || userData.email;
+                }
+                
+                let targetEmail = targetEmailInput.value;
+                if (!targetEmail && targetUserSelect.value) {
+                    const userData = JSON.parse(targetUserSelect.value);
+                    targetEmail = userData.username || userData.email;
+                }
+                
+                const responseElement = document.getElementById('copy-response');
+                
+                if (!sourceEmail || !targetEmail) {
+                    showResponse(responseElement, 'Please select or enter both source and target emails', true);
+                    return;
+                }
+                
+                try {
+                    const response = await window.TownOperations.copyTown(sourceEmail, targetEmail);
+                    showResponse(responseElement, JSON.stringify(response, null, 2));
+                } catch (error) {
+                    showResponse(responseElement, error.message, true);
+                }
+            });
+            
+            // Import Town
+            document.getElementById('import-button').addEventListener('click', async function() {
+                const emailInput = document.getElementById('import-email');
+                const fileInput = document.getElementById('import-file');
+                
+                let email = emailInput.value;
+                
+                const responseElement = document.getElementById('import-response');
+                
+                if (!fileInput.files.length) {
+                    showResponse(responseElement, 'Please select a town file', true);
+                    return;
+                }
+                
+                try {
+                    const file = fileInput.files[0];
+                    const response = await window.TownOperations.importTown(email, file);
+                    showResponse(responseElement, JSON.stringify(response, null, 2));
+                } catch (error) {
+                    showResponse(responseElement, error.message, true);
+                }
+            });
+            
+            // Helper function to show response
+            function showResponse(element, message, isError = false) {
+                element.textContent = message;
+                element.style.display = 'block';
+                
+                if (isError) {
+                    element.classList.add('error');
+                } else {
+                    element.classList.remove('error');
+                }
+            }
+            
+            // Load users from server
+            async function loadUsers() {
+                try {
+                    const response = await fetch('/list_users');
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch users');
+                    }
+                    const data = await response.json();
+                    
+                    const userSelects = [
+                        document.getElementById('load-user'),
+                        document.getElementById('save-user'),
+                        document.getElementById('source-user'),
+                        document.getElementById('target-user')
+                    ];
+                    
+                    // Add users to all dropdowns
+                    data.users.forEach(user => {
+                        userSelects.forEach(select => {
+                            const option = document.createElement('option');
+                            option.value = JSON.stringify(user);
+                            option.textContent = user.isLegacy ? 'Legacy User (mytown)' : user.username;
+                            select.appendChild(option);
+                        });
+                    });
+                } catch (error) {
+                    console.error('Error loading users:', error);
+                }
+            }
+        });
+    </script>
+    <footer style="text-align: center; padding: 20px; margin-top: 30px; color: var(--text-primary); font-size: 14px; font-family: 'Comic Neue', cursive;">
+     Server created and designed by BodNJenie&trade;
+    </footer>
+</body>
+</html>

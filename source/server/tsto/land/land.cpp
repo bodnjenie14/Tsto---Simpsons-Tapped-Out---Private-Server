@@ -9,6 +9,7 @@
 #include <3rdparty/libevent/include/event2/http.h>
 #include <compression.hpp>
 #include <configuration.hpp>
+#include "tsto/database/database.hpp"
 
 namespace tsto::land {
 
@@ -57,7 +58,179 @@ namespace tsto::land {
 
 
 
-    bool Land::load_town() {
+    bool Land::instance_load_town() {
+        if (email_.empty()) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                "[LAND] Email not set for Land instance");
+            return false;
+        }
+
+        auto& session = tsto::Session::get();
+        std::string filename;
+        
+        //legacy users or non-logged-in users
+        if (email_ == "mytown") {
+            filename = "mytown.pb";
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
+                "[LAND] Using legacy town file: %s", filename.c_str());
+        } else {
+            filename = email_ + ".pb";
+        }
+        
+        session.town_filename = filename;  //update session with the current filename
+
+        //grab user's ID from the database if available
+        auto& db = tsto::database::Database::get_instance();
+        std::string stored_user_id;
+        
+        if (db.get_user_id(email_, stored_user_id)) {
+            //update session with stored user ID
+            session.user_user_id = stored_user_id;
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
+                "[LAND] Using stored user_id for %s: %s", email_.c_str(), stored_user_id.c_str());
+        }
+
+        std::filesystem::path town_file_path = "towns/" + filename;
+
+        logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME, 
+            "[LAND] Attempting to load %s", town_file_path.string().c_str());
+
+        std::filesystem::create_directories("towns");
+
+        if (std::filesystem::exists(town_file_path)) {
+            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                "[LAND] Town file exists, loading: %s", town_file_path.string().c_str());
+            
+            try {
+                std::ifstream file(town_file_path, std::ios::binary);
+                if (!file.is_open()) {
+                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME, 
+                        "[LAND] Failed to open town file: %s", town_file_path.string().c_str());
+                    return false;
+                }
+
+                std::vector<char> buffer((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+                file.close();
+
+                if (session.land_proto.ParseFromArray(buffer.data(), static_cast<int>(buffer.size()))) {
+                    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME, 
+                        "[LAND] Successfully loaded town file (direct parse)");
+                }
+                else {
+                    logger::write(logger::LOG_LEVEL_WARN, logger::LOG_LABEL_GAME, 
+                        "[LAND] Direct parse failed. Attempting Tsto backup offset parse.");
+
+                    constexpr size_t backup_offset = 0x0C;
+                    if (buffer.size() > backup_offset) {
+                        if (!session.land_proto.ParseFromArray(buffer.data() + backup_offset, 
+                                                              static_cast<int>(buffer.size() - backup_offset))) {
+                            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME, 
+                                "[LAND] Failed to parse town file after both direct and backup parse attempts");
+                            return false;
+                        }
+                        logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME, 
+                            "[LAND] Successfully loaded town file (Tsto Backup)");
+                    }
+                    else {
+                        logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME, 
+                            "[LAND] Buffer too small for backup format parsing");
+                        return false;
+                    }
+                }
+
+                //update the land proto ID to match the user_user_id
+                if (!session.user_user_id.empty()) {
+                    //logged-in users with a valid user_user_id, update the land ID
+                    session.land_proto.set_id(session.user_user_id);
+                    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME, 
+                        "[LAND] Updated land_proto ID to match session: %s", session.user_user_id.c_str());
+                } else if (filename == "mytown.pb") {
+                    //legacy/non-logged-in users, preserve the existing ID or generate a default one if empty
+                    if (session.land_proto.id().empty()) {
+                        std::string default_id = "default_" + std::to_string(std::time(nullptr));
+                        session.land_proto.set_id(default_id);
+                        logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME, 
+                            "[LAND] Set default ID for legacy town: %s", default_id.c_str());
+                    } else {
+                        logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME, 
+                            "[LAND] Preserved existing ID for legacy town: %s", session.land_proto.id().c_str());
+                    }
+                }
+
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME, 
+                    "[LAND] Successfully loaded town file: %s", town_file_path.string().c_str());
+                return true;
+            }
+            catch (const std::exception& ex) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME, 
+                    "[LAND] Error loading town file: %s", ex.what());
+                return false;
+            }
+        }
+        
+        // Town file doesn't exist, create a new one
+        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+            "[LAND] Town file doesn't exist, creating new town: %s", town_file_path.string().c_str());
+        
+        //create blank town file
+        Data::LandMessage land_data;
+        
+        //set  ID to match the user_user_id if available
+        if (!session.user_user_id.empty()) {
+            land_data.set_id(session.user_user_id);
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME, 
+                "[LAND] Set user_id in new land data: %s", session.user_user_id.c_str());
+        } else if (email_ == "mytown") {
+            //legacy/non-logged-in users, generate a default ID
+            std::string default_id = "default_" + std::to_string(std::time(nullptr));
+            land_data.set_id(default_id);
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME, 
+                "[LAND] Set default ID for new legacy town: %s", default_id.c_str());
+        }
+        
+        std::ofstream output(town_file_path, std::ios::binary);
+        if (!output.is_open()) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                "[LAND] Failed to create town file: %s", town_file_path.string().c_str());
+            return false;
+        }
+        
+        if (!land_data.SerializeToOstream(&output)) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                "[LAND] Failed to serialize town data to: %s", town_file_path.string().c_str());
+            return false;
+        }
+        
+        output.close();
+        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+            "[LAND] Successfully created new town: %s", town_file_path.string().c_str());
+        
+        return true;
+    }
+
+    bool Land::instance_save_town() {
+        if (email_.empty()) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                "[LAND] Email not set for Land instance");
+            return false;
+        }
+
+        std::string filename = email_ + ".pb";
+        std::filesystem::path town_file_path = "towns/" + filename;
+        
+        std::filesystem::create_directories("towns");
+        
+        if (!std::filesystem::exists(town_file_path)) {
+            return instance_load_town(); 
+        }
+        
+        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+            "[LAND] Town file saved: %s", town_file_path.string().c_str());
+        
+        return true;
+    }
+
+    bool Land::static_load_town() {
         auto& session = tsto::Session::get();
         std::string filename = session.town_filename;
 
@@ -73,6 +246,21 @@ namespace tsto::land {
             logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
                 "[LAND] Invalid town filename format: %s", filename.c_str());
             return false;
+        }
+
+        // Get the user's ID from the database if available
+        auto& db = tsto::database::Database::get_instance();
+        std::string stored_user_id;
+        std::string email = filename;
+        if (email.ends_with(".pb")) {
+            email = email.substr(0, email.length() - 3); // Remove .pb extension
+        }
+        
+        if (db.get_user_id(email, stored_user_id)) {
+            //update session with stored user ID
+            session.user_user_id = stored_user_id;
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
+                "[LAND] Using stored user_id for %s: %s", email.c_str(), stored_user_id.c_str());
         }
 
         std::filesystem::path town_file_path = "towns/" + filename;
@@ -100,33 +288,57 @@ namespace tsto::land {
             std::vector<char> buffer((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
             file.close();
 
-            if (session.land_proto.ParseFromArray(buffer.data(), buffer.size())) {
-                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME, "[LAND] Successfully loaded town file (direct parse)");
+            if (session.land_proto.ParseFromArray(buffer.data(), static_cast<int>(buffer.size()))) {
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME, 
+                    "[LAND] Successfully loaded town file (direct parse)");
             }
             else {
-                logger::write(logger::LOG_LEVEL_WARN, logger::LOG_LABEL_GAME, "[LAND] Direct parse failed. Attempting Tsto backup offset parse.");
+                logger::write(logger::LOG_LEVEL_WARN, logger::LOG_LABEL_GAME, 
+                    "[LAND] Direct parse failed. Attempting Tsto backup offset parse.");
 
                 constexpr size_t backup_offset = 0x0C;
                 if (buffer.size() > backup_offset) {
-                    if (!session.land_proto.ParseFromArray(buffer.data() + backup_offset, buffer.size() - backup_offset)) {
-                        logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME, "[LAND] Failed to parse town file after both direct and backup parse attempts");
+                    if (!session.land_proto.ParseFromArray(buffer.data() + backup_offset, 
+                                                          static_cast<int>(buffer.size() - backup_offset))) {
+                        logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME, 
+                            "[LAND] Failed to parse town file after both direct and backup parse attempts");
                         return false;
                     }
-                    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME, "[LAND] Successfully loaded town file (Tsto Backup)");
+                    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME, 
+                        "[LAND] Successfully loaded town file (Tsto Backup)");
                 }
                 else {
-                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME, "[LAND] Buffer too small for backup format parsing");
+                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME, 
+                        "[LAND] Buffer too small for backup format parsing");
                     return false;
                 }
             }
 
-            session.land_proto.set_id(session.user_user_id);
-            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME, "[LAND] Updated land_proto ID to match session: %s", session.user_user_id.c_str());
+            // Update the land proto ID to match the user_user_id
+            if (!session.user_user_id.empty()) {
+                //logged-in users with a valid user_user_id, update the land ID
+                session.land_proto.set_id(session.user_user_id);
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME, 
+                    "[LAND] Updated land_proto ID to match session: %s", session.user_user_id.c_str());
+            } else if (filename == "mytown.pb") {
+                // For legacy/non-logged-in users, preserve the existing ID or generate a default one if empty
+                if (session.land_proto.id().empty()) {
+                    std::string default_id = "default_" + std::to_string(std::time(nullptr));
+                    session.land_proto.set_id(default_id);
+                    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME, 
+                        "[LAND] Set default ID for legacy town: %s", default_id.c_str());
+                } else {
+                    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME, 
+                        "[LAND] Preserved existing ID for legacy town: %s", session.land_proto.id().c_str());
+                }
+            }
 
-            return save_town();
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME, 
+                "[LAND] Successfully loaded town file: %s", town_file_path.string().c_str());
+            return true;
         }
         catch (const std::exception& ex) {
-            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME, "[LAND] Exception while loading town: %s", ex.what());
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME, "[LAND] Error loading town file: %s", ex.what());
             return false;
         }
     }
@@ -138,6 +350,25 @@ namespace tsto::land {
         //legacy users or when not logged in, use mytown.pb
         if (filename.empty()) {
             filename = "mytown.pb";
+        }
+
+        //ensure user ID is set in the land proto
+        if (!session.user_user_id.empty()) {
+            //logged-in users with a valid user_user_id, update the land ID
+            session.land_proto.set_id(session.user_user_id);
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
+                "[LAND] Setting user_id in land proto: %s", session.user_user_id.c_str());
+        } else if (filename == "mytown.pb") {
+            // For legacy/non-logged-in users, preserve the existing ID or generate a default one if empty
+            if (session.land_proto.id().empty()) {
+                std::string default_id = "default_" + std::to_string(std::time(nullptr));
+                session.land_proto.set_id(default_id);
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME, 
+                    "[LAND] Set default ID for legacy town: %s", default_id.c_str());
+            } else {
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME, 
+                    "[LAND] Preserved existing ID for legacy town: %s", session.land_proto.id().c_str());
+            }
         }
 
         std::filesystem::path town_file_path = "towns/" + filename;
@@ -162,6 +393,19 @@ namespace tsto::land {
             file.write(serialized.data(), serialized.size());
             file.close();
 
+            // Store user ID in database if we have an email
+            std::string email = filename;
+            if (email.ends_with(".pb") && email != "mytown.pb") {
+                email = email.substr(0, email.length() - 3); // Remove .pb extension
+                auto& db = tsto::database::Database::get_instance();
+                if (!session.user_user_id.empty()) {
+                    if (!db.store_user_id(email, session.user_user_id, "")) {
+                        logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                            "[LAND] Failed to store user_id in database for email: %s", email.c_str());
+                    }
+                }
+            }
+
             logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
                 "[LAND] Successfully saved town file: %s", town_file_path.string().c_str());
             return true;
@@ -178,6 +422,20 @@ namespace tsto::land {
         auto& session = tsto::Session::get();
 
         session.land_proto.Clear();
+        
+        //Set the ID to match the user_user_id if available
+        if (!session.user_user_id.empty()) {
+            session.land_proto.set_id(session.user_user_id);
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME, 
+                "[LAND] Set user_id in new land proto: %s", session.user_user_id.c_str());
+        } else if (session.town_filename == "mytown.pb") {
+            //legacy/non-logged-in users, generate a default ID
+            std::string default_id = "default_" + std::to_string(std::time(nullptr));
+            session.land_proto.set_id(default_id);
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME, 
+                "[LAND] Set default ID for new legacy town: %s", default_id.c_str());
+        }
+        
         auto* friend_data = session.land_proto.mutable_frienddata();
         friend_data->set_dataversion(72);
         friend_data->set_haslemontree(false);
@@ -187,8 +445,24 @@ namespace tsto::land {
         friend_data->set_rating(0);
         friend_data->set_boardwalktilecount(0);
 
+        std::string email = "mytown"; // Default value
+        std::string town_filename = session.town_filename;
+        
+        if (!town_filename.empty()) {
+            size_t pb_pos = town_filename.find(".pb");
+            if (pb_pos != std::string::npos) {
+                email = town_filename.substr(0, pb_pos);
+            }
+        }
+        
         int initial_donuts = std::stoi(utils::configuration::ReadString("Server", "InitialDonutAmount", "1000"));
-        std::string currency_path = "towns/currency.txt";
+        
+        std::string currency_path;
+        if (email == "mytown") {
+            currency_path = "towns/currency.txt"; 
+        } else {
+            currency_path = "towns/" + email + ".txt";
+        }
         
         std::filesystem::create_directories("towns");
         std::ofstream output(currency_path);
@@ -196,10 +470,9 @@ namespace tsto::land {
         output.close();
 
         logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME, 
-            "[LAND] Created new blank town with data version %d and initial donuts: %d", 
-            friend_data->dataversion(), initial_donuts);
+            "[LAND] Created new blank town for user %s with data version %d and initial donuts: %d", 
+            email.c_str(), friend_data->dataversion(), initial_donuts);
     }
-
 
     void Land::handle_protoland(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
         const evpp::http::HTTPSendResponseCallback& cb) {
@@ -273,7 +546,7 @@ namespace tsto::land {
     }
 
     void Land::handle_get_request(const evpp::http::ContextPtr& ctx, const evpp::http::HTTPSendResponseCallback& cb, const std::string& land_id) {
-        if (!load_town()) {
+        if (!static_load_town()) {
             create_blank_town();
         }
 
@@ -626,6 +899,459 @@ namespace tsto::land {
                 "[CURRENCY] Error in extraland update: %s", ex.what());
             ctx->set_response_http_code(500);
             cb("");
+        }
+    }
+
+    bool Land::load_town_by_email(const std::string& email) {
+        if (email.empty()) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                "[LAND] Cannot load town - email is empty");
+            return false;
+        }
+
+        auto& session = tsto::Session::get();
+        std::string filename = email + ".pb";
+        session.town_filename = filename;
+
+        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+            "[LAND] Loading town for email: %s (filename: %s)", email.c_str(), filename.c_str());
+
+        return static_load_town();
+    }
+
+    bool Land::save_town_as(const std::string& email) {
+        try {
+            if (email.empty()) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                    "[LAND] Cannot save town with empty email");
+                return false;
+            }
+
+            auto& session = tsto::Session::get();
+            auto& db = tsto::database::Database::get_instance();
+
+            std::string filename = "towns/" + email + ".pb";
+            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                "[LAND] Saving town as: %s", filename.c_str());
+
+            std::filesystem::create_directories("towns");
+
+            if (!session.user_user_id.empty()) {
+                // Set the user ID in the land proto
+                session.land_proto.set_id(session.user_user_id);
+                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                    "[LAND] Setting user_id in land proto: %s", session.user_user_id.c_str());
+            }
+            else {
+                if (session.land_proto.id().empty()) {
+                    std::string default_id = "90159726165211658982621159447878257465";
+                    session.land_proto.set_id(default_id);
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                        "[LAND] Setting default ID for town: %s", default_id.c_str());
+                }
+                else {
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                        "[LAND] Preserved existing ID for legacy town: %s", session.land_proto.id().c_str());
+                }
+            }
+
+            std::string serialized;
+            if (!session.land_proto.SerializeToString(&serialized)) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                    "[LAND] Failed to serialize land proto");
+                return false;
+            }
+
+            std::ofstream file(filename, std::ios::binary);
+            if (!file.is_open()) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                    "[LAND] Failed to open file for writing: %s", filename.c_str());
+                return false;
+            }
+
+            file.write(serialized.data(), serialized.size());
+            file.close();
+
+            // Store the user ID in the database if we have one
+            if (!session.user_user_id.empty()) {
+                // Get the current access token from the session
+                std::string access_token = session.access_token;
+                
+                // Check if we already have an email associated with this token
+                std::string existing_email;
+                if (db.get_email_by_token(access_token, existing_email)) {
+                    if (existing_email != email) {
+                        // User is saving with a different email than what's associated with their token
+                        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                            "[LAND] User with token is saving as new email: %s (previous: %s)", 
+                            email.c_str(), existing_email.c_str());
+                        
+                        // Store the user ID with the new email but don't update the token association
+                        if (!db.store_user_id(email, session.user_user_id, "", 0, "")) {
+                            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                                "[LAND] Failed to store user ID for email: %s", email.c_str());
+                        }
+                    } else {
+                        // Update the existing user record
+                        if (!db.store_user_id(email, session.user_user_id, access_token)) {
+                            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                                "[LAND] Failed to store user ID for email: %s", email.c_str());
+                        }
+                    }
+                } else {
+                    if (!db.store_user_id(email, session.user_user_id, access_token)) {
+                        logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                            "[LAND] Failed to store user ID for email: %s", email.c_str());
+                    }
+                }
+            }
+
+            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                "[LAND] Town saved successfully as: %s", filename.c_str());
+            return true;
+        }
+        catch (const std::exception& ex) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                "[LAND] Error saving town: %s", ex.what());
+            return false;
+        }
+    }
+
+    bool Land::copy_town(const std::string& source_email, const std::string& target_email) {
+        if (source_email.empty() || target_email.empty()) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                "[LAND] Cannot copy town - source or target email is empty");
+            return false;
+        }
+
+        if (source_email == target_email) {
+            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                "[LAND] Source and target emails are the same, no need to copy");
+            return true;
+        }
+
+        auto& session = tsto::Session::get();
+        std::string original_filename = session.town_filename;
+        
+        if (!load_town_by_email(source_email)) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                "[LAND] Failed to load source town: %s", source_email.c_str());
+            
+            session.town_filename = original_filename;
+            static_load_town();
+            
+            return false;
+        }
+        
+        bool result = save_town_as(target_email);
+        
+        if (result) {
+            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                "[LAND] Successfully copied town from %s to %s", 
+                source_email.c_str(), target_email.c_str());
+        } else {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                "[LAND] Failed to save target town: %s", target_email.c_str());
+        }
+        
+        session.town_filename = original_filename;
+        static_load_town();
+        
+        return result;
+    }
+
+    bool Land::import_town_file(const std::string& source_path, const std::string& email) {
+        try {
+            if (source_path.empty()) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                    "[LAND] Cannot import town - source path is empty");
+                return false;
+            }
+
+            if (!std::filesystem::exists(source_path)) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                    "[LAND] Source file does not exist: %s", source_path.c_str());
+                return false;
+            }
+
+            std::filesystem::create_directories("towns");
+
+            std::string dest_path;
+            std::string currency_email;
+            
+            if (email.empty()) {
+                dest_path = "towns/mytown.pb";
+                currency_email = "default";
+                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                    "[LAND] No email provided, using default filename in towns directory: %s", dest_path.c_str());
+            } else {
+                dest_path = "towns/" + email + ".pb";
+                currency_email = email;
+                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                    "[LAND] Using email-based filename: %s", dest_path.c_str());
+            }
+            
+            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                "[LAND] Importing town from %s to %s", source_path.c_str(), dest_path.c_str());
+
+            std::filesystem::copy_file(
+                source_path, 
+                dest_path,
+                std::filesystem::copy_options::overwrite_existing
+            );
+            
+            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                "[LAND] File copied successfully");
+            
+            if (std::filesystem::exists(dest_path)) {
+                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                    "[LAND] Target file exists after copy: %s", dest_path.c_str());
+            } else {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                    "[LAND] Target file does not exist after copy: %s", dest_path.c_str());
+            }
+            
+            if (source_path.find("temp/") == 0) {
+                try {
+                    std::filesystem::remove(source_path);
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                        "[LAND] Deleted temporary file: %s", source_path.c_str());
+                }
+                catch (const std::exception& ex) {
+                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                        "[LAND] Failed to delete temporary file: %s - %s", source_path.c_str(), ex.what());
+                }
+            }
+
+            if (!currency_email.empty()) {
+                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                    "[LAND] Creating currency file for email: %s", currency_email.c_str());
+                create_default_currency_file(currency_email);
+            }
+            
+            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                "[LAND] Town imported successfully for %s", email.empty() ? "non-logged-in user" : ("email: " + email).c_str());
+            return true;
+        }
+        catch (const std::exception& ex) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                "[LAND] Error importing town: %s", ex.what());
+            return false;
+        }
+    }
+
+    void Land::handle_town_operations(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
+        const evpp::http::HTTPSendResponseCallback& cb) {
+        try {
+            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                "[TOWN OPS] Received request: RemoteIP: '%s', URI: '%s'",
+                std::string(ctx->remote_ip()).c_str(),
+                std::string(ctx->uri()).c_str());
+
+            std::string body = ctx->body().ToString();
+            rapidjson::Document doc;
+            doc.Parse(body.c_str());
+
+            if (doc.HasParseError()) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                    "[TOWN OPS] Invalid JSON in request body");
+                headers::set_json_response(ctx);
+                ctx->set_response_http_code(400);
+                cb("{\"error\":\"Invalid JSON\"}");
+                return;
+            }
+
+            if (doc.HasMember("operation") && doc["operation"].IsString() && 
+                std::string(doc["operation"].GetString()) == "import") {
+                
+                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                    "[TOWN OPS] Processing import operation");
+                
+                std::string email;
+                if (doc.HasMember("email") && doc["email"].IsString()) {
+                    email = doc["email"].GetString();
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                        "[TOWN OPS] Email provided: %s", email.c_str());
+                } else {
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                        "[TOWN OPS] No email provided, using default filename");
+                }
+                
+                if (!doc.HasMember("filePath") || !doc["filePath"].IsString()) {
+                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                        "[TOWN OPS] Missing filePath in import request");
+                    headers::set_json_response(ctx);
+                    ctx->set_response_http_code(400);
+                    cb("{\"error\":\"Missing filePath\"}");
+                    return;
+                }
+                
+                std::string temp_file_path = doc["filePath"].GetString();
+                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                    "[TOWN OPS] Temp file path: %s", temp_file_path.c_str());
+                
+                if (!std::filesystem::exists("towns")) {
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                        "[TOWN OPS] Creating towns directory");
+                    std::filesystem::create_directory("towns");
+                }
+
+                std::string target_file;
+                std::string currency_email;
+                
+                if (email.empty()) {
+                    target_file = "towns/mytown.pb";
+                    currency_email = "default";
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                        "[TOWN OPS] No email provided, using default filename in towns directory: %s", target_file.c_str());
+                } else {
+                    target_file = "towns/" + email + ".pb";
+                    currency_email = email;
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                        "[TOWN OPS] Using email-based filename: %s", target_file.c_str());
+                }
+                
+                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                    "[TOWN OPS] Target file path: %s", target_file.c_str());
+                
+                try {
+                    if (!std::filesystem::exists(temp_file_path)) {
+                        logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                            "[TOWN OPS] Source file does not exist: %s", temp_file_path.c_str());
+                        headers::set_json_response(ctx);
+                        ctx->set_response_http_code(500);
+                        cb("{\"error\":\"Source file not found\"}");
+                        return;
+                    }
+                    
+                    std::filesystem::path cwd = std::filesystem::current_path();
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                        "[TOWN OPS] Current working directory: %s", cwd.string().c_str());
+                    
+                    std::filesystem::path target_path(target_file);
+                    std::filesystem::path parent_path = target_path.parent_path();
+                    if (!parent_path.empty() && !std::filesystem::exists(parent_path)) {
+                        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                            "[TOWN OPS] Creating parent directory: %s", parent_path.string().c_str());
+                        std::filesystem::create_directories(parent_path);
+                    }
+                    
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                        "[TOWN OPS] Copying from %s to %s", temp_file_path.c_str(), target_file.c_str());
+                    
+                    std::filesystem::copy_file(
+                        temp_file_path, 
+                        target_file,
+                        std::filesystem::copy_options::overwrite_existing
+                    );
+                    
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                        "[TOWN OPS] File copied successfully");
+                    
+                    if (std::filesystem::exists(target_file)) {
+                        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                            "[TOWN OPS] Target file exists after copy: %s", target_file.c_str());
+                    } else {
+                        logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                            "[TOWN OPS] Target file does not exist after copy: %s", target_file.c_str());
+                    }
+                    
+                    std::filesystem::remove(temp_file_path);
+                    
+                    if (!currency_email.empty()) {
+                        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                            "[TOWN OPS] Creating currency file for email: %s", currency_email.c_str());
+                        create_default_currency_file(currency_email);
+                    }
+                    
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                        "[TOWN OPS] Town file imported successfully: %s", target_file.c_str());
+                    
+                    headers::set_json_response(ctx);
+                    cb("{\"success\":true,\"message\":\"Town imported successfully\"}");
+                } catch (const std::exception& ex) {
+                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                        "[TOWN OPS] Failed to import town file: %s", ex.what());
+                    headers::set_json_response(ctx);
+                    ctx->set_response_http_code(500);
+                    cb("{\"error\":\"Failed to import town file: " + std::string(ex.what()) + "\"}");
+                }
+                return;
+            }
+
+        }
+        catch (const std::exception& ex) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                "[TOWN OPS] Exception: %s", ex.what());
+            headers::set_json_response(ctx);
+            ctx->set_response_http_code(500);
+            cb("{\"error\":\"Internal server error\"}");
+        }
+    }
+
+
+    void Land::create_default_currency_file(const std::string& email) {
+        if (email.empty()) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                "[CURRENCY] Cannot create currency file: email is empty");
+            return;
+        }
+        
+        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+            "[CURRENCY] Creating default currency file for email: %s", email.c_str());
+        
+        if (!std::filesystem::exists("towns")) {
+            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                "[CURRENCY] Creating towns directory");
+            std::filesystem::create_directory("towns");
+        }
+        
+        int default_donuts = std::stoi(utils::configuration::ReadString("Server", "InitialDonutAmount", "1000"));
+        
+        std::string currency_file;
+        if (email == "default") {
+            currency_file = "towns/currency.txt"; //mytown.pb, use currency.txt
+        } else {
+            currency_file = "towns/" + email + ".txt"; //email.pb, use email.txt
+        }
+        
+        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+            "[CURRENCY] Currency file path: %s", currency_file.c_str());
+        
+        std::filesystem::path cwd = std::filesystem::current_path();
+        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+            "[CURRENCY] Current working directory: %s", cwd.string().c_str());
+        
+        std::filesystem::path currency_path(currency_file);
+        std::filesystem::path parent_path = currency_path.parent_path();
+        if (!parent_path.empty() && !std::filesystem::exists(parent_path)) {
+            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                "[CURRENCY] Creating parent directory: %s", parent_path.string().c_str());
+            std::filesystem::create_directories(parent_path);
+        }
+        
+        try {
+            std::ofstream out(currency_file);
+            if (!out.is_open()) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                    "[CURRENCY] Failed to open currency file for writing: %s", currency_file.c_str());
+                return;
+            }
+            
+            out << default_donuts;
+            out.close();
+            
+            if (std::filesystem::exists(currency_file)) {
+                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                    "[CURRENCY] Currency file created successfully: %s with %d donuts", 
+                    currency_file.c_str(), default_donuts);
+            } else {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                    "[CURRENCY] Currency file does not exist after creation: %s", currency_file.c_str());
+            }
+        } catch (const std::exception& ex) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                "[CURRENCY] Exception creating currency file: %s", ex.what());
         }
     }
 }

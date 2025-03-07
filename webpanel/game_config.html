@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TSTO Game Configuration</title>
+    <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --simpsons-yellow: #FED90F;
+            --simpsons-blue: #3E67B1;
+            --simpsons-red: #E53935;
+            --simpsons-green: #7BC142;
+            --simpsons-white: #ffffff;
+            --simpsons-black: #333333;
+            --simpsons-orange: #F57C00;
+            --simpsons-panel: #FFF3D4;
+            --simpsons-shadow: rgba(0, 0, 0, 0.3);
+            --text-color: #333333;
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --border-color: #ddd;
+            --hover-bg: #f5f5f5;
+            --input-bg: #ffffff;
+            --editor-bg: #ffffff;
+        }
+
+        html {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Comic Neue', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 40px 20px;
+            background: url('images/background.png') no-repeat center center fixed;
+            background-size: cover;
+            min-height: 100vh;
+            color: var(--text-color);
+            box-sizing: border-box;
+        }
+
+        .container {
+            max-width: 750px;
+            margin: 0 auto;
+        }
+
+        .panel {
+            background-color: var(--simpsons-panel);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 6px 10px var(--simpsons-shadow);
+            border: 4px solid var(--simpsons-yellow);
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--simpsons-yellow);
+            margin-bottom: 30px;
+            font-size: 48px;
+            font-weight: bold;
+            text-shadow: 2px 2px 0 var(--simpsons-black), 
+                        -2px -2px 0 var(--simpsons-black),
+                        2px -2px 0 var(--simpsons-black),
+                        -2px 2px 0 var(--simpsons-black),
+                        0 2px 0 var(--simpsons-black),
+                        2px 0 0 var(--simpsons-black),
+                        0 -2px 0 var(--simpsons-black),
+                        -2px 0 0 var(--simpsons-black);
+            letter-spacing: 1px;
+        }
+
+        h2 {
+            color: var(--simpsons-blue);
+            margin-top: 0;
+            font-size: 24px;
+            border-bottom: 2px solid var(--simpsons-yellow);
+            padding-bottom: 8px;
+            display: inline-block;
+        }
+
+        .config-editor {
+            width: 100%;
+            height: 300px;
+            font-family: 'Consolas', monospace;
+            font-size: 13px;
+            line-height: 1.3;
+            padding: 10px;
+            border: 3px solid var(--simpsons-blue);
+            border-radius: 10px;
+            background: var(--editor-bg);
+            color: var(--text-color);
+            resize: none;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);
+            overflow-y: auto;
+            box-sizing: border-box;
+        }
+
+        .config-editor:focus {
+            outline: none;
+            border-color: var(--simpsons-orange);
+            box-shadow: 0 0 0 3px rgba(245, 124, 0, 0.25);
+        }
+
+        .response {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 10px;
+            background-color: rgba(123, 193, 66, 0.2);
+            border-left: 4px solid var(--simpsons-green);
+            display: none;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+
+        .response.error {
+            background-color: rgba(229, 57, 53, 0.2);
+            border-left-color: var(--simpsons-red);
+        }
+
+        .config-container {
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .config-actions {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            background-color: var(--simpsons-panel);
+            border-radius: 10px 10px 0 0;
+            cursor: pointer;
+            margin-right: 5px;
+            border: 4px solid var(--simpsons-yellow);
+            border-bottom: none;
+            font-weight: bold;
+            color: var(--simpsons-blue);
+            position: relative;
+            z-index: 1;
+        }
+
+        .tab.active {
+            background-color: var(--simpsons-yellow);
+            color: var(--simpsons-black);
+            font-weight: bold;
+        }
+
+        .tab-content {
+            display: none;
+            background-color: var(--simpsons-panel);
+            padding: 15px;
+            border-radius: 0 15px 15px 15px;
+            box-shadow: 0 6px 10px var(--simpsons-shadow);
+            border: 4px solid var(--simpsons-yellow);
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: var(--simpsons-blue);
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        .back-link:hover {
+            text-decoration: underline;
+        }
+
+        .back-button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 10px;
+            background-color: var(--simpsons-blue);
+            color: var(--simpsons-white);
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            font-family: 'Comic Neue', cursive;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 0 #2A4B85;
+            position: relative;
+            top: 0;
+            display: inline-block;
+            margin-bottom: 20px;
+            text-decoration: none;
+        }
+
+        .back-button:hover {
+            background-color: #5482D0;
+            top: -2px;
+            box-shadow: 0 6px 0 #2A4B85;
+        }
+        
+        .back-button:active {
+            top: 4px;
+            box-shadow: 0 0 0 #2A4B85;
+        }
+
+        .back-button .button-icon {
+            font-size: 18px;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+        
+        .back-button img {
+            width: 24px;
+            height: 24px;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+
+        /* Decorative donuts */
+        .donut {
+            position: fixed;
+            width: 100px;
+            height: 100px;
+            z-index: -1;
+        }
+
+        .donut1 {
+            top: 10%;
+            left: 5%;
+            animation: float 8s ease-in-out infinite;
+        }
+
+        .donut2 {
+            top: 20%;
+            right: 5%;
+            animation: float 10s ease-in-out infinite;
+            animation-delay: 1s;
+        }
+
+        .donut3 {
+            bottom: 15%;
+            left: 10%;
+            animation: float 9s ease-in-out infinite;
+            animation-delay: 2s;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(0) rotate(0deg);
+            }
+            50% {
+                transform: translateY(-20px) rotate(10deg);
+            }
+            100% {
+                transform: translateY(0) rotate(0deg);
+            }
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: var(--simpsons-blue);
+            font-size: 16px;
+        }
+
+        .form-input {
+            width: 100%;
+            max-width: 300px;
+            padding: 10px;
+            border-radius: 10px;
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            border: 3px solid var(--simpsons-blue);
+            font-size: 16px;
+            font-family: 'Comic Neue', cursive;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);
+            box-sizing: border-box;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--simpsons-orange);
+            box-shadow: 0 0 0 3px rgba(245, 124, 0, 0.25);
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 10px;
+            background-color: var(--simpsons-blue);
+            color: var(--simpsons-white);
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            font-family: 'Comic Neue', cursive;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 0 #2A4B85;
+            position: relative;
+            top: 0;
+        }
+
+        button:hover {
+            background-color: #5482D0;
+            top: -2px;
+            box-shadow: 0 6px 0 #2A4B85;
+        }
+        
+        button:active {
+            top: 4px;
+            box-shadow: 0 0 0 #2A4B85;
+        }
+
+        /* Dark mode */
+        body.dark-mode {
+            --background: #1a1a2e;
+            --panel-bg: #282838;
+            --text-color: var(--simpsons-yellow);
+            --text-primary: var(--simpsons-yellow);
+            --text-secondary: var(--simpsons-orange);
+            --border-color: var(--simpsons-blue);
+            --hover-bg: #2d2d44;
+            --input-bg: #1f1f2f;
+            --editor-bg: #1E1E2E;
+            background-color: var(--background);
+            color: var(--text-color);
+        }
+
+        body.dark-mode .panel {
+            background-color: var(--panel-bg);
+            border-color: var(--text-color);
+        }
+
+        body.dark-mode .config-editor {
+            background-color: var(--editor-bg);
+            color: var(--text-color);
+            border-color: var(--border-color);
+        }
+
+        body.dark-mode .form-input {
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            border-color: var(--border-color);
+        }
+
+        body.dark-mode .theme-toggle {
+            background-color: var(--input-bg);
+            color: var(--text-color);
+        }
+
+        body.dark-mode .theme-toggle:hover {
+            background-color: var(--hover-bg);
+        }
+
+        body.dark-mode h2 {
+            color: var(--simpsons-yellow);
+            border-bottom-color: var(--simpsons-yellow);
+        }
+
+        body.dark-mode .form-group label {
+            color: var(--simpsons-yellow);
+        }
+
+        .theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: var(--simpsons-blue);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 1000;
+            font-weight: bold;
+        }
+
+        .theme-toggle:hover {
+            background-color: #5482D0;
+        }
+    </style>
+    <script src="proto/client_config.js"></script>
+    <script src="proto/gameplay_config.js"></script>
+</head>
+<body>
+    <!--decorative donuts-->
+    <svg class="donut donut1" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="40" fill="#FFA0B7" />
+        <circle cx="50" cy="50" r="15" fill="#FFF3D4" />
+    </svg>
+    <svg class="donut donut2" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="40" fill="#85C8F2" />
+        <circle cx="50" cy="50" r="15" fill="#FFF3D4" />
+    </svg>
+    <svg class="donut donut3" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="40" fill="#7BC142" />
+        <circle cx="50" cy="50" r="15" fill="#FFF3D4" />
+    </svg>
+
+    <button class="theme-toggle" id="theme-toggle">
+        <i class="fas fa-moon"></i>
+    </button>
+
+    <div class="container">
+        <h1>TSTO Game Configuration</h1>
+        
+        <a href="dashboard.html" class="back-button">
+            <img src="images/donut.png" alt="Donut"> Back to Dashboard
+        </a>
+        
+        <div class="tabs">
+            <!-- <div class="tab active" onclick="switchTab('client-config')">Client Config</div> -->
+            <div class="tab active" onclick="switchTab('gameplay-config')">Gameplay Config</div>
+        </div>
+        
+        <!-- Client Configuration section commented out as it's not implemented yet -->
+        <!--
+        <div id="client-config" class="tab-content active">
+            <h2>Client Configuration</h2>
+            <p>Modify client settings that affect game behavior and features.</p>
+            
+            <div class="config-container">
+                <textarea id="client-config-editor" class="config-editor"></textarea>
+                <div id="client-config-response" class="response"></div>
+                <div class="config-actions">
+                    <button id="save-client-config" class="save-button" onclick="saveClientConfig()">Save Client Config</button>
+                </div>
+            </div>
+        </div>
+        -->
+        
+        <div id="gameplay-config" class="tab-content active">
+            <h2>Gameplay Configuration</h2>
+            <p>Modify gameplay settings that affect game mechanics and features.</p>
+            
+            <div class="config-container">
+                <textarea id="gameplay-config-editor" class="config-editor"></textarea>
+                <div id="gameplay-config-response" class="response"></div>
+                <div class="config-actions">
+                    <button onclick="saveGameplayConfig()">Save Gameplay Config</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Theme toggle functionality
+            const themeToggleButton = document.getElementById('theme-toggle');
+            const themeIcon = themeToggleButton.querySelector('i');
+            let isDarkMode = localStorage.getItem('darkMode') === 'true';
+            
+            // Set initial state
+            if (isDarkMode) {
+                document.body.classList.add('dark-mode');
+                themeIcon.className = 'fas fa-sun';
+            } else {
+                themeIcon.className = 'fas fa-moon';
+            }
+
+            function toggleTheme() {
+                isDarkMode = !isDarkMode;
+                // Toggle the dark-mode class on the body
+                document.body.classList.toggle('dark-mode');
+                // Save preference to localStorage
+                localStorage.setItem('darkMode', isDarkMode);
+                // Update the icon
+                if (isDarkMode) {
+                    themeIcon.className = 'fas fa-sun';
+                } else {
+                    themeIcon.className = 'fas fa-moon';
+                }
+            }
+
+            themeToggleButton.addEventListener('click', toggleTheme);
+        });
+
+        // Rest of the script remains the same
+        function showResponse(element, message, isError = false) {
+            element.textContent = message;
+            element.style.display = 'block';
+            
+            if (isError) {
+                element.classList.add('error');
+            } else {
+                element.classList.remove('error');
+            }
+            
+            setTimeout(() => {
+                element.style.display = 'none';
+            }, 5000);
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.getElementById(tabId).classList.add('active');
+            document.querySelector(`.tab[onclick="switchTab('${tabId}')"]`).classList.add('active');
+        }
+
+        function formatConfig(config) {
+            try {
+                return JSON.stringify(JSON.parse(config), null, 4);
+            } catch (e) {
+                return config;
+            }
+        }
+
+        function arrayBufferToString(buffer) {
+            return String.fromCharCode.apply(null, new Uint8Array(buffer));
+        }
+
+        function parseProtobufConfig(buffer) {
+            const config = {};
+            const view = new DataView(buffer);
+            let offset = 0;
+
+            while (offset < buffer.byteLength) {
+                // Read field header
+                let header = view.getUint8(offset++);
+                const fieldNum = header >> 3;
+                const wireType = header & 0x7;
+
+                // Read string length (varint)
+                let strLength = 0;
+                let shift = 0;
+                while (true) {
+                    const byte = view.getUint8(offset++);
+                    strLength |= (byte & 0x7F) << shift;
+                    if ((byte & 0x80) === 0) break;
+                    shift += 7;
+                }
+
+                // Read string data
+                const decoder = new TextDecoder();
+                const strData = decoder.decode(new Uint8Array(buffer.slice(offset, offset + strLength)));
+                offset += strLength;
+
+                // For key-value pairs, we expect them in pairs
+                if (fieldNum === 1) { // Key
+                    // Clean up the key
+                    const key = strData
+                        .replace(/^\n+/, '')  // Remove leading newlines
+                        .replace(/\n+$/, '')  // Remove trailing newlines
+                        .replace(/\\u[\da-f]{4}/gi, '') // Remove Unicode escapes
+                        .replace(/\u0012.*$/, '') // Remove protobuf field numbers
+                        .trim();
+                    
+                    // Read the next value
+                    header = view.getUint8(offset++);
+                    strLength = 0;
+                    shift = 0;
+                    while (true) {
+                        const byte = view.getUint8(offset++);
+                        strLength |= (byte & 0x7F) << shift;
+                        if ((byte & 0x80) === 0) break;
+                        shift += 7;
+                    }
+                    // Clean up the value
+                    const value = decoder.decode(new Uint8Array(buffer.slice(offset, offset + strLength)))
+                        .replace(/^\n+/, '')
+                        .replace(/\n+$/, '')
+                        .replace(/\\u[\da-f]{4}/gi, '')
+                        .replace(/\u0012.*$/, '')
+                        .trim();
+                    offset += strLength;
+
+                    if (key && key !== "") {
+                        config[key] = value;
+                    }
+                }
+            }
+
+            return config;
+        }
+
+        async function loadClientConfig() {
+            try {
+                const response = await fetch('/api/game/client_config');
+                if (!response.ok) {
+                    throw new Error('Server responded with status: ' + response.status);
+                }
+                const data = await response.arrayBuffer();
+                
+                try {
+                    const config = parseProtobufConfig(data);
+                    document.getElementById('client-config-editor').value = formatConfig(config);
+                    showResponse(document.getElementById('client-config-response'), 'Client config loaded successfully');
+                } catch (error) {
+                    console.error('Error parsing protobuf:', error);
+                    throw new Error('Failed to parse server response');
+                }
+            } catch (error) {
+                showResponse(document.getElementById('client-config-response'), 'Error loading client config: ' + error.message, true);
+            }
+        }
+
+        async function loadGameplayConfig() {
+            try {
+                const response = await fetch('/api/config/game');
+                if (!response.ok) {
+                    throw new Error('Server responded with status: ' + response.status);
+                }
+                
+                // Parse the response as JSON
+                const configData = await response.json();
+                
+                // Format the JSON for display in the editor
+                // The config.json file has a "GameplayConfig" object that contains all the settings
+                document.getElementById('gameplay-config-editor').value = formatConfig(JSON.stringify(configData));
+                
+                showResponse(document.getElementById('gameplay-config-response'), 'Gameplay config loaded successfully');
+            } catch (error) {
+                showResponse(document.getElementById('gameplay-config-response'), 'Error loading gameplay config: ' + error.message, true);
+            }
+        }
+
+        async function saveClientConfig() {
+            const responseElement = document.getElementById('client-config-response');
+            try {
+                const configText = document.getElementById('client-config-editor').value.trim();
+                if (!configText) {
+                    throw new Error('Configuration cannot be empty');
+                }
+
+                let config;
+                try {
+                    config = JSON.parse(configText);
+                } catch (parseError) {
+                    throw new Error('Invalid JSON format: ' + parseError.message);
+                }
+
+                // Send each key-value pair as a separate request
+                for (const [key, value] of Object.entries(config)) {
+                    const formData = new FormData();
+                    formData.append('name', key);
+                    formData.append('value', String(value));
+
+                    const response = await fetch('/api/game/client_config', {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'Accept': 'application/json'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.text();
+                        throw new Error(`Failed to save ${key}: ${errorData || 'Server responded with status: ' + response.status}`);
+                    }
+                }
+
+                showResponse(responseElement, 'Client config saved successfully');
+                await loadClientConfig();
+            } catch (error) {
+                console.error('Save error:', error);
+                showResponse(responseElement, 'Error saving client config: ' + error.message, true);
+            }
+        }
+
+        async function saveGameplayConfig() {
+            const responseElement = document.getElementById('gameplay-config-response');
+            try {
+                const configText = document.getElementById('gameplay-config-editor').value.trim();
+                if (!configText) {
+                    throw new Error('Configuration cannot be empty');
+                }
+
+                let config;
+                try {
+                    config = JSON.parse(configText);
+                } catch (parseError) {
+                    throw new Error('Invalid JSON format: ' + parseError.message);
+                }
+
+                // Make sure we're sending the proper structure
+                // If the user edited the full config with the GameplayConfig object
+                const dataToSend = JSON.stringify(config);
+
+                // Send the config as JSON
+                const response = await fetch('/api/config/game', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: dataToSend
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.text();
+                    throw new Error(`Failed to save config: ${errorData || 'Server responded with status: ' + response.status}`);
+                }
+
+                showResponse(responseElement, 'Gameplay config saved successfully');
+            } catch (error) {
+                console.error('Save error:', error);
+                showResponse(responseElement, 'Error saving gameplay config: ' + error.message, true);
+            }
+        }
+
+        // Load initial data
+        // loadClientConfig(); // Commented out as client config is not implemented yet
+        loadGameplayConfig();
+    </script>
+    <footer style="text-align: center; padding: 20px; margin-top: 30px; color: var(--text-primary); font-size: 14px; font-family: 'Comic Neue', cursive;">
+     Server created and designed by BodNJenie&trade;
+    </footer>
+</body>
+</html>

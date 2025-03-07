@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TSTO Town Operations</title>
+    <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../../webpanel/css/tsto-styles.css">
+</head>
+<body>
+    <!--decorative donuts-->
+    <svg class="donut donut1" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="40" fill="#FFA0B7" />
+        <circle cx="50" cy="50" r="15" fill="#FFF3D4" />
+    </svg>
+    <svg class="donut donut2" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="40" fill="#FFA0B7" />
+        <circle cx="50" cy="50" r="15" fill="#FFF3D4" />
+    </svg>
+    
+    <div class="container">
+        <h1>TSTO Town Operations</h1>
+        
+        <div class="panel">
+            <div class="toggle-container">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="darkModeToggle" onchange="toggleDarkMode()">
+                    <span class="toggle-slider round"></span>
+                </label>
+                <span>Dark Mode</span>
+            </div>
+            
+            <div class="tabs">
+                <div class="tab active" data-tab="user-list">User List</div>
+                <div class="tab" data-tab="import-town">Import Town</div>
+            </div>
+            
+            <div class="tab-content active" id="user-list-content">
+                <h2>User List</h2>
+                <div id="user-list-container">
+                    Loading users...
+                </div>
+            </div>
+            
+            <div class="tab-content" id="import-town-content">
+                <h2>Import Town</h2>
+                <form id="import-town-form">
+                    <div class="form-row">
+                        <label for="email">Email Address:</label>
+                        <input type="email" id="email" name="email" required>
+                    </div>
+                    <div class="form-row">
+                        <label for="town-file">Town File (.pb):</label>
+                        <input type="file" id="town-file" name="town-file" accept=".pb" required>
+                    </div>
+                    <button type="submit" class="save">Import Town</button>
+                </form>
+                <div id="import-response" class="response-box"></div>
+            </div>
+        </div>
+        
+        <div class="panel">
+            <a href="/dashboard" class="button">Back to Dashboard</a>
+        </div>
+    </div>
+
+    <script src="../../webpanel/js/tsto-theme.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Tab switching
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    // Remove active class from all tabs
+                    tabs.forEach(t => t.classList.remove('active'));
+                    // Add active class to clicked tab
+                    this.classList.add('active');
+                    
+                    // Hide all tab content
+                    document.querySelectorAll('.tab-content').forEach(content => {
+                        content.classList.remove('active');
+                    });
+                    
+                    // Show the corresponding tab content
+                    const tabId = this.getAttribute('data-tab') + '-content';
+                    document.getElementById(tabId).classList.add('active');
+                });
+            });
+            
+            // Load user preferences (dark mode)
+            loadUserPreferences();
+            
+            // Load user list
+            loadUserList();
+            
+            // Handle import town form submission
+            const importForm = document.getElementById('import-town-form');
+            if (importForm) {
+                importForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    importTown();
+                });
+            }
+        });
+        
+        // Load user list
+        function loadUserList() {
+            fetch('/api/dashboard/getUsers')
+                .then(response => response.json())
+                .then(data => {
+                    const userListContainer = document.getElementById('user-list-container');
+                    if (data.error) {
+                        userListContainer.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                        return;
+                    }
+                    
+                    if (!data.users || data.users.length === 0) {
+                        userListContainer.innerHTML = '<div>No users found.</div>';
+                        return;
+                    }
+                    
+                    let html = '<ul>';
+                    data.users.forEach(user => {
+                        html += `<li>${user.username} (${user.email || 'No email'})</li>`;
+                    });
+                    html += '</ul>';
+                    
+                    userListContainer.innerHTML = html;
+                })
+                .catch(error => {
+                    console.error('Error loading users:', error);
+                    document.getElementById('user-list-container').innerHTML = 
+                        `<div class="error">Failed to load users: ${error.message}</div>`;
+                });
+        }
+        
+        // Import town
+        function importTown() {
+            const email = document.getElementById('email').value;
+            const townFile = document.getElementById('town-file').files[0];
+            
+            if (!email || !townFile) {
+                showResponse(document.getElementById('import-response'), 
+                    'Please provide both email and town file.', true);
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('email', email);
+            formData.append('townFile', townFile);
+            
+            fetch('/api/dashboard/importTown', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    showResponse(document.getElementById('import-response'), 
+                        'Error: ' + data.error, true);
+                } else {
+                    showResponse(document.getElementById('import-response'), 
+                        'Town imported successfully!');
+                    document.getElementById('import-town-form').reset();
+                }
+            })
+            .catch(error => {
+                console.error('Error importing town:', error);
+                showResponse(document.getElementById('import-response'), 
+                    'Failed to import town: ' + error.message, true);
+            });
+        }
+        
+        // Helper function to show response
+        function showResponse(element, message, isError = false) {
+            element.textContent = message;
+            element.style.display = 'block';
+            
+            if (isError) {
+                element.classList.add('error');
+                element.classList.remove('success');
+            } else {
+                element.classList.add('success');
+                element.classList.remove('error');
+            }
+            
+            setTimeout(() => {
+                element.style.display = 'none';
+            }, 5000);
+        }
+    </script>
+</body>
+</html>

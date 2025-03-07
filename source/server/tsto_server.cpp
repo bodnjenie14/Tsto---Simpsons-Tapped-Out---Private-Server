@@ -11,6 +11,8 @@
 #include "tsto/events/events.hpp"
 #include "tsto/land/land.hpp"
 #include "tsto/auth/auth.hpp"
+#include "tsto/database/database.hpp"
+#include "tsto/includes/session.hpp"
 
 namespace tsto {
 
@@ -331,74 +333,168 @@ namespace tsto {
     void TSTOServer::handle_progreg_code(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx,
         const evpp::http::HTTPSendResponseCallback& cb) {
         try {
-            logger::write(logger::LOG_LEVEL_INCOMING, logger::LOG_LABEL_AUTH,
-                "[PROGREG CODE] Request from %s", ctx->remote_ip().data());
-
+            // Get the email from the request body
             std::string body = ctx->body().ToString();
+            if (body.empty()) {
+                throw std::runtime_error("Empty request body");
+            }
+
+            // Parse JSON body
             rapidjson::Document doc;
             doc.Parse(body.c_str());
-
-            if (!doc.IsObject()) {
-                throw std::runtime_error("Invalid JSON request body");
+            if (doc.HasParseError() || !doc.IsObject()) {
+                throw std::runtime_error("Invalid JSON in request body");
             }
 
-            std::string code_type;
-            std::string filename;
+            // Extract email from JSON
+            if (!doc.HasMember("email") || !doc["email"].IsString()) {
+                throw std::runtime_error("Missing or invalid 'email' field in request");
+            }
+            std::string email = doc["email"].GetString();
+            std::string filename = email;
 
-            if (doc.HasMember("codeType") && doc["codeType"].IsString()) {
-                code_type = doc["codeType"].GetString();
-            }
-            else {
-                throw std::runtime_error("Missing or invalid codeType");
-            }
-
-            if (code_type == "EMAIL") {
-                if (!doc.HasMember("email") || !doc["email"].IsString()) {
-                    throw std::runtime_error("Missing or invalid email");
-                }
-                filename = doc["email"].GetString();
-                if (filename.empty()) {
-                    throw std::runtime_error("Email cannot be empty");
-                }
-                
-                // Validate email format
-                if (filename.find('@') == std::string::npos || filename.find('.') == std::string::npos) {
-                    throw std::runtime_error("Invalid email format");
-                }
-            }
-            else {
-                throw std::runtime_error("Unknown codeType: " + code_type);
+            // Extract access token from Authorization header
+            std::string access_token;
+            const char* auth_header = ctx->FindRequestHeader("Authorization");
+            if (auth_header && strncmp(auth_header, "Bearer ", 7) == 0) {
+                access_token = auth_header + 7; // Skip "Bearer " prefix
             }
 
-            //town filename based on the user identifier
-            auto& session = tsto::Session::get();
-            std::string town_filename = filename + ".pb";
-            session.town_filename = town_filename;
-
-            // Load or create the town
-            tsto::land::Land land;
-            if (!land.load_town()) {
-                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
-                    "[PROGREG CODE] Failed to load/create town for user: %s", filename.c_str());
-                throw std::runtime_error("Failed to load/create town");
+            if (access_token.empty()) {
+                throw std::runtime_error("Missing or invalid Authorization header");
             }
 
             logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
-                "[PROGREG CODE] Successfully loaded/created town for user: %s with filename: %s", 
-                filename.c_str(), town_filename.c_str());
+                "[PROGREG CODE] Access token received: %s", access_token.c_str());
 
-            headers::set_json_response(ctx);
-            cb(""); // errors client i dont mind for now
+            // Initialize session for generating IDs
+            auto& session = tsto::Session::get();
+            session.reinitialize();
+
+            // Initialize database
+            auto& db = tsto::database::Database::get_instance();
+
+            // Check if the access token exists in the database
+            std::string existing_email;
+            bool token_exists = db.get_email_by_token(access_token, existing_email);
+            
+            std::string user_id;
+            int64_t mayhem_id = 0;
+            std::string access_code;
+            
+            if (token_exists) {
+                // This is an anonymous user being converted to a registered user
+                // Get the existing user_id associated with this token
+                std::string stored_user_id;
+                if (db.get_user_id(existing_email, stored_user_id)) {
+                    user_id = stored_user_id;
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+                        "[PROGREG CODE] Converting anonymous user to registered user. Email: %s -> %s, User ID: %s", 
+                        existing_email.c_str(), email.c_str(), user_id.c_str());
+                
+                // Get existing mayhem_id if available
+                db.get_mayhem_id(existing_email, mayhem_id);
+                if (mayhem_id == 0) {
+                    // Generate a new mayhem_id if not present
+                    mayhem_id = db.get_next_mayhem_id();
+                }
+            } else {
+                // Fallback: use the session user_id if we couldn't get the stored one
+                user_id = session.user_user_id;
+                mayhem_id = db.get_next_mayhem_id();
+                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+                    "[PROGREG CODE] Could not find user_id for existing token. Generated new user_id: %s", 
+                    user_id.c_str());
+            }
+        } else {
+            // Check if this email already exists in the database
+            std::string stored_user_id;
+            if (db.get_user_id(filename, stored_user_id)) {
+                // Use existing user_id for returning users
+                user_id = stored_user_id;
+                db.get_mayhem_id(filename, mayhem_id);
+                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+                    "[PROGREG CODE] Using existing user_id for %s: %s", 
+                    filename.c_str(), stored_user_id.c_str());
+            } else {
+                // Initialize session to generate new user_id for new users
+                user_id = session.user_user_id;
+                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+                    "[PROGREG CODE] Generated new user_id for %s: %s", 
+                    filename.c_str(), user_id.c_str());
+                
+                // Generate a new mayhem_id for new users
+                mayhem_id = db.get_next_mayhem_id();
+                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+                    "[PROGREG CODE] Generated new mayhem_id for %s: %lld", 
+                    filename.c_str(), mayhem_id);
+            }
         }
-        catch (const std::exception& ex) {
+
+        // If we're converting from anonymous to registered, remove the old anonymous entry
+        if (token_exists && existing_email != email) {
+            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+                "[PROGREG CODE] Updating user from %s to %s with the same access token", 
+                existing_email.c_str(), email.c_str());
+            
+            // We need to remove the association between the old email and this access token
+            // to prevent conflicts when the same token is used with different emails
+            std::string empty_token = ""; // Use an empty token to invalidate the old entry
+            if (!db.update_access_token(existing_email, empty_token)) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                    "[PROGREG CODE] Failed to clear access token for old email: %s", existing_email.c_str());
+            }
+        }
+
+        // Generate a new access code for Node.js compatibility
+        access_code = tsto::auth::Auth::generate_access_code(user_id);
+        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+            "[PROGREG CODE] Generated access code for %s: %s", 
+            filename.c_str(), access_code.c_str());
+
+        // Store or update user data with mayhem_id and access_code
+        if (!db.store_user_id(filename, user_id, access_token, mayhem_id, access_code)) {
+            throw std::runtime_error("Failed to store user data in database");
+        }
+
+        // Load or create the town
+        tsto::land::Land land;
+        land.set_email(filename);
+        if (!land.instance_load_town()) {
             logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
-                "[PROGREG CODE] Error: %s", ex.what());
-            ctx->set_response_http_code(500);
-            cb("");
+                "[PROGREG CODE] Failed to load/create town for user: %s", filename.c_str());
+            throw std::runtime_error("Failed to load/create town");
         }
-    }
 
-    //shud move to land IG
+        logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+            "[PROGREG CODE] Successfully loaded/created town for user: %s with filename: %s.pb", 
+            filename.c_str(), land.get_filename().c_str());
+
+        // Prepare the response
+        rapidjson::Document response;
+        response.SetObject();
+        rapidjson::Document::AllocatorType& allocator = response.GetAllocator();
+
+        response.AddMember("code", rapidjson::Value(access_code.c_str(), allocator), allocator);
+        response.AddMember("user_id", rapidjson::Value(user_id.c_str(), allocator), allocator);
+        response.AddMember("mayhem_id", mayhem_id, allocator);
+
+        // Convert JSON to string
+        rapidjson::StringBuffer buffer;
+        rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+        response.Accept(writer);
+
+        // Send the response
+        headers::set_json_response(ctx);
+        cb(buffer.GetString());
+    } catch (const std::exception& e) {
+        logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+            "[PROGREG CODE] Error: %s", e.what());
+        ctx->set_response_http_code(500);
+        cb("");
+    }
+}
+
     void TSTOServer::handle_proto_currency(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx,
         const evpp::http::HTTPSendResponseCallback& cb) {
         try {
@@ -409,25 +505,35 @@ namespace tsto {
 
             //grab current session to access the email-based filename
             auto& session = tsto::Session::get();
-            if (session.town_filename.empty()) {
-                throw std::runtime_error("No town file associated with session");
-            }
+            std::string currency_path;
+            std::string user_identifier;
 
-            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
-                "[CURRENCY] Processing currency request for user: %s, land_id: %s", 
-                session.town_filename.c_str(), land_id.c_str());
-
-            //create currency file path based on email
-            std::string email_base = session.town_filename;
-            size_t pb_pos = email_base.find(".pb");
-            if (pb_pos != std::string::npos) {
-                email_base = email_base.substr(0, pb_pos);
+            //check if we're using mytown.pb (non-logged in) or email-based town (logged in)
+            std::string current_town = session.town_filename.empty() ? "mytown.pb" : session.town_filename;
+            
+            if (current_town == "mytown.pb") {
+                //non logged in user - use currency.txt
+                currency_path = "towns/currency.txt";
+                user_identifier = "default";
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
+                    "[CURRENCY] Using legacy currency file for non-logged in user");
+            } else {
+                //logged in user - use email-based currency file
+                std::string email_base = current_town;
+                size_t pb_pos = email_base.find(".pb");
+                if (pb_pos != std::string::npos) {
+                    email_base = email_base.substr(0, pb_pos);
+                }
+                size_t txt_pos = email_base.find(".txt");
+                if (txt_pos != std::string::npos) {
+                    email_base = email_base.substr(0, txt_pos);
+                }
+                currency_path = "towns/currency_" + email_base + ".txt";
+                user_identifier = email_base;
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
+                    "[CURRENCY] Using email-based currency file for user: %s", email_base.c_str());
             }
-            size_t txt_pos = email_base.find(".txt");
-            if (txt_pos != std::string::npos) {
-                email_base = email_base.substr(0, txt_pos);
-            }
-            std::string currency_path = "towns/currency_" + email_base + ".txt";
+            
             std::filesystem::create_directories("towns");
 
             int balance = std::stoi(utils::configuration::ReadString("Server", "InitialDonutAmount", "1000"));
@@ -437,7 +543,7 @@ namespace tsto {
                     input >> balance;
                     logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
                         "[CURRENCY] Loaded existing currency data for user: %s (Balance: %d)",
-                        session.town_filename.c_str(), balance);
+                        user_identifier.c_str(), balance);
                 }
                 input.close();
             }
@@ -448,7 +554,7 @@ namespace tsto {
 
                 logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
                     "[CURRENCY] Created new currency data for user: %s with initial balance: %d",
-                    session.town_filename.c_str(), balance);
+                    user_identifier.c_str(), balance);
             }
 
             Data::CurrencyData currency_data;
@@ -466,7 +572,7 @@ namespace tsto {
 
                 logger::write(logger::LOG_LEVEL_RESPONSE, logger::LOG_LABEL_GAME,
                     "[CURRENCY] Sent currency data for user: %s (Balance: %d)",
-                    session.town_filename.c_str(), balance);
+                    user_identifier.c_str(), balance);
             }
             else {
                 throw std::runtime_error("Failed to serialize currency data");

@@ -70,7 +70,31 @@ namespace file_server {
 
                 loop->RunInLoop([response_data, ctx, cb, file_path]() {
                     if (!response_data.empty()) {
-                        ctx->AddResponseHeader("Content-Type", "application/zip");
+                        // Set content type based on file extension
+                        std::string content_type = "application/octet-stream"; // Default
+                        std::string file_ext = file_path.substr(file_path.find_last_of(".") + 1);
+                        
+                        if (file_ext == "html" || file_ext == "htm") {
+                            content_type = "text/html";
+                        } else if (file_ext == "js") {
+                            content_type = "application/javascript";
+                        } else if (file_ext == "css") {
+                            content_type = "text/css; charset=utf-8";
+                        } else if (file_ext == "png") {
+                            content_type = "image/png";
+                        } else if (file_ext == "jpg" || file_ext == "jpeg") {
+                            content_type = "image/jpeg";
+                        } else if (file_ext == "gif") {
+                            content_type = "image/gif";
+                        } else if (file_ext == "svg") {
+                            content_type = "image/svg+xml";
+                        } else if (file_ext == "json") {
+                            content_type = "application/json";
+                        } else if (file_ext == "zip") {
+                            content_type = "application/zip";
+                        }
+                        
+                        ctx->AddResponseHeader("Content-Type", content_type);
                         cb(response_data);
 #ifdef DEBUG
                         //logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_FILESERVER,

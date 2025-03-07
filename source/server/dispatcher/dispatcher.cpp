@@ -11,6 +11,13 @@
 #include "tsto/land/land.hpp"
 #include "tsto/events/events.hpp"
 #include "regex"
+#include <evpp/http/context.h>
+#include <evpp/http/http_server.h>
+#include <evpp/event_loop.h>
+#include <filesystem>
+#include <fstream>
+#include <random>
+#include <sstream>
 
 namespace server::dispatcher::http {
 
@@ -64,6 +71,11 @@ namespace server::dispatcher::http {
                 return;
             }
 
+            if (uri == "/api/dashboard/data") {
+                tsto::dashboard::Dashboard::handle_dashboard_data(loop, ctx, cb);
+                return;
+            }
+
             if (uri == "/edit_user_currency") {
                 tsto::dashboard::Dashboard::handle_edit_user_currency(loop, ctx, cb);
                 return;
@@ -74,11 +86,36 @@ namespace server::dispatcher::http {
                 return;
             }
 
-            // Handle dashboard static files
-            if (uri.find("/dashboard/") == 0 || uri.find("/images/") == 0) {
+            //dashboard static files
+            if (uri.find("/dashboard/") == 0 || uri.find("/images/") == 0 || 
+                uri == "/town_operations.html" || uri == "/town_operations" ||
+                uri == "/town_operations.js" || 
+                uri == "/tsto-styles.css" || uri == "/game_config.html" || 
+                uri == "/game_config" || uri == "/css/tsto-styles.css" ||
+                uri == "/proto/client_config.js" || uri == "/proto/gameplay_config.js" ||
+                uri == "/dashboard.html") {
                 file_server_->handle_webpanel_file(loop, ctx, cb);
                 return;
             }
+
+            //dashboard route without .html extension
+            if (uri == "/dashboard") {
+                tsto::dashboard::Dashboard::handle_dashboard(loop, ctx, cb);
+                return;
+            }
+
+            //configuration endpoints
+            if (uri == "/api/config/game") {
+                const std::string method = ctx->GetMethod();
+                if (method == "GET" || method == "POST") {
+                    tsto::game::Game::handle_gameplay_config(loop, ctx, cb);
+                } else {
+                    ctx->set_response_http_code(405); 
+                    cb("");
+                }
+                return;
+            }
+
 
             if (uri == "/api/server/restart") {
                 tsto::dashboard::Dashboard::handle_server_restart(loop, ctx, cb);
@@ -100,16 +137,6 @@ namespace server::dispatcher::http {
                 return;
             }
 
-            if (uri == "/update_current_donuts") {
-                tsto::dashboard::Dashboard::handle_update_current_donuts(loop, ctx, cb);
-                return;
-            }
-
-            if (uri == "/api/updateCurrentDonuts") {
-                tsto::dashboard::Dashboard::handle_update_current_donuts(loop, ctx, cb);
-                return;
-            }
-
             if (uri == "/api/updateDlcDirectory") {
                 tsto::dashboard::Dashboard::handle_update_dlc_directory(loop, ctx, cb);
                 return;
@@ -127,6 +154,11 @@ namespace server::dispatcher::http {
 
             if (uri == "/api/events/set") {
                 tsto::events::Events::handle_events_set(loop, ctx, cb);
+                return;
+            }
+
+            if (uri == "/upload_town_file") {
+                tsto::dashboard::Dashboard::handle_upload_town_file(loop, ctx, cb);
                 return;
             }
 
@@ -277,7 +309,8 @@ namespace server::dispatcher::http {
                 tsto::game::Game::handle_gameplay_config(loop, ctx, cb);
                 return;
             }
-
+            
+          
             //tracking
 
             if (uri == "/tracking/api/core/logEvent") {
@@ -331,10 +364,14 @@ namespace server::dispatcher::http {
                 return;
             }
 
-            // In your dispatcher
             if (uri.find("/mh/games/bg_gameserver_plugin/deleteToken/") != std::string::npos &&
                 uri.find("/protoWholeLandToken/") != std::string::npos) {
                 tsto::land::Land::handle_delete_token(loop, ctx, cb);
+                return;
+            }
+
+            if (uri == "/mh/games/bg_gameserver_plugin/townOperations/") {
+                tsto::land::Land::handle_town_operations(loop, ctx, cb);
                 return;
             }
 
@@ -353,7 +390,7 @@ namespace server::dispatcher::http {
             }
 
             // if no route matched, return 404 and log to console
-            logger::write(logger::LOG_LEVEL_WARN, logger::LOG_LABEL_SERVER_HTTP, "No handler found for URI: %s", uri.c_str());
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, "No handler found for URI: %s", uri.c_str());
 
             ctx->set_response_http_code(404);
             ctx->AddResponseHeader("Content-Type", "application/json");

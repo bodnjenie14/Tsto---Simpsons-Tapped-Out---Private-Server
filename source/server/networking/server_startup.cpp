@@ -18,11 +18,11 @@ std::string get_local_ipv4() {
     if (GetAdaptersAddresses(AF_INET, 0, nullptr, nullptr, &bufferSize) == ERROR_BUFFER_OVERFLOW) {
         std::vector<unsigned char> buffer(bufferSize);
         auto addresses = reinterpret_cast<IP_ADAPTER_ADDRESSES*>(buffer.data());
-        
+
         if (GetAdaptersAddresses(AF_INET, 0, nullptr, addresses, &bufferSize) == ERROR_SUCCESS) {
             for (auto adapter = addresses; adapter != nullptr; adapter = adapter->Next) {
                 // Skip loopback and disabled adapters
-                if (adapter->OperStatus != IfOperStatusUp || 
+                if (adapter->OperStatus != IfOperStatusUp ||
                     adapter->IfType == IF_TYPE_SOFTWARE_LOOPBACK)
                     continue;
 
@@ -59,7 +59,7 @@ void initialize_servers() {  //for now dlc on same port as game
     }
 
     const char* CONFIG_SECTION = "ServerConfig";
-    
+
     // check for json
     bool enable_discord = utils::configuration::ReadBoolean(CONFIG_SECTION, "EnableDiscord", true);
     if (enable_discord) {
@@ -74,12 +74,13 @@ void initialize_servers() {  //for now dlc on same port as game
     std::string detected_ip = get_local_ipv4();
     bool auto_detect_ip = utils::configuration::ReadBoolean(CONFIG_SECTION, "AutoDetectIP", true);
     utils::configuration::WriteBoolean(CONFIG_SECTION, "AutoDetectIP", auto_detect_ip);
-    
+
     std::string server_ip;
     if (auto_detect_ip) {
         server_ip = detected_ip;
         utils::configuration::WriteString(CONFIG_SECTION, "ServerIP", server_ip);
-    } else {
+    }
+    else {
         server_ip = utils::configuration::ReadString(CONFIG_SECTION, "ServerIP", detected_ip);
     }
 
@@ -89,10 +90,10 @@ void initialize_servers() {  //for now dlc on same port as game
     auto tsto_server = std::make_shared<tsto::TSTOServer>();
     tsto_server->server_ip_ = server_ip;
     tsto_server->server_port_ = static_cast<uint16_t>(game_port);
-    
+
     //dashboard server info
     tsto::dashboard::Dashboard::set_server_info(server_ip, static_cast<uint16_t>(game_port));
-    
+
     auto dispatcher = std::make_shared<server::dispatcher::http::Dispatcher>(tsto_server);
 
     //// DLC Server on port 3074
@@ -111,10 +112,10 @@ void initialize_servers() {  //for now dlc on same port as game
             dispatcher->handle(loop, ctx, cb);
         });
 
- /*   if (!dlc_server.Init({ static_cast<uint16_t>(dlc_port) })) {
-        logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_INITIALIZER, "Failed to initialize DLC HTTP server.");
-        return;
-   }*/
+    /*   if (!dlc_server.Init({ static_cast<uint16_t>(dlc_port) })) {
+           logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_INITIALIZER, "Failed to initialize DLC HTTP server.");
+           return;
+      }*/
 
     if (!game_server.Init({ static_cast<uint16_t>(game_port) })) {
         logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_INITIALIZER, "Failed to initialize Game HTTP server.");
@@ -137,7 +138,7 @@ void initialize_servers() {  //for now dlc on same port as game
         std::thread discord_thread([]() {
             while (true) {
                 server::discord::DiscordRPC::RunCallbacks();
-                std::this_thread::sleep_for(std::chrono::milliseconds(16)); 
+                std::this_thread::sleep_for(std::chrono::milliseconds(16));
             }
             });
         discord_thread.detach();

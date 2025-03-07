@@ -14,5 +14,6 @@ namespace server::dispatcher::http {
     private:
         std::shared_ptr<tsto::TSTOServer> tsto_server_;
         std::unique_ptr<file_server::FileServer> file_server_;
+        static void handle_static_file(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx, const evpp::http::HTTPSendResponseCallback& cb);
     };
 }
