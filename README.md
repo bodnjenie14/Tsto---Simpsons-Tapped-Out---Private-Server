@@ -3,8 +3,8 @@
 ## UPDATE NOTES
 
 Update v.010
-<<<<<<< HEAD
-- **Dob fix:** Attempt to fix dob screen
+
+- **Dob fix:** Attempt to fix dob screen.
 - **Whole new dashboard:** Town operations , save editing , game config editing.
 - **Land:** Saving and loading improvement
 - **Full event list:** Thanks to joee.
