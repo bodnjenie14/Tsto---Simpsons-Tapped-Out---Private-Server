@@ -333,27 +333,23 @@ namespace tsto {
     void TSTOServer::handle_progreg_code(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx,
         const evpp::http::HTTPSendResponseCallback& cb) {
         try {
-            // Get the email from the request body
             std::string body = ctx->body().ToString();
             if (body.empty()) {
                 throw std::runtime_error("Empty request body");
             }
 
-            // Parse JSON body
             rapidjson::Document doc;
             doc.Parse(body.c_str());
             if (doc.HasParseError() || !doc.IsObject()) {
                 throw std::runtime_error("Invalid JSON in request body");
             }
 
-            // Extract email from JSON
             if (!doc.HasMember("email") || !doc["email"].IsString()) {
                 throw std::runtime_error("Missing or invalid 'email' field in request");
             }
             std::string email = doc["email"].GetString();
             std::string filename = email;
 
-            // Extract access token from Authorization header
             std::string access_token;
             const char* auth_header = ctx->FindRequestHeader("Authorization");
             if (auth_header && strncmp(auth_header, "Bearer ", 7) == 0) {
@@ -367,14 +363,11 @@ namespace tsto {
             logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
                 "[PROGREG CODE] Access token received: %s", access_token.c_str());
 
-            // Initialize session for generating IDs
             auto& session = tsto::Session::get();
             session.reinitialize();
 
-            // Initialize database
             auto& db = tsto::database::Database::get_instance();
 
-            // Check if the access token exists in the database
             std::string existing_email;
             bool token_exists = db.get_email_by_token(access_token, existing_email);
             
@@ -383,8 +376,7 @@ namespace tsto {
             std::string access_code;
             
             if (token_exists) {
-                // This is an anonymous user being converted to a registered user
-                // Get the existing user_id associated with this token
+
                 std::string stored_user_id;
                 if (db.get_user_id(existing_email, stored_user_id)) {
                     user_id = stored_user_id;
@@ -392,14 +384,11 @@ namespace tsto {
                         "[PROGREG CODE] Converting anonymous user to registered user. Email: %s -> %s, User ID: %s", 
                         existing_email.c_str(), email.c_str(), user_id.c_str());
                 
-                // Get existing mayhem_id if available
                 db.get_mayhem_id(existing_email, mayhem_id);
                 if (mayhem_id == 0) {
-                    // Generate a new mayhem_id if not present
                     mayhem_id = db.get_next_mayhem_id();
                 }
             } else {
-                // Fallback: use the session user_id if we couldn't get the stored one
                 user_id = session.user_user_id;
                 mayhem_id = db.get_next_mayhem_id();
                 logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
@@ -407,23 +396,19 @@ namespace tsto {
                     user_id.c_str());
             }
         } else {
-            // Check if this email already exists in the database
             std::string stored_user_id;
             if (db.get_user_id(filename, stored_user_id)) {
-                // Use existing user_id for returning users
                 user_id = stored_user_id;
                 db.get_mayhem_id(filename, mayhem_id);
                 logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
                     "[PROGREG CODE] Using existing user_id for %s: %s", 
                     filename.c_str(), stored_user_id.c_str());
             } else {
-                // Initialize session to generate new user_id for new users
                 user_id = session.user_user_id;
                 logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
                     "[PROGREG CODE] Generated new user_id for %s: %s", 
                     filename.c_str(), user_id.c_str());
                 
-                // Generate a new mayhem_id for new users
                 mayhem_id = db.get_next_mayhem_id();
                 logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
                     "[PROGREG CODE] Generated new mayhem_id for %s: %lld", 
@@ -431,33 +416,28 @@ namespace tsto {
             }
         }
 
-        // If we're converting from anonymous to registered, remove the old anonymous entry
         if (token_exists && existing_email != email) {
             logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
                 "[PROGREG CODE] Updating user from %s to %s with the same access token", 
                 existing_email.c_str(), email.c_str());
             
-            // We need to remove the association between the old email and this access token
-            // to prevent conflicts when the same token is used with different emails
-            std::string empty_token = ""; // Use an empty token to invalidate the old entry
+
+            std::string empty_token = ""; 
             if (!db.update_access_token(existing_email, empty_token)) {
                 logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
                     "[PROGREG CODE] Failed to clear access token for old email: %s", existing_email.c_str());
             }
         }
 
-        // Generate a new access code for Node.js compatibility
         access_code = tsto::auth::Auth::generate_access_code(user_id);
         logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
             "[PROGREG CODE] Generated access code for %s: %s", 
             filename.c_str(), access_code.c_str());
 
-        // Store or update user data with mayhem_id and access_code
         if (!db.store_user_id(filename, user_id, access_token, mayhem_id, access_code)) {
             throw std::runtime_error("Failed to store user data in database");
         }
 
-        // Load or create the town
         tsto::land::Land land;
         land.set_email(filename);
         if (!land.instance_load_town()) {
@@ -470,7 +450,6 @@ namespace tsto {
             "[PROGREG CODE] Successfully loaded/created town for user: %s with filename: %s.pb", 
             filename.c_str(), land.get_filename().c_str());
 
-        // Prepare the response
         rapidjson::Document response;
         response.SetObject();
         rapidjson::Document::AllocatorType& allocator = response.GetAllocator();
@@ -479,12 +458,10 @@ namespace tsto {
         response.AddMember("user_id", rapidjson::Value(user_id.c_str(), allocator), allocator);
         response.AddMember("mayhem_id", mayhem_id, allocator);
 
-        // Convert JSON to string
         rapidjson::StringBuffer buffer;
         rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
         response.Accept(writer);
 
-        // Send the response
         headers::set_json_response(ctx);
         cb(buffer.GetString());
     } catch (const std::exception& e) {
@@ -623,273 +600,5 @@ namespace tsto {
     }
 
 
-    //move to new file getting messy now this dash 
-
-    //void TSTOServer::handle_server_restart(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx,
-    //    const evpp::http::HTTPSendResponseCallback& cb) {
-    //    ctx->AddResponseHeader("Content-Type", "application/json");
-
-    //    cb("{\"status\":\"success\",\"message\":\"Server restart initiated\"}");
-
-    //    loop->RunAfter(evpp::Duration(1.0), [this]() {
-    //        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP,
-    //            "Server stopping for restart...");
-
-    //        char exePath[MAX_PATH];
-    //        GetModuleFileNameA(NULL, exePath, MAX_PATH);
-
-    //        STARTUPINFOA si = { sizeof(STARTUPINFOA) };
-    //        PROCESS_INFORMATION pi;
-
-    //        if (CreateProcessA(
-    //            exePath,
-    //            NULL,
-    //            NULL,
-    //            NULL,
-    //            FALSE,
-    //            0,
-    //            NULL,
-    //            NULL,
-    //            &si,
-    //            &pi
-    //        )) {
-    //            CloseHandle(pi.hProcess);
-    //            CloseHandle(pi.hThread);
-
-    //            ExitProcess(0);
-    //        }
-    //        else {
-    //            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP,
-    //                "Failed to restart server: {}", GetLastError());
-    //        }
-    //        });
-    //}
-
-    //void TSTOServer::handle_dashboard(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
-    //    const evpp::http::HTTPSendResponseCallback& cb) {
-
-    //    ctx->AddResponseHeader("Content-Type", "text/html; charset=utf-8");
-
-    //    try {
-    //        std::filesystem::path templatePath = "webpanel/dashboard.html";
-
-    //        if (!std::filesystem::exists(templatePath)) {
-    //            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_INITIALIZER,
-    //                "Dashboard template not found at {}", templatePath.string().c_str());
-    //            cb("Error: Dashboard template file not found");
-    //            return;
-    //        }
-
-    //        std::ifstream file(templatePath, std::ios::binary);
-    //        if (!file.is_open()) {
-    //            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_INITIALIZER,
-    //                "Failed to open dashboard template: {}", templatePath.string().c_str());
-    //            cb("Error: Failed to open dashboard template");
-    //            return;
-    //        }
-
-    //        std::stringstream template_stream;
-    //        template_stream << file.rdbuf();
-    //        std::string html_template = template_stream.str();
-
-    //        html_template = std::regex_replace(html_template, std::regex("%SERVER_IP%"), server_ip_);
-    //        html_template = std::regex_replace(html_template, std::regex("\\{\\{ GAME_PORT \\}\\}"), std::to_string(server_port_));
-
-    //        static auto start_time = std::chrono::system_clock::now();
-    //        auto now = std::chrono::system_clock::now();
-    //        auto uptime = std::chrono::duration_cast<std::chrono::seconds>(now - start_time);
-    //        auto hours = std::chrono::duration_cast<std::chrono::hours>(uptime);
-    //        auto minutes = std::chrono::duration_cast<std::chrono::minutes>(uptime % std::chrono::hours(1));
-    //        auto seconds = uptime % std::chrono::minutes(1);
-    //        std::stringstream uptime_str;
-    //        uptime_str << hours.count() << "h " << minutes.count() << "m " << seconds.count() << "s";
-    //        html_template = std::regex_replace(html_template, std::regex("%UPTIME%"), uptime_str.str());
-
-    //        std::string currency_path = "towns/currency.txt";
-    //        std::string dlc_directory = utils::configuration::ReadString("Server", "DLCDirectory", "dlc");
-    //        html_template = std::regex_replace(html_template, std::regex("%DLC_DIRECTORY%"), dlc_directory);
-
-    //        int current_donuts = std::stoi(utils::configuration::ReadString("Server", "InitialDonutAmount", "1000"));
-    //        
-    //        if (std::filesystem::exists(currency_path)) {
-    //            std::ifstream input(currency_path);
-    //            if (input.good()) {
-    //                input >> current_donuts;
-    //            }
-    //            input.close();
-    //        }
-
-    //        html_template = std::regex_replace(html_template, std::regex("%CURRENT_DONUTS%"), std::to_string(current_donuts));
-    //        html_template = std::regex_replace(html_template, std::regex("%INITIAL_DONUTS%"), 
-    //            utils::configuration::ReadString("Server", "InitialDonutAmount", "1000"));
-
-    //        auto current_event = tsto::events::Events::get_current_event();
-    //        html_template = std::regex_replace(html_template, std::regex("%CURRENT_EVENT%"), current_event.name);
-
-    //        std::stringstream rows;
-    //        for (const auto& event_pair : tsto::events::tsto_events) {
-    //            if (event_pair.first == 0) continue;
-
-    //            rows << "<option value=\"" << event_pair.first << "\"";
-    //            if (event_pair.first == current_event.start_time) {
-    //                rows << " selected";
-    //            }
-    //            rows << ">" << event_pair.second << "</option>\n";
-    //        }
-
-    //        size_t event_pos = html_template.find("%EVENT_ROWS%");
-    //        if (event_pos != std::string::npos) {
-    //            html_template.replace(event_pos, 12, rows.str());
-    //        }
-
-    //        cb(html_template);
-    //    }
-    //    catch (const std::exception& ex) {
-    //        logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_INITIALIZER,
-    //            "Dashboard error: {}", ex.what());
-    //        cb("Error: Internal server error");
-    //    }
-    //}
-
-    //void TSTOServer::handle_server_stop(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx,
-    //    const evpp::http::HTTPSendResponseCallback& cb) {
-    //    ctx->AddResponseHeader("Content-Type", "application/json");
-
-    //    cb("{\"status\":\"success\",\"message\":\"Server shutdown initiated\"}");
-
-    //    loop->RunAfter(evpp::Duration(1.0), []() {
-    //        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP,
-    //            "Server stopping...");
-    //        ExitProcess(0);
-    //        });
-    //}
-
-    //void TSTOServer::handle_update_initial_donuts(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
-    //    const evpp::http::HTTPSendResponseCallback& cb) {
-    //    try {
-    //        std::string body = ctx->body().ToString();
-    //        rapidjson::Document doc;
-    //        doc.Parse(body.c_str());
-
-    //        if (!doc.HasMember("initialDonuts") || !doc["initialDonuts"].IsInt()) {
-    //            ctx->set_response_http_code(400);
-    //            cb("{\"error\": \"Invalid request body\"}");
-    //            return;
-    //        }
-
-    //        int initial_donuts = doc["initialDonuts"].GetInt();
-    //        utils::configuration::WriteString("Server", "InitialDonutAmount", std::to_string(initial_donuts));
-
-    //        logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
-    //            "[DONUTS] Updated initial donuts amount to: %d", initial_donuts);
-
-    //        headers::set_json_response(ctx);
-    //        cb("{\"success\": true}");
-    //    }
-    //    catch (const std::exception& ex) {
-    //        logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
-    //            "[DONUTS] Error updating initial donuts: %s", ex.what());
-    //        ctx->set_response_http_code(500);
-    //        cb("{\"error\": \"Internal server error\"}");
-    //    }
-    //}
-
-    //void TSTOServer::handle_update_current_donuts(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
-    //    const evpp::http::HTTPSendResponseCallback& cb) {
-    //    try {
-    //        std::string body = ctx->body().ToString();
-    //        rapidjson::Document doc;
-    //        doc.Parse(body.c_str());
-
-    //        if (!doc.HasMember("currentDonuts") || !doc["currentDonuts"].IsInt()) {
-    //            ctx->set_response_http_code(400);
-    //            cb("{\"error\": \"Invalid request body\"}");
-    //            return;
-    //        }
-
-    //        int current_donuts = doc["currentDonuts"].GetInt();
-    //        std::string currency_path = "towns/currency.txt";
-
-    //        std::filesystem::create_directories("towns");
-    //        std::ofstream output(currency_path);
-    //        output << current_donuts;
-    //        output.close();
-
-    //        logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
-    //            "[DONUTS] Updated current donuts amount to: %d", current_donuts);
-
-    //        headers::set_json_response(ctx);
-    //        cb("{\"success\": true}");
-    //    }
-    //    catch (const std::exception& ex) {
-    //        logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
-    //            "[DONUTS] Error updating current donuts: %s", ex.what());
-    //        ctx->set_response_http_code(500);
-    //        cb("{\"error\": \"Internal server error\"}");
-    //    }
-    //}
-
-    //void TSTOServer::handle_force_save_protoland(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
-    //    const evpp::http::HTTPSendResponseCallback& cb) {
-    //    try {
-    //        auto& session = tsto::Session::get();
-    //        
-    //        if (!session.land_proto.IsInitialized()) {
-    //            ctx->AddResponseHeader("Content-Type", "application/json");
-    //            ctx->set_response_http_code(400);
-    //            cb("{\"status\":\"error\",\"message\":\"No land data to save\"}");
-    //            return;
-    //        }
-
-    //        if (tsto::land::Land::save_town()) {
-    //            ctx->AddResponseHeader("Content-Type", "application/json");
-    //            cb("{\"status\":\"success\"}");
-    //            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME, 
-    //                "[LAND] Force saved town successfully");
-    //        } else {
-    //            ctx->AddResponseHeader("Content-Type", "application/json");
-    //            ctx->set_response_http_code(500);
-    //            cb("{\"status\":\"error\",\"message\":\"Failed to save town\"}");
-    //            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME, 
-    //                "[LAND] Failed to force save town");
-    //        }
-    //    } catch (const std::exception& ex) {
-    //        ctx->AddResponseHeader("Content-Type", "application/json");
-    //        ctx->set_response_http_code(500);
-    //        cb("{\"status\":\"error\",\"message\":\"" + std::string(ex.what()) + "\"}");
-    //        logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME, 
-    //            "[LAND] Error during force save: %s", ex.what());
-    //    }
-    //}
-
-    //void TSTOServer::handle_update_dlc_directory(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
-    //    const evpp::http::HTTPSendResponseCallback& cb) {
-    //    try {
-    //        std::string body = ctx->body().ToString();
-    //        rapidjson::Document doc;
-    //        doc.Parse(body.c_str());
-
-    //        if (!doc.HasMember("dlcDirectory") || !doc["dlcDirectory"].IsString()) {
-    //            ctx->set_response_http_code(400);
-    //            cb("{\"error\": \"Invalid request body\"}");
-    //            return;
-    //        }
-
-    //        std::string dlc_directory = doc["dlcDirectory"].GetString();
-    //        utils::configuration::WriteString("Server", "DLCDirectory", dlc_directory);
-
-    //        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_FILESERVER,
-    //            "[DLC] Updated DLC directory to: %s", dlc_directory.c_str());
-
-    //        headers::set_json_response(ctx);
-    //        cb("{\"success\": true}");
-    //    }
-    //    catch (const std::exception& ex) {
-    //        logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_FILESERVER,
-    //            "[DLC] Error updating DLC directory: %s", ex.what());
-    //        ctx->set_response_http_code(500);
-    //        cb("{\"error\": \"Internal server error\"}");
-    //    }
-    //}
 
 }
