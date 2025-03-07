@@ -3,6 +3,11 @@
 ## UPDATE NOTES
 
 Update v.010
+**Dob fix:** Attempt to fix dob screen
+**Whole new dashboard:** Town operations , save editing , game config editing.
+**Land:** Saving and loading improvement
+**Full event list:** Thanks to joee.
+**Much more**
 **Events fixed:** True event handling on dashboard.
 **Custom Dlc folder location:** Edit via server config json or dashboard.
 **Force save game from dashboard:** Use dashboard to force save (if needed).
