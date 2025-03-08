@@ -48,22 +48,25 @@ void initialize_servers() {  //for now dlc on same port as game
     // Show server version on startup
     logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_INITIALIZER, "=== TSTO Server %s ===", updater::get_server_version().c_str());
 
-    // Check for updates
-    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_INITIALIZER, "Checking for updates...");
-
-    bool updateAvailable = updater::check_for_updates();
-    if (updateAvailable) {
-        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_INITIALIZER, "Update available - starting update process");
-        updater::download_and_update();
-        return; // Server will restart with new version
+    const char* CONFIG_SECTION = "ServerConfig";
+	
+	// check config for auto updates
+	bool enable_auto_update = utils::configuration::ReadBoolean(CONFIG_SECTION, "EnableAutoUpdate", true);
+    if (enable_auto_update) {
+        // check for updates
+        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_INITIALIZER, "Checking for updates...");
+        bool updateAvailable = updater::check_for_updates();
+        if (updateAvailable) {
+            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_INITIALIZER, "Update available - starting update process");
+            updater::download_and_update();
+            return; // Server will restart with new version
+        }
     }
 
-    const char* CONFIG_SECTION = "ServerConfig";
-
-    // check for json
+    // check config for discord integration
     bool enable_discord = utils::configuration::ReadBoolean(CONFIG_SECTION, "EnableDiscord", true);
     if (enable_discord) {
-        //iitialize shitcord RPC
+        //initialize shitcord RPC
         server::discord::DiscordRPC::Initialize("1342631539657146378");
     }
 
