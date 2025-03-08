@@ -51,7 +51,7 @@ void initialize_servers() {  //for now dlc on same port as game
     const char* CONFIG_SECTION = "ServerConfig";
 	
 	// check config for auto updates
-	bool enable_auto_update = utils::configuration::ReadBoolean(CONFIG_SECTION, "EnableAutoUpdate", true);
+    bool enable_auto_update = utils::configuration::ReadBoolean(CONFIG_SECTION, "EnableAutoUpdate", true);
     if (enable_auto_update) {
         // check for updates
         logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_INITIALIZER, "Checking for updates...");
