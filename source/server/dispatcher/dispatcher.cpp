@@ -157,6 +157,21 @@ namespace server::dispatcher::http {
                 return;
             }
 
+            if (uri == "/api/events/adjust_time") {
+                tsto::events::Events::handle_events_adjust_time(loop, ctx, cb);
+                return;
+            }
+
+            if (uri == "/api/events/reset_time") {
+                tsto::events::Events::handle_events_reset_time(loop, ctx, cb);
+                return;
+            }
+
+            if (uri == "/api/events/get_time") {
+                tsto::events::Events::handle_events_get_time(loop, ctx, cb);
+                return;
+            }
+
             if (uri == "/upload_town_file") {
                 tsto::dashboard::Dashboard::handle_upload_town_file(loop, ctx, cb);
                 return;

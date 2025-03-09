@@ -157,7 +157,32 @@ namespace tsto {
 
             // Get current event time
             auto current_event = tsto::events::Events::get_current_event();
+            
+            // Calculate the time to return based on event start time and elapsed time
+            time_t current_time = std::time(nullptr);
             time_t event_time = current_event.start_time;
+            time_t elapsed_time = 0;
+            
+            // If we have a valid event start time, calculate elapsed time since then
+            if (event_time > 0) {
+                // Get the reference time when the event was set
+                time_t event_reference_time = tsto::events::Events::get_event_reference_time();
+                
+                if (event_reference_time > 0) {
+                    // Calculate how much real time has passed since the reference time
+                    time_t real_time_elapsed = current_time - event_reference_time;
+                    
+                    // Apply that elapsed time to the event time
+                    event_time += real_time_elapsed;
+                    
+                    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_LOBBY,
+                        "[LOBBY TIME] Event reference time: %lld, Real time elapsed: %lld, Adjusted event time: %lld",
+                        event_reference_time, real_time_elapsed, event_time);
+                }
+            } else {
+                // If no event time is available, use current time
+                event_time = current_time;
+            }
 
             // Convert to milliseconds
             auto millis = event_time * 1000;

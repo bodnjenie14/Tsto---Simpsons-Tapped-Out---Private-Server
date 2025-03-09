@@ -59,7 +59,7 @@ void initialize_servers() {  //for now dlc on same port as game
         if (updateAvailable) {
             logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_INITIALIZER, "Update available - starting update process");
             updater::download_and_update();
-            return; // Server will restart with new version
+            return; 
         }
     }
 

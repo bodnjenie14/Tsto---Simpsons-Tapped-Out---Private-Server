@@ -21,8 +21,15 @@ namespace tsto::events {
         static Event get_current_event();
         static bool is_event_active(const time_t& time);
         static time_t get_event_time(const time_t& current_time);
+        static time_t get_event_reference_time();
         static bool set_current_event(time_t event_time);
         static void handle_events_set(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx,
+            const evpp::http::HTTPSendResponseCallback& cb);
+        static void handle_events_adjust_time(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx,
+            const evpp::http::HTTPSendResponseCallback& cb);
+        static void handle_events_reset_time(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx,
+            const evpp::http::HTTPSendResponseCallback& cb);
+        static void handle_events_get_time(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx,
             const evpp::http::HTTPSendResponseCallback& cb);
     };
 

@@ -182,20 +182,6 @@
             box-shadow: 0 0 0 #2A4B85;
         }
 
-        button.danger {
-            background-color: var(--simpsons-red);
-            box-shadow: 0 4px 0 #B71C1C;
-        }
-
-        button.danger:hover {
-            background-color: #F06292;
-            box-shadow: 0 6px 0 #B71C1C;
-        }
-        
-        button.danger:active {
-            box-shadow: 0 0 0 #B71C1C;
-        }
-
         .event-section {
             display: flex;
             flex-direction: column;
@@ -417,7 +403,27 @@
             margin-bottom: 15px;
         }
 
-        /* Advanced Mode Toggle Styles */
+        /* Danger button style that was accidentally removed */
+        button.danger {
+            background-color: var(--simpsons-red);
+            box-shadow: 0 4px 0 #B71C1C;
+        }
+
+        button.danger:hover {
+            background-color: #F06292;
+            box-shadow: 0 6px 0 #B71C1C;
+        }
+        
+        button.danger:active {
+            box-shadow: 0 0 0 #B71C1C;
+        }
+
+        .event-section {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
         .toggle-container {
             display: flex;
             align-items: center;
@@ -479,14 +485,22 @@
         }
 
         /* Hide advanced panels by default */
-        .advanced-panel {
+        .advanced-mode-only {
             display: none;
         }
 
         /* Show advanced panels when advanced mode is enabled */
-        body.advanced-mode .advanced-panel {
+        body.advanced-mode .advanced-mode-only {
             display: block;
             animation: fadeIn 0.3s ease;
+        }
+
+        .advanced-panel {
+            display: none;
+        }
+        
+        body.advanced-mode .advanced-panel {
+            display: block;
         }
 
         @keyframes fadeIn {
@@ -813,13 +827,13 @@
             transition: none; /* Disable transitions for better performance */
         }
 
-        .cm-s-simpsons-dark .CodeMirror-gutters {
+        .cm-s-simpsons-dark .CodeMirror-gutters { 
             background-color: var(--panel-bg) !important;
             border-right: 1px solid var(--border-color);
             transition: none; /* Disable transitions for better performance */
         }
 
-        .cm-s-simpsons-dark .CodeMirror-linenumber {
+        .cm-s-simpsons-dark .CodeMirror-linenumber { 
             color: var(--text-secondary) !important;
         }
 
@@ -894,6 +908,141 @@
             color: var(--text-primary);
             font-size: 14px;
             font-family: 'Comic Neue', cursive;
+        }
+
+        /* Event time controls */
+        .event-time-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            margin-top: 10px;
+        }
+
+        .server-time-display {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--simpsons-blue);
+            border-radius: 5px;
+            padding: 10px;
+            margin-bottom: 0;
+            flex-direction: column;
+        }
+
+        .time-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+
+        .time-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .time-label {
+            font-weight: bold;
+            color: var(--simpsons-blue);
+        }
+
+        .time-controls-grid {
+            display: flex !important; /* Force flex display */
+            width: 100%;
+            gap: 2px;
+            justify-content: space-between;
+            flex-direction: row;
+            margin-top: 5px;
+        }
+
+        .time-button {
+            display: flex;
+            flex-grow: 1;
+            flex-basis: 0;
+            justify-content: center;
+            align-items: center;
+            font-size: 14px;
+            padding: 8px 5px;
+            background-color: var(--simpsons-blue);
+            color: var(--text-primary, white);
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 0 1px;
+            font-family: 'Comic Neue', sans-serif;
+            font-weight: bold;
+            transition: background-color 0.2s, transform 0.1s;
+            text-align: center;
+            min-width: 0; /* Allow buttons to shrink below content size */
+            white-space: nowrap;
+        }
+
+        .time-button:hover {
+            background-color: var(--hover-bg, #3a5ca9);
+            transform: translateY(-2px);
+        }
+
+        .time-button:active {
+            transform: translateY(0);
+        }
+
+        .time-button:first-child {
+            margin-left: 0;
+        }
+
+        .time-button:last-child {
+            margin-right: 0;
+        }
+
+        .reset-button {
+            background-color: var(--simpsons-orange);
+        }
+        
+        /* Dark mode adjustments */
+        body.dark-mode .time-button {
+            color: var(--simpsons-yellow);
+        }
+        
+        .server-time-display {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 15px;
+            padding: 8px;
+            background-color: var(--panel-bg);
+            border-radius: 4px;
+            border: 1px dashed var(--simpsons-orange);
+            gap: 8px;
+        }
+        
+        .server-time-display .time-label {
+            font-size: 14px;
+            font-weight: bold;
+            color: var(--simpsons-blue);
+            min-width: 90px;
+        }
+        
+        .server-time-display .time-value {
+            font-size: 15px;
+            font-weight: normal;
+            color: var(--text-color);
+        }
+        
+        .time-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+        }
+        
+        /* Dark mode adjustments */
+        body.dark-mode .server-time-display {
+            border-color: var(--simpsons-orange);
+            background-color: var(--panel-bg);
+        }
+        
+        body.dark-mode .server-time-display .time-label {
+            color: var(--simpsons-yellow);
+        }
+        
+        body.dark-mode .server-time-display .time-value {
+            color: var(--text-primary);
         }
     </style>
 </head>
@@ -976,6 +1125,30 @@
                         %EVENT_ROWS%
                     </select>
                     <button onclick="setSelectedEvent()">Set Event</button>
+                </div>
+                
+                <div class="section-divider"></div>
+                <div class="section-title advanced-mode-only">Event Time Override</div>
+                <div class="event-time-controls advanced-mode-only">
+                    <div class="server-time-display">
+                        <div class="time-row">
+                            <span class="time-label">Server Time:</span>
+                            <span class="time-value" id="current-server-time">Loading...</span>
+                        </div>
+                        <div class="time-row">
+                            <span class="time-label">Event Time:</span>
+                            <span class="time-value" id="current-event-time">Loading...</span>
+                        </div>
+                    </div>
+                    <div class="time-controls-grid advanced-mode-only-flex">
+                        <button onclick="adjustEventTime(-1440)" class="time-button">-1 Day</button>
+                        <button onclick="adjustEventTime(-60)" class="time-button">-1 Hour</button>
+                        <button onclick="adjustEventTime(-10)" class="time-button">-10 Min</button>
+                        <button onclick="resetEventTime()" class="time-button reset-button">Reset Time</button>
+                        <button onclick="adjustEventTime(10)" class="time-button">+10 Min</button>
+                        <button onclick="adjustEventTime(60)" class="time-button">+1 Hour</button>
+                        <button onclick="adjustEventTime(1440)" class="time-button">+1 Day</button>
+                    </div>
                 </div>
             </div>
             
@@ -1071,6 +1244,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.3/addon/hint/show-hint.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.3/addon/search/search.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.3/addon/search/searchcursor.min.js"></script>
+    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
     <script src="js/tsto-theme.js"></script>
     <script>
         let selectedEventTime = 0;
@@ -1126,6 +1300,7 @@
 
         async function userSelectedSave() {
             const userSelectSave = document.getElementById('userSelectSave');
+            
             if (!userSelectSave.value) return;
             
             try {
@@ -1138,16 +1313,17 @@
                 
                 const response = await fetch('/api/get-user-save', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
                     body: JSON.stringify({
                         username: user.username,
                         isLegacy: user.username === 'mytown'
                     })
                 });
 
-                if (!response.ok) throw new Error('Failed to load user save');
-
                 const data = await response.json();
+                
                 if (!data.status || data.status !== 'success') {
                     throw new Error(data.error || 'Failed to load save data');
                 }
@@ -1249,6 +1425,69 @@
                 .catch(error => {
                     console.error('Error:', error);
                     alert('Error setting event: ' + error);
+                });
+            }
+        }
+
+        function adjustEventTime(minutesOffset) {
+            if (confirm(`Are you sure you want to adjust the event time by ${minutesOffset > 0 ? '+' : ''}${minutesOffset} minutes?`)) {
+                console.log(`Adjusting event time by ${minutesOffset} minutes`);
+                
+                fetch('/api/events/adjust_time', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        minutes_offset: minutesOffset
+                    })
+                })
+                .then(response => {
+                    console.log('Response status:', response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Response data:', data);
+                    if (data.error) {
+                        alert('Error: ' + data.error);
+                    } else {
+                        alert(`Event time successfully adjusted by ${minutesOffset > 0 ? '+' : ''}${minutesOffset} minutes.`);
+                        location.reload();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error adjusting event time: ' + error);
+                });
+            }
+        }
+
+        function resetEventTime() {
+            if (confirm('Are you sure you want to reset the event time to current time?')) {
+                console.log('Resetting event time to current time');
+                
+                fetch('/api/events/reset_time', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => {
+                    console.log('Response status:', response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Response data:', data);
+                    if (data.error) {
+                        alert('Error: ' + data.error);
+                    } else {
+                        alert('Event time successfully reset to current time.');
+                        location.reload();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error resetting event time: ' + error);
                 });
             }
         }
@@ -1486,9 +1725,13 @@
                 if (!response.ok) throw new Error('Failed to load user save');
 
                 const data = await response.json();
+                
                 if (!data.status || data.status !== 'success') {
                     throw new Error(data.error || 'Failed to load save data');
                 }
+
+                // Restore selection
+                userSelectSave.value = currentValue;
 
                 // Clear loading state
                 editorContainer.innerHTML = '';
@@ -1682,6 +1925,24 @@
             const isAdvanced = document.getElementById('advancedModeToggle').checked;
             document.body.classList.toggle('advanced-mode', isAdvanced);
             localStorage.setItem('advancedMode', isAdvanced.toString());
+            
+            // Toggle visibility of advanced mode elements
+            const advancedElements = document.querySelectorAll('.advanced-mode-only, .advanced-panel');
+            advancedElements.forEach(element => {
+                element.style.display = isAdvanced ? 'block' : 'none';
+            });
+            
+            // Special handling for flex containers
+            const advancedFlexElements = document.querySelectorAll('.advanced-mode-only-flex');
+            advancedFlexElements.forEach(element => {
+                element.style.display = isAdvanced ? 'flex' : 'none';
+            });
+            
+            // Special handling for grid containers
+            const advancedGridElements = document.querySelectorAll('.advanced-mode-only-grid');
+            advancedGridElements.forEach(element => {
+                element.style.display = isAdvanced ? 'grid' : 'none';
+            });
         }
 
         // Toggle dark mode
@@ -1706,6 +1967,42 @@
             document.getElementById('advancedModeToggle').checked = advancedMode;
             if (advancedMode) {
                 document.body.classList.add('advanced-mode');
+                
+                // Show advanced mode elements
+                const advancedElements = document.querySelectorAll('.advanced-mode-only, .advanced-panel');
+                advancedElements.forEach(element => {
+                    element.style.display = 'block';
+                });
+                
+                // Show flex containers
+                const advancedFlexElements = document.querySelectorAll('.advanced-mode-only-flex');
+                advancedFlexElements.forEach(element => {
+                    element.style.display = 'flex';
+                });
+                
+                // Show grid containers
+                const advancedGridElements = document.querySelectorAll('.advanced-mode-only-grid');
+                advancedGridElements.forEach(element => {
+                    element.style.display = 'grid';
+                });
+            } else {
+                // Hide advanced mode elements
+                const advancedElements = document.querySelectorAll('.advanced-mode-only, .advanced-panel');
+                advancedElements.forEach(element => {
+                    element.style.display = 'none';
+                });
+                
+                // Hide flex containers
+                const advancedFlexElements = document.querySelectorAll('.advanced-mode-only-flex');
+                advancedFlexElements.forEach(element => {
+                    element.style.display = 'none';
+                });
+                
+                // Hide grid containers
+                const advancedGridElements = document.querySelectorAll('.advanced-mode-only-grid');
+                advancedGridElements.forEach(element => {
+                    element.style.display = 'none';
+                });
             }
             
             // Load dark mode preference
@@ -1866,6 +2163,63 @@
         setInterval(() => {
             loadUsers();
         }, 30000);
+
+        // Function to fetch and update the server time display
+        async function updateServerTime() {
+            try {
+                const response = await fetch('/api/events/get_time');
+                if (!response.ok) throw new Error('Failed to fetch server time');
+                
+                const data = await response.json();
+                
+                if (data.status !== 'success') {
+                    throw new Error(data.message || 'Failed to get server time');
+                }
+                
+                // Convert Unix timestamps to readable dates
+                const currentTime = new Date(data.current_time * 1000);
+                const eventTime = new Date(data.event_time * 1000);
+                
+                // Format the times
+                const currentTimeStr = formatDateTime(currentTime);
+                const eventTimeStr = formatDateTime(eventTime);
+                
+                // Update the display
+                document.getElementById('current-server-time').textContent = currentTimeStr;
+                
+                // If we have an event time display element, update it too
+                const eventTimeElement = document.getElementById('current-event-time');
+                if (eventTimeElement) {
+                    eventTimeElement.textContent = eventTimeStr;
+                }
+            } catch (error) {
+                console.error('Error updating server time:', error);
+                document.getElementById('current-server-time').textContent = 'Error loading time';
+            }
+        }
+        
+        // Format date and time in a readable format
+        function formatDateTime(date) {
+            const options = { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric', 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit',
+                hour12: true
+            };
+            return date.toLocaleString(undefined, options);
+        }
+        
+        // Update server time initially and then every 5 seconds
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initial update
+            updateServerTime();
+            
+            // Set interval to update every 5 seconds
+            setInterval(updateServerTime, 5000);
+        });
     </script>
     <footer style="text-align: center; padding: 20px; margin-top: 30px; color: var(--text-primary); font-size: 14px; font-family: 'Comic Neue', cursive;">
      Server created and designed by BodNJenie&trade;
