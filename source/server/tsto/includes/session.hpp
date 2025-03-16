@@ -1,12 +1,12 @@
 #pragma once
-#include <std_include.hpp>
-#include "cryptography.hpp"
+#include "std_include.hpp"
+#include "utilities/cryptography.hpp"
+#include "utilities/string.hpp"
 #include <random>
 #include <chrono>
-#include <string.hpp>
 
-#include "debugging/serverlog.hpp"
-#include "LandData.pb.h"
+#include "server/debugging/serverlog.hpp"
+#include "build/LandData.pb.h"
 
 namespace tsto {
     class Session {
@@ -27,8 +27,8 @@ namespace tsto {
         std::string user_telemetry_id;
         std::string token_session_key;
         std::string token_user_id;
-        int64_t token_authenticator_pid_id;
-        int64_t token_persona_id;
+        int64_t token_authenticator_pid_id{0};
+        int64_t token_persona_id{0};
         std::string token_telemetry_id;
         std::string personal_id;
         std::string display_name;
@@ -56,11 +56,9 @@ namespace tsto {
         }
 
     private:
-
         Session() {
             initialize();
         }
-
 
         std::string generate_random_digits(size_t length) {
             std::string result;
@@ -90,14 +88,16 @@ namespace tsto {
         }
 
         void initialize() {
+            // Generate display name first since it's used by persona_name
+            display_name = generate_random_name(5, 12);
+            town_filename = "mytown.pb";  // Default to mytown.pb for non-logged in users
+
             // session
             session_key = utils::cryptography::random::get_challenge();
-
             logger::write(logger::LOG_LEVEL_PLAYER_ID, logger::LOG_LABEL_SESSION, "[INIT] session_key: %s", session_key.c_str());
 
             // land
             land_token = utils::cryptography::random::get_challenge();
-
             logger::write(logger::LOG_LEVEL_PLAYER_ID, logger::LOG_LABEL_SESSION, "[INIT] land_token: %s", land_token.c_str());
 
             // user
@@ -116,7 +116,7 @@ namespace tsto {
             logger::write(logger::LOG_LEVEL_PLAYER_ID, logger::LOG_LABEL_SESSION, "[INIT] token_session_key: %s", token_session_key.c_str());
 
             // token
-            token_user_id = /*"90159726165211658982621159447878257465"*/std::to_string(generate_random_id());
+            token_user_id = std::to_string(generate_random_id());
             token_authenticator_pid_id = generate_random_id();
             token_persona_id = generate_random_id();
             token_telemetry_id = std::to_string(generate_random_id());
@@ -129,19 +129,18 @@ namespace tsto {
             logger::write(logger::LOG_LEVEL_PLAYER_ID, logger::LOG_LABEL_SESSION, "[INIT] personal_id: %s", personal_id.c_str());
 
             // persona
+            me_persona_display_name = generate_random_name(5, 12);
             me_persona_name = utils::string::to_lower(me_persona_display_name);
             persona_name = utils::string::to_lower(display_name);
             me_persona_id = std::to_string(generate_random_id());
             me_persona_pid_id = std::to_string(generate_random_id());
-            me_persona_display_name = generate_random_name(5, 12);
-            me_persona_name = utils::string::to_lower(me_persona_display_name);
             me_persona_anonymous_id = utils::cryptography::base64::encode(
                 utils::cryptography::md5::compute(me_persona_name));
             me_display_name = me_persona_display_name;
             me_anonymous_id = me_persona_anonymous_id;
 
             lnglv_token = "QVQwOjIuMDozLjA6ODY0MDA6S3BuUUdaTzJTSXhEMHhLWkVMOXBCYXVWZEJKWVJPME5ZRDI6NDcwODI6cmlxYWM";
-			access_token = "";  // shud be set from headers later
+            access_token = "";  // should be set from headers later
 
             logger::write(logger::LOG_LEVEL_PLAYER_ID, logger::LOG_LABEL_SESSION, "[INIT] me_persona_name: %s", me_persona_name.c_str());
             logger::write(logger::LOG_LEVEL_PLAYER_ID, logger::LOG_LABEL_SESSION, "[INIT] persona_name: %s", persona_name.c_str());
@@ -154,6 +153,5 @@ namespace tsto {
             device_id = utils::cryptography::sha256::compute(now_str, true);
             logger::write(logger::LOG_LEVEL_PLAYER_ID, logger::LOG_LABEL_SESSION, "[INIT] device_id: %s", device_id.c_str());
         }
-
     };
 }

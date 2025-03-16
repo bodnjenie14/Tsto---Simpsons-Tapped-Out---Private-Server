@@ -963,7 +963,6 @@ DECLARE_CHECK_STROP_IMPL(strcasecmp, false)
                                      #s1 " " #op " " #s2)) \
     LOG(FATAL) << *_result.str_
 
-
 // String (char*) equality/inequality checks.
 // CASE versions are case-insensitive.
 //
@@ -1579,7 +1578,7 @@ public:
   void SendToSyslogAndLog();  // Actually dispatch to syslog and the logs
 
   // Call abort() or similar to perform LOG(FATAL) crash.
-  static void __declspec(noreturn) Fail();
+  static GLOG_NORETURN void Fail();
 
   std::ostream& stream();
 
@@ -1630,7 +1629,7 @@ class GLOG_EXPORT LogMessageFatal : public LogMessage {
  public:
   LogMessageFatal(const char* file, int line);
   LogMessageFatal(const char* file, int line, const CheckOpString& result);
-  __declspec(noreturn) ~LogMessageFatal();
+  GLOG_NORETURN ~LogMessageFatal();
 };
 
 // A non-macro interface to the log facility; (useful
@@ -1689,7 +1688,6 @@ T* CheckNotNull(const char *file, int line, const char *names, T* t) {
 // LogStream you'll get an assert saying as much at runtime.
 GLOG_EXPORT std::ostream& operator<<(std::ostream &os,
                                               const PRIVATE_Counter&);
-
 
 // Derived class for PLOG*() above.
 class GLOG_EXPORT ErrnoLogMessage : public LogMessage {
@@ -1971,7 +1969,7 @@ class GLOG_EXPORT NullStreamFatal : public NullStream {
 #pragma warning(push)
 #pragma warning(disable : 4722)
 #endif // _MSC_VER
-  __declspec(noreturn) ~NullStreamFatal() throw () { _exit(EXIT_FAILURE); }
+  GLOG_NORETURN ~NullStreamFatal() throw () { _exit(EXIT_FAILURE); }
 #if defined(_MSC_VER)
 #pragma warning(pop)
 #endif // _MSC_VER

@@ -1,0 +1,28 @@
+# Exclude DLC directory from build context
+dlc
+dlc/**
+**/dlc
+**/dlc/**
+
+# Common directories to ignore
+.git
+.github
+.vscode
+.idea
+
+# Build artifacts
+build
+bin
+obj
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dll
+*.exe
+
+# Temporary files
+*.tmp
+*.log
+*.bak

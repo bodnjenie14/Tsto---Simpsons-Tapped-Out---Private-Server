@@ -1,203 +1,175 @@
 #include "string.hpp"
-#include <sstream>
-#include <cstdarg>
 #include <algorithm>
+#include <cctype>
+#include <sstream>
+#include <iomanip>
+#include <cstdarg>
 
-#include "nt.hpp"
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 namespace utils::string
 {
-	const char* va(const char* fmt, ...)
-	{
-		static thread_local va_provider<8, 256> provider;
+    std::string va(const char* fmt, ...)
+    {
+        va_list ap;
+        va_start(ap, fmt);
 
-		va_list ap;
-		va_start(ap, fmt);
+        char buffer[0x1000];
+        const auto res = vsnprintf(buffer, sizeof(buffer), fmt, ap);
 
-		const char* result = provider.get(fmt, ap);
+        va_end(ap);
 
-		va_end(ap);
-		return result;
-	}
+        if (res > 0) return std::string(buffer, std::min(static_cast<size_t>(res), sizeof(buffer)));
+        return {};
+    }
 
-	std::vector<std::string> split(const std::string& s, const char delim)
-	{
-		std::stringstream ss(s);
-		std::string item;
-		std::vector<std::string> elems;
+    std::string to_lower(const std::string& text)
+    {
+        std::string result = text;
+        std::transform(result.begin(), result.end(), result.begin(),
+            [](unsigned char c) { return std::tolower(c); });
+        return result;
+    }
 
-		while (std::getline(ss, item, delim))
-		{
-			elems.push_back(item); // elems.push_back(std::move(item)); // if C++11 (based on comment from @mchiasson)
-		}
+    std::string to_upper(const std::string& text)
+    {
+        std::string result = text;
+        std::transform(result.begin(), result.end(), result.begin(),
+            [](unsigned char c) { return std::toupper(c); });
+        return result;
+    }
 
-		return elems;
-	}
+    std::string dump_hex(const std::string& data, const std::string& separator)
+    {
+        std::ostringstream s;
+        s << std::hex << std::setfill('0');
+        for (unsigned char ch : data)
+        {
+            s << std::setw(2) << static_cast<unsigned>(ch) << separator;
+        }
+        return s.str();
+    }
 
-	std::vector<std::string> split(const std::string& s, const std::string& delim)
-	{
-		size_t pos_start = 0, pos_end, delim_len = delim.length();
-		std::string token;
-		std::vector<std::string> elems;
+    std::vector<std::string> split(const std::string& s, const char delim)
+    {
+        std::vector<std::string> result;
+        std::stringstream ss(s);
+        std::string item;
 
-		while ((pos_end = s.find(delim, pos_start)) != std::string::npos) {
-			token = s.substr(pos_start, pos_end - pos_start);
-			pos_start = pos_end + delim_len;
-			elems.push_back(token);
-		}
+        while (std::getline(ss, item, delim))
+        {
+            if (!item.empty())
+            {
+                result.push_back(item);
+            }
+        }
 
-		elems.push_back(s.substr(pos_start));
+        return result;
+    }
 
-		return elems;
-	}
+    std::vector<std::string> split(const std::string& s, const std::string& delim)
+    {
+        std::vector<std::string> result;
+        size_t pos_start = 0;
+        size_t pos_end;
+        const size_t delim_len = delim.length();
 
-	std::string to_lower(std::string text)
-	{
-		std::transform(text.begin(), text.end(), text.begin(), [](const char input)
-		{
-			return static_cast<char>(tolower(input));
-		});
+        while ((pos_end = s.find(delim, pos_start)) != std::string::npos)
+        {
+            std::string token = s.substr(pos_start, pos_end - pos_start);
+            if (!token.empty())
+            {
+                result.push_back(token);
+            }
+            pos_start = pos_end + delim_len;
+        }
 
-		return text;
-	}
+        std::string token = s.substr(pos_start);
+        if (!token.empty())
+        {
+            result.push_back(token);
+        }
 
-	std::string to_upper(std::string text)
-	{
-		std::transform(text.begin(), text.end(), text.begin(), [](const char input)
-		{
-			return static_cast<char>(toupper(input));
-		});
+        return result;
+    }
 
-		return text;
-	}
+    bool starts_with(const std::string& text, const std::string& substring)
+    {
+        return text.rfind(substring, 0) == 0;
+    }
 
-	bool starts_with(const std::string& text, const std::string& substring)
-	{
-		return text.find(substring) == 0;
-	}
+    bool ends_with(const std::string& text, const std::string& substring)
+    {
+        if (substring.size() > text.size()) return false;
+        return std::equal(substring.rbegin(), substring.rend(), text.rbegin());
+    }
 
-	bool ends_with(const std::string& text, const std::string& substring)
-	{
-		if (substring.size() > text.size()) return false;
-		return std::equal(substring.rbegin(), substring.rend(), text.rbegin());
-	}
+    std::string replace(std::string str, const std::string& from, const std::string& to)
+    {
+        if (from.empty()) return str;
 
-	std::string dump_hex(const std::string& data, const std::string& separator)
-	{
-		std::string result;
+        size_t pos = 0;
+        while ((pos = str.find(from, pos)) != std::string::npos)
+        {
+            str.replace(pos, from.length(), to);
+            pos += to.length();
+        }
 
-		for (unsigned int i = 0; i < data.size(); ++i)
-		{
-			if (i > 0)
-			{
-				result.append(separator);
-			}
+        return str;
+    }
 
-			result.append(va("%02X", data[i] & 0xFF));
-		}
+    std::string get_clipboard_data()
+    {
+#ifdef _WIN32
+        if (OpenClipboard(nullptr))
+        {
+            std::string result;
+            auto* const clipboard_data = GetClipboardData(CF_TEXT);
+            if (clipboard_data)
+            {
+                auto* const cliptext = static_cast<char*>(GlobalLock(clipboard_data));
+                if (cliptext)
+                {
+                    result = cliptext;
+                    GlobalUnlock(clipboard_data);
+                }
+            }
+            CloseClipboard();
+            return result;
+        }
+#endif
+        return {};
+    }
 
-		return result;
-	}
+    void set_clipboard_data(const std::string& text)
+    {
+#ifdef _WIN32
+        if (OpenClipboard(nullptr))
+        {
+            EmptyClipboard();
+            const auto size = text.size() + 1;
+            auto* const mem = GlobalAlloc(GMEM_MOVEABLE, size);
+            if (mem)
+            {
+                auto* const data = static_cast<char*>(GlobalLock(mem));
+                if (data)
+                {
+                    memcpy(data, text.data(), size);
+                    GlobalUnlock(mem);
+                    SetClipboardData(CF_TEXT, mem);
+                }
+            }
+            CloseClipboard();
+        }
+#endif
+    }
 
-	std::string get_clipboard_data()
-	{
-		if (OpenClipboard(nullptr))
-		{
-			std::string data;
-
-			auto* const clipboard_data = GetClipboardData(1u);
-			if (clipboard_data)
-			{
-				auto* const cliptext = static_cast<char*>(GlobalLock(clipboard_data));
-				if (cliptext)
-				{
-					data.append(cliptext);
-					GlobalUnlock(clipboard_data);
-				}
-			}
-			CloseClipboard();
-
-			return data;
-		}
-		return {};
-	}
-
-	void strip(const char* in, char* out, int max)
-	{
-		if (!in || !out) return;
-
-		max--;
-		auto current = 0;
-		while (*in != 0 && current < max)
-		{
-			const auto color_index = (*(in + 1) - 48) >= 0xC ? 7 : (*(in + 1) - 48);
-
-			if (*in == '^' && (color_index != 7 || *(in + 1) == '7'))
-			{
-				++in;
-			}
-			else
-			{
-				*out = *in;
-				++out;
-				++current;
-			}
-
-			++in;
-		}
-		*out = '\0';
-	}
-
-#pragma warning(push)
-#pragma warning(disable: 4100)
-	std::string convert(const std::wstring& wstr)
-	{
-		std::string result;
-		result.reserve(wstr.size());
-
-		for (const auto& chr : wstr)
-		{
-			result.push_back(static_cast<char>(chr));
-		}
-
-		return result;
-	}
-
-	std::wstring convert(const std::string& str)
-	{
-		std::wstring result;
-		result.reserve(str.size());
-
-		for (const auto& chr : str)
-		{
-			result.push_back(static_cast<wchar_t>(chr));
-		}
-
-		return result;
-	}
-#pragma warning(pop)
-
-	std::string replace(std::string str, const std::string& from, const std::string& to)
-	{
-		if (from.empty())
-		{
-			return str;
-		}
-
-		size_t start_pos = 0;
-		while ((start_pos = str.find(from, start_pos)) != std::string::npos)
-		{
-			str.replace(start_pos, from.length(), to);
-			start_pos += to.length();
-		}
-
-		return str;
-	}
-
-	bool match_compare(const std::string& input, const std::string& text, const bool exact)
-	{
-		if (exact && text == input) return true;
-		if (!exact && text.find(input) != std::string::npos) return true;
-		return false;
-	}
+    bool match_compare(const std::string& input, const std::string& text, const bool exact)
+    {
+        if (exact && text == input) return true;
+        if (!exact && text.find(input) != std::string::npos) return true;
+        return false;
+    }
 }

@@ -458,11 +458,13 @@
 /* Define if kqueue works correctly with pipes */
 /* #undef EVENT__HAVE_WORKING_KQUEUE */
 
-#ifdef __USE_UNUSED_DEFINITIONS__
-/* Define to necessary symbol if this constant uses a non-standard name on your system. */
-/* XXX: Hello, this isn't even used, nor is it defined anywhere... - Ellzey */
-#define EVENT__PTHREAD_CREATE_JOINABLE 
+#ifdef _MSC_VER
+typedef SSIZE_T ssize_t;
+#else
+#include <sys/types.h>
 #endif
+
+#define EVENT__ssize_t ssize_t
 
 /* The size of `pthread_t', as computed by sizeof. */
 #define EVENT__SIZEOF_PTHREAD_T 
@@ -523,6 +525,9 @@
 #define EVENT__socklen_t socklen_t
 
 /* Define to `int' if <sys/types.h> does not define. */
-#define EVENT__ssize_t SSIZE_T
+/* #undef EVENT__ssize_t */
 
+/* Define to necessary symbol if this constant uses a non-standard name on your system. */
+/* XXX: Hello, this isn't even used, nor is it defined anywhere... - Ellzey */
+#define EVENT__PTHREAD_CREATE_JOINABLE 
 #endif /* \EVENT2_EVENT_CONFIG_H_INCLUDED_ */

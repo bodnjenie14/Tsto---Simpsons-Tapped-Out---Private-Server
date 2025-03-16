@@ -3,8 +3,8 @@
 #include <rapidjson/document.h>
 #include <rapidjson/writer.h>
 #include <rapidjson/stringbuffer.h>
-#include <configuration.hpp>
-#include <io.hpp>
+#include <utilities/configuration.hpp>
+#include <utilities/io.hpp>
 
 #include <vector>
 #include <tuple>
@@ -115,7 +115,7 @@ namespace tsto::game {
             try {
                 std::string body = ctx->body().ToString();
                 rapidjson::Document doc;
-                doc.Parse(body);
+                doc.Parse<rapidjson::kParseCommentsFlag | rapidjson::kParseTrailingCommasFlag>(body.c_str());
 
                 if (doc.HasParseError()) {
                     throw std::runtime_error("Invalid JSON format in request body");

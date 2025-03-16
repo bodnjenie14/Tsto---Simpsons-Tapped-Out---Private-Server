@@ -1,173 +1,212 @@
 #include "memory.hpp"
-#include "nt.hpp"
+#include <cstring>
+
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <sys/mman.h>
+#include <unistd.h>
+#endif
 
 namespace utils
 {
-	memory::allocator memory::mem_allocator_;
+    namespace
+    {
+        bool is_readable_memory(const void* ptr, size_t size)
+        {
+#ifdef _WIN32
+            MEMORY_BASIC_INFORMATION mbi = {};
+            if (!VirtualQuery(ptr, &mbi, sizeof(mbi))) return false;
 
-	memory::allocator::~allocator()
-	{
-		this->clear();
-	}
+            const DWORD mask = (PAGE_READONLY | PAGE_READWRITE | PAGE_WRITECOPY | PAGE_EXECUTE_READ |
+                PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY);
 
-	void memory::allocator::clear()
-	{
-		std::lock_guard _(this->mutex_);
+            return ptr && ptr != (void*)0xFFFFFFFF && (mbi.Protect & mask) != 0;
+#else
+            // Try to read the memory without causing a segfault
+            if (!ptr || size == 0) return false;
 
-		for (auto& data : this->pool_)
-		{
-			memory::free(data);
-		}
+            unsigned char buffer[4096];
+            const unsigned char* p = static_cast<const unsigned char*>(ptr);
+            
+            // Check page by page
+            while (size > 0) {
+                size_t to_read = (size > sizeof(buffer)) ? sizeof(buffer) : size;
+                if (msync(const_cast<void*>(static_cast<const void*>(p)), to_read, MS_ASYNC) != 0) {
+                    return false;
+                }
+                p += to_read;
+                size -= to_read;
+            }
+            return true;
+#endif
+        }
 
-		this->pool_.clear();
-	}
+        size_t get_allocation_size(void* ptr)
+        {
+#ifdef _WIN32
+            MEMORY_BASIC_INFORMATION mbi = {};
+            if (VirtualQuery(ptr, &mbi, sizeof(mbi)))
+            {
+                return mbi.RegionSize;
+            }
+            return 0;
+#else
+            // On Linux, we need to get the page size
+            return sysconf(_SC_PAGESIZE);
+#endif
+        }
+    }
 
-	void memory::allocator::free(void* data)
-	{
-		std::lock_guard _(this->mutex_);
+    memory::allocator::~allocator()
+    {
+        this->clear();
+    }
 
-		const auto j = std::find(this->pool_.begin(), this->pool_.end(), data);
-		if (j != this->pool_.end())
-		{
-			memory::free(data);
-			this->pool_.erase(j);
-		}
-	}
+    void memory::allocator::clear()
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        for (void* ptr : pool_)
+        {
+            memory::free(ptr);
+        }
+        pool_.clear();
+    }
 
-	void memory::allocator::free(const void* data)
-	{
-		this->free(const_cast<void*>(data));
-	}
+    void memory::allocator::free(void* data)
+    {
+        if (!data) return;
 
-	void* memory::allocator::allocate(const size_t length)
-	{
-		std::lock_guard _(this->mutex_);
+        std::lock_guard<std::mutex> lock(mutex_);
+        auto it = std::find(pool_.begin(), pool_.end(), data);
+        if (it != pool_.end())
+        {
+            memory::free(data);
+            pool_.erase(it);
+        }
+    }
 
-		const auto data = memory::allocate(length);
-		this->pool_.push_back(data);
-		return data;
-	}
+    void memory::allocator::free(const void* data)
+    {
+        this->free(const_cast<void*>(data));
+    }
 
-	bool memory::allocator::empty() const
-	{
-		return this->pool_.empty();
-	}
+    void memory::allocator::free_all()
+    {
+        this->clear();
+    }
 
-	char* memory::allocator::duplicate_string(const std::string& string)
-	{
-		std::lock_guard _(this->mutex_);
+    void* memory::allocator::allocate(size_t size)
+    {
+        if (size == 0) return nullptr;
 
-		const auto data = memory::duplicate_string(string);
-		this->pool_.push_back(data);
-		return data;
-	}
+        void* data = memory::allocate(size);
+        if (data)
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            pool_.push_back(data);
+        }
+        return data;
+    }
 
-	bool memory::allocator::find(const void* data)
-	{
-		std::lock_guard _(this->mutex_);
+    bool memory::allocator::find(const void* data) const
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return std::find(pool_.begin(), pool_.end(), const_cast<void*>(data)) != pool_.end();
+    }
 
-		const auto j = std::find(this->pool_.begin(), this->pool_.end(), data);
-		return j != this->pool_.end();
-	}
+    char* memory::allocator::duplicate_string(const std::string& string)
+    {
+        if (string.empty()) return nullptr;
 
-	void* memory::allocate(const size_t length)
-	{
-		return calloc(length, 1);
-	}
+        const size_t size = string.length() + 1;
+        char* data = static_cast<char*>(this->allocate(size));
+        if (data)
+        {
+            std::memcpy(data, string.c_str(), size);
+        }
+        return data;
+    }
 
-	char* memory::duplicate_string(const std::string& string)
-	{
-		const auto new_string = allocate_array<char>(string.size() + 1);
-		std::memcpy(new_string, string.data(), string.size());
-		return new_string;
-	}
+    bool memory::is_bad_read_ptr(const void* ptr)
+    {
+        if (!ptr || ptr == (void*)0xFFFFFFFF) return true;
+        return !is_readable_memory(ptr, 1);
+    }
 
-	void memory::free(void* data)
-	{
-		if (data)
-		{
-			::free(data);
-		}
-	}
+    bool memory::is_bad_code_ptr(const void* ptr)
+    {
+        return is_bad_read_ptr(ptr);
+    }
 
-	void memory::free(const void* data)
-	{
-		free(const_cast<void*>(data));
-	}
+    bool memory::is_rdata_ptr(void* ptr)
+    {
+        return !is_bad_read_ptr(ptr);
+    }
 
-	bool memory::is_set(const void* mem, const char chr, const size_t length)
-	{
-		const auto mem_arr = static_cast<const char*>(mem);
+    void* memory::allocate(size_t size)
+    {
+        if (size == 0) return nullptr;
 
-		for (size_t i = 0; i < length; ++i)
-		{
-			if (mem_arr[i] != chr)
-			{
-				return false;
-			}
-		}
+#ifdef _WIN32
+        return VirtualAlloc(nullptr, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+#else
+        // Round up to page size
+        size_t pageSize = sysconf(_SC_PAGESIZE);
+        size_t roundedSize = (size + pageSize - 1) & ~(pageSize - 1);
+        void* ptr = mmap(nullptr, roundedSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        return (ptr != MAP_FAILED) ? ptr : nullptr;
+#endif
+    }
 
-		return true;
-	}
+    void memory::free(void* data)
+    {
+        if (!data) return;
 
-	bool memory::is_bad_read_ptr(const void* ptr)
-	{
-		MEMORY_BASIC_INFORMATION mbi = {};
-		if (VirtualQuery(ptr, &mbi, sizeof(mbi)))
-		{
-			const DWORD mask = (PAGE_READONLY | PAGE_READWRITE | PAGE_WRITECOPY | PAGE_EXECUTE_READ |
-				PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY);
-			auto b = !(mbi.Protect & mask);
-			// check the page is not a guard page
-			if (mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS)) b = true;
+#ifdef _WIN32
+        VirtualFree(data, 0, MEM_RELEASE);
+#else
+        size_t size = get_allocation_size(data);
+        if (size > 0)
+        {
+            munmap(data, size);
+        }
+#endif
+    }
 
-			return b;
-		}
-		return true;
-	}
+    void memory::free(const void* data)
+    {
+        free(const_cast<void*>(data));
+    }
 
-	bool memory::is_bad_code_ptr(const void* ptr)
-	{
-		MEMORY_BASIC_INFORMATION mbi = {};
-		if (VirtualQuery(ptr, &mbi, sizeof(mbi)))
-		{
-			const DWORD mask = (PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY);
-			auto b = !(mbi.Protect & mask);
-			// check the page is not a guard page
-			if (mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS)) b = true;
+    bool memory::is_set(const void* mem, char chr, size_t length)
+    {
+        if (is_bad_read_ptr(mem) || length == 0) return false;
+        const char* str = static_cast<const char*>(mem);
+        return std::all_of(str, str + length, [chr](char c) { return c == chr; });
+    }
 
-			return b;
-		}
-		return true;
-	}
+    void* memory::copy(void* destination, const void* source, size_t length)
+    {
+        if (is_bad_read_ptr(source) || !destination || length == 0) return nullptr;
+        return std::memcpy(destination, source, length);
+    }
 
-	bool memory::is_rdata_ptr(void* pointer)
-	{
-		const std::string rdata = ".rdata";
-		const auto pointer_lib = utils::nt::library::get_by_address(pointer);
+    void* memory::set(void* ptr, char chr, size_t length)
+    {
+        if (!ptr || length == 0) return nullptr;
+        return std::memset(ptr, chr, length);
+    }
 
-		for (const auto& section : pointer_lib.get_section_headers())
-		{
-			const auto size = sizeof(section->Name);
-			char name[size + 1];
-			name[size] = 0;
-			std::memcpy(name, section->Name, size);
+    char* memory::duplicate_string(const std::string& string)
+    {
+        return get_allocator()->duplicate_string(string);
+    }
 
-			if (name == rdata)
-			{
-				const auto target = size_t(pointer);
-				const size_t source_start = size_t(pointer_lib.get_ptr()) + section->PointerToRawData;
-				const size_t source_end = source_start + section->SizeOfRawData;
+    memory::allocator memory::mem_allocator_;
 
-				return target >= source_start && target <= source_end;
-			}
-		}
-
-		return false;
-	}
-
-	memory::allocator* memory::get_allocator()
-	{
-		return &memory::mem_allocator_;
-	}
+    memory::allocator* memory::get_allocator()
+    {
+        return &memory::mem_allocator_;
+    }
 }

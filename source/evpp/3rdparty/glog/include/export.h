@@ -1,42 +1,26 @@
-
 #ifndef GLOG_EXPORT_H
 #define GLOG_EXPORT_H
 
-#if 0
-#  define GLOG_EXPORT
-#  define GLOG_NO_EXPORT
-#else
-#  ifndef GLOG_EXPORT
-#    ifdef GOOGLE_GLOG_IS_A_DLL
-        /* We are building this library */
+#if defined(_MSC_VER)
+#  if defined(GLOG_STATIC_DEFINES)
+#    define GLOG_EXPORT
+#    define GLOG_NO_EXPORT
+#  else
+#    if defined(glog_EXPORTS)
 #      define GLOG_EXPORT __declspec(dllexport)
+#      define GLOG_NO_EXPORT
 #    else
-        /* We are using this library */
 #      define GLOG_EXPORT __declspec(dllimport)
+#      define GLOG_NO_EXPORT
 #    endif
 #  endif
-
-#  ifndef GLOG_NO_EXPORT
-#    define GLOG_NO_EXPORT 
-#  endif
-#endif
-
-#ifndef GLOG_DEPRECATED
 #  define GLOG_DEPRECATED __declspec(deprecated)
-#endif
-
-#ifndef GLOG_DEPRECATED_EXPORT
-#  define GLOG_DEPRECATED_EXPORT GLOG_EXPORT GLOG_DEPRECATED
-#endif
-
-#ifndef GLOG_DEPRECATED_NO_EXPORT
-#  define GLOG_DEPRECATED_NO_EXPORT GLOG_NO_EXPORT GLOG_DEPRECATED
-#endif
-
-#if 0 /* DEFINE_NO_DEPRECATED */
-#  ifndef GLOG_NO_DEPRECATED
-#    define GLOG_NO_DEPRECATED
-#  endif
+#  define GLOG_NORETURN __declspec(noreturn)
+#else
+#  define GLOG_EXPORT __attribute__((visibility("default")))
+#  define GLOG_NO_EXPORT __attribute__((visibility("hidden")))
+#  define GLOG_DEPRECATED __attribute__((deprecated))
+#  define GLOG_NORETURN __attribute__((noreturn))
 #endif
 
 #endif /* GLOG_EXPORT_H */

@@ -1,5 +1,5 @@
 #pragma once
-#include <type_traits>
+#include <utility>
 
 namespace utils
 {
@@ -11,17 +11,17 @@ namespace utils
 	class final_action
 	{
 	public:
-		static_assert(!std::is_reference<F>::value && !std::is_const<F>::value &&
-			!std::is_volatile<F>::value,
-			"Final_action should store its callable by value");
-
-		explicit final_action(F f) noexcept : f_(std::move(f))
+		explicit final_action(F f) noexcept
+			: f_(std::move(f))
+			, invoke_(true)
 		{
 		}
 
 		final_action(final_action&& other) noexcept
-			: f_(std::move(other.f_)), invoke_(std::exchange(other.invoke_, false))
+			: f_(std::move(other.f_))
+			, invoke_(other.invoke_)
 		{
+			other.invoke_ = false;
 		}
 
 		final_action(const final_action&) = delete;
@@ -41,14 +41,18 @@ namespace utils
 
 	private:
 		F f_;
-		bool invoke_{true};
+		bool invoke_;
 	};
 
 	template <class F>
-	final_action<typename std::remove_cv<typename std::remove_reference<F>::type>::type>
-	finally(F&& f) noexcept
+	inline final_action<F> finally(const F& f) noexcept
 	{
-		return final_action<typename std::remove_cv<typename std::remove_reference<F>::type>::type>(
-			std::forward<F>(f));
+		return final_action<F>(f);
+	}
+
+	template <class F>
+	inline final_action<F> finally(F&& f) noexcept
+	{
+		return final_action<F>(std::forward<F>(f));
 	}
 }

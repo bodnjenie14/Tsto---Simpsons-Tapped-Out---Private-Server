@@ -1,5 +1,6 @@
 #pragma once
 #include "string.hpp"
+#include <cstdint>
 
 namespace utils::format
 {

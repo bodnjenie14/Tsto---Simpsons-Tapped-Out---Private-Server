@@ -1,15 +1,15 @@
-#include <std_include.hpp>
+#include "std_include.hpp"
 #include "events.hpp"
 #include "debugging/serverlog.hpp"
-#include <rapidjson/document.h>
-#include <rapidjson/stringbuffer.h>
-#include <rapidjson/writer.h>
-#include <rapidjson/prettywriter.h>
+#include "utilities/configuration.hpp"
+#include "utilities/string.hpp"
 #include <fstream>
-#include <filesystem>
-#include "configuration.hpp"
+#include <sstream>
+#include <chrono>
+#include <ctime>
 
-namespace tsto::events {
+namespace tsto {
+namespace events {
 
     std::map<time_t, std::string> tsto_events = {
         {0, "Normal Play"},
@@ -634,5 +634,7 @@ namespace tsto::events {
             return false;
         }
     }
+
+}
 
 }

@@ -1,117 +1,147 @@
 #include "thread.hpp"
-#include "string.hpp"
-#include "finally.hpp"
+#include <thread>
+#include <chrono>
+#include <stdexcept>
 
-#include <TlHelp32.h>
+#ifdef _WIN32
+#include <windows.h>
+#include <tlhelp32.h>
+#else
+#include <sys/types.h>
+#include <unistd.h>
+#include <signal.h>
+#include <dirent.h>
+#endif
 
 namespace utils::thread
 {
-	bool set_name(const HANDLE t, const std::string& name)
-	{
-		const nt::library kernel32("kernel32.dll");
-		if (!kernel32)
-		{
-			return false;
-		}
+    namespace
+    {
+#ifdef _WIN32
+        void close_handle(HANDLE handle)
+        {
+            if (handle)
+            {
+                CloseHandle(handle);
+            }
+        }
+#endif
+    }
 
-		const auto set_description = kernel32.get_proc<HRESULT(WINAPI *)(HANDLE, PCWSTR)>("SetThreadDescription");
-		if (!set_description)
-		{
-			return false;
-		}
+    uint32_t get_current_thread_id()
+    {
+#ifdef _WIN32
+        return static_cast<uint32_t>(GetCurrentThreadId());
+#else
+        return static_cast<uint32_t>(gettid());
+#endif
+    }
 
-		return SUCCEEDED(set_description(t, string::convert(name).data()));
-	}
+    uint32_t get_current_process_id()
+    {
+#ifdef _WIN32
+        return static_cast<uint32_t>(GetCurrentProcessId());
+#else
+        return static_cast<uint32_t>(getpid());
+#endif
+    }
 
-	bool set_name(const DWORD id, const std::string& name)
-	{
-		auto* const t = OpenThread(THREAD_SET_LIMITED_INFORMATION, FALSE, id);
-		if (!t) return false;
+    void suspend_other_threads()
+    {
+#ifdef _WIN32
+        const auto current_thread = GetCurrentThread();
+        const auto current_thread_id = GetCurrentThreadId();
+        const auto current_process = GetCurrentProcessId();
 
-		const auto _ = utils::finally([t]()
-		{
-			CloseHandle(t);
-		});
+        HANDLE h = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+        if (h != INVALID_HANDLE_VALUE)
+        {
+            THREADENTRY32 te;
+            te.dwSize = sizeof(te);
+            if (Thread32First(h, &te))
+            {
+                do
+                {
+                    if (te.dwSize >= FIELD_OFFSET(THREADENTRY32, th32OwnerProcessID) + sizeof(te.th32OwnerProcessID))
+                    {
+                        if (te.th32OwnerProcessID == current_process && te.th32ThreadID != current_thread_id)
+                        {
+                            HANDLE thread = OpenThread(THREAD_SUSPEND_RESUME, FALSE, te.th32ThreadID);
+                            if (thread)
+                            {
+                                SuspendThread(thread);
+                                CloseHandle(thread);
+                            }
+                        }
+                    }
+                    te.dwSize = sizeof(te);
+                } while (Thread32Next(h, &te));
+            }
+            CloseHandle(h);
+        }
+#else
+        // On Linux, we don't suspend other threads as it's not safe
+        // Instead, we could use signals but that's generally not recommended
+#endif
+    }
 
-		return set_name(t, name);
-	}
+    void resume_other_threads()
+    {
+#ifdef _WIN32
+        const auto current_thread = GetCurrentThread();
+        const auto current_thread_id = GetCurrentThreadId();
+        const auto current_process = GetCurrentProcessId();
 
-	bool set_name(std::thread& t, const std::string& name)
-	{
-		return set_name(t.native_handle(), name);
-	}
+        HANDLE h = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+        if (h != INVALID_HANDLE_VALUE)
+        {
+            THREADENTRY32 te;
+            te.dwSize = sizeof(te);
+            if (Thread32First(h, &te))
+            {
+                do
+                {
+                    if (te.dwSize >= FIELD_OFFSET(THREADENTRY32, th32OwnerProcessID) + sizeof(te.th32OwnerProcessID))
+                    {
+                        if (te.th32OwnerProcessID == current_process && te.th32ThreadID != current_thread_id)
+                        {
+                            HANDLE thread = OpenThread(THREAD_SUSPEND_RESUME, FALSE, te.th32ThreadID);
+                            if (thread)
+                            {
+                                ResumeThread(thread);
+                                CloseHandle(thread);
+                            }
+                        }
+                    }
+                    te.dwSize = sizeof(te);
+                } while (Thread32Next(h, &te));
+            }
+            CloseHandle(h);
+        }
+#else
+        // On Linux, since we don't suspend threads, we don't need to resume them
+#endif
+    }
 
-	bool set_name(const std::string& name)
-	{
-		return set_name(GetCurrentThread(), name);
-	}
+    void sleep(uint32_t ms)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+    }
 
-	std::vector<DWORD> get_thread_ids()
-	{
-		nt::handle<INVALID_HANDLE_VALUE> h = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, GetCurrentProcessId());
-		if (!h)
-		{
-			return {};
-		}
+    bool kill(uint32_t pid)
+    {
+#ifdef _WIN32
+        auto* const handle = OpenProcess(PROCESS_TERMINATE, FALSE, pid);
+        if (!handle) return false;
 
-		THREADENTRY32 entry{};
-		entry.dwSize = sizeof(entry);
-		if (!Thread32First(h, &entry))
-		{
-			return {};
-		}
+        const auto _ = gsl::finally([handle]()
+        {
+            close_handle(handle);
+        });
 
-		std::vector<DWORD> ids{};
-
-		do
-		{
-			const auto check_size = entry.dwSize < FIELD_OFFSET(THREADENTRY32, th32OwnerProcessID)
-				+ sizeof(entry.th32OwnerProcessID);
-			entry.dwSize = sizeof(entry);
-
-			if (check_size && entry.th32OwnerProcessID == GetCurrentProcessId())
-			{
-				ids.emplace_back(entry.th32ThreadID);
-			}
-		}
-		while (Thread32Next(h, &entry));
-
-		return ids;
-	}
-
-	void for_each_thread(const std::function<void(HANDLE)>& callback, const DWORD access)
-	{
-		const auto ids = get_thread_ids();
-
-		for (const auto& id : ids)
-		{
-			handle thread(id, access);
-			if (thread)
-			{
-				callback(thread);
-			}
-		}
-	}
-
-	void suspend_other_threads()
-	{
-		for_each_thread([](const HANDLE thread)
-		{
-			if (GetThreadId(thread) != GetCurrentThreadId())
-			{
-				SuspendThread(thread);
-			}
-		});
-	}
-
-	void resume_other_threads()
-	{
-		for_each_thread([](const HANDLE thread)
-		{
-			if (GetThreadId(thread) != GetCurrentThreadId())
-			{
-				ResumeThread(thread);
-			}
-		});
-	}
+        return TerminateProcess(handle, 0);
+#else
+        return ::kill(static_cast<pid_t>(pid), SIGTERM) == 0;
+#endif
+    }
 }

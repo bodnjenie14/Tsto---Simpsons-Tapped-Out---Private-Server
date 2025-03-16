@@ -7,8 +7,9 @@
 #include <evpp/http/http_server.h>
 #include <evpp/http/service.h>
 #include <3rdparty/libevent/include/event2/http.h>
-#include <compression.hpp>
-#include <configuration.hpp>
+#include <utilities/compression.hpp>
+#include <utilities/configuration.hpp>
+
 #include "tsto/database/database.hpp"
 
 namespace tsto::land {
@@ -619,7 +620,7 @@ namespace tsto::land {
             std::string decompressed_data;
             const char* encoding = ctx->FindRequestHeader("Content-Encoding");
             if (encoding && strcmp(encoding, "gzip") == 0) {
-                decompressed_data = utils::compression::zlib::decompress(compressed_data);
+                decompressed_data = utils::compression::zlib::decompress_gzip(compressed_data);
                 if (decompressed_data.empty()) {
                     logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
                         "[PROTOLAND] Failed to decompress data");

@@ -6,7 +6,7 @@
 #include <mutex>
 #include <thread>
 #include <evpp/event_loop.h>
-#include "configuration.hpp"
+#include "utilities/configuration.hpp"
 namespace file_server {
     FileServer::FileServer() : file_mutex_(), queue_mutex_() {
         std::lock_guard<std::mutex> lock(file_mutex_);

@@ -1,0 +1,13 @@
+version: '3.8'
+services:
+  tsto-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.multistage
+      args:
+        - CXXFLAGS=-O3 -Wno-error
+    ports:
+      - "8080:80"
+    volumes:
+      - ./data:/app/data
+      - "C:/Source Code/Tsto---Simpsons-Tapped-Out---Private-Server/dlc:/app/dlc"

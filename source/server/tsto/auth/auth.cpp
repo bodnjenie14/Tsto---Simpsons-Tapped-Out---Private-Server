@@ -4,7 +4,7 @@
 #include <rapidjson/writer.h>
 #include <rapidjson/stringbuffer.h>
 #include "tsto_server.hpp"
-#include <serialization.hpp>
+#include "utilities/serialization.hpp"
 #include "tsto/includes/session.hpp" 
 #include <AuthData.pb.h> 
 #include <sstream>
@@ -203,7 +203,7 @@ namespace tsto::auth {
                     "[CONNECT AUTH] Signature present: %s", sig.empty() ? "No" : "Yes");
 
                 if (!sig.empty()) {
-                    auto sig_parts = utils::string::split(sig, ".");
+                    auto sig_parts = utils::string::split(sig, '.');  // Changed from "." to '.'
                     if (sig_parts.empty() || sig_parts[0].empty()) {
                         logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
                             "[CONNECT AUTH] Invalid signature format");

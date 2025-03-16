@@ -17,7 +17,7 @@ namespace utils::configuration
 			std::string json_data{};
 			if (!io::read_file(file_name, &json_data)) return false;
 
-			json_doc.Parse(json_data);
+			json_doc.Parse(json_data.c_str());
 
 			if (json_doc.HasParseError()) {
 				return false;
@@ -111,10 +111,12 @@ namespace utils::configuration
 		rapidjson::Value& section = get_json_section(szSection);
 
 		if (!section.HasMember(szKey)) {
-			section.AddMember(rapidjson::StringRef(szKey), strDefaultValue, doc.GetAllocator());
+			rapidjson::Value v;
+			v.SetString(strDefaultValue.c_str(), strDefaultValue.length(), doc.GetAllocator());
+			section.AddMember(rapidjson::StringRef(szKey), v, doc.GetAllocator());
 		}
 		else if (!section[szKey].IsString()) {
-			section[szKey].SetString(strDefaultValue, doc.GetAllocator());
+			section[szKey].SetString(strDefaultValue.c_str(), strDefaultValue.length(), doc.GetAllocator());
 		}
 		else {
 			return section[szKey].GetString();
@@ -130,10 +132,12 @@ namespace utils::configuration
 		rapidjson::Value& section = get_json_section(szSection);
 
 		if (!section.HasMember(szKey)) {
-			section.AddMember(rapidjson::StringRef(szKey), strValue, doc.GetAllocator());
+			rapidjson::Value v;
+			v.SetString(strValue.c_str(), strValue.length(), doc.GetAllocator());
+			section.AddMember(rapidjson::StringRef(szKey), v, doc.GetAllocator());
 		}
 		else {
-			section[szKey].SetString(strValue, doc.GetAllocator());
+			section[szKey].SetString(strValue.c_str(), strValue.length(), doc.GetAllocator());
 		}
 
 		write_configuration();

@@ -2,6 +2,8 @@
 
 #include <mutex>
 #include <vector>
+#include <string>
+#include <algorithm>
 
 namespace utils
 {
@@ -16,10 +18,11 @@ namespace utils
 			void clear();
 
 			void free(void* data);
-
 			void free(const void* data);
 
-			void* allocate(size_t length);
+			void free_all();
+
+			bool find(const void* data) const;
 
 			template <typename T>
 			inline T* allocate()
@@ -33,14 +36,24 @@ namespace utils
 				return static_cast<T*>(this->allocate(count * sizeof(T)));
 			}
 
-			bool empty() const;
+			template <typename T>
+			T* get()
+			{
+				return static_cast<T*>(this->allocate(sizeof(T)));
+			}
+
+			template <typename T>
+			T* get_array(const size_t count)
+			{
+				return static_cast<T*>(this->allocate(sizeof(T) * count));
+			}
 
 			char* duplicate_string(const std::string& string);
 
-			bool find(const void* data);
-
 		private:
-			std::mutex mutex_;
+			void* allocate(size_t size);
+
+			mutable std::mutex mutex_;
 			std::vector<void*> pool_;
 		};
 
@@ -64,6 +77,8 @@ namespace utils
 		static void free(const void* data);
 
 		static bool is_set(const void* mem, char chr, size_t length);
+		static void* copy(void* destination, const void* source, size_t length);
+		static void* set(void* ptr, char chr, size_t length);
 
 		static bool is_bad_read_ptr(const void* ptr);
 		static bool is_bad_code_ptr(const void* ptr);

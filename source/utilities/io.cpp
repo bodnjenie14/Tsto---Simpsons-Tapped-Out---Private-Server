@@ -1,81 +1,95 @@
 #include "io.hpp"
-#include "nt.hpp"
+#include "string.hpp"
 #include <fstream>
+#include <filesystem>
+
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <unistd.h>
+#include <sys/stat.h>
+#endif
 
 namespace utils::io
 {
 	bool remove_file(const std::string& file)
 	{
+#ifdef _WIN32
 		if (DeleteFileA(file.data()) != FALSE)
 		{
 			return true;
 		}
-
 		return GetLastError() == ERROR_FILE_NOT_FOUND;
+#else
+		return (unlink(file.c_str()) == 0 || errno == ENOENT);
+#endif
 	}
 
 	bool move_file(const std::string& src, const std::string& target)
 	{
+#ifdef _WIN32
 		return MoveFileA(src.data(), target.data()) == TRUE;
-	}
-
-	bool file_exists(const std::string& file)
-	{
-		return std::ifstream(file).good();
-	}
-
-	bool write_file(const std::string& file, const std::string& data, const bool append)
-	{
-		const auto pos = file.find_last_of("/\\");
-		if (pos != std::string::npos)
-		{
-			create_directory(file.substr(0, pos));
-		}
-
-		std::ofstream stream(
-			file, std::ios::binary | std::ofstream::out | (append ? std::ofstream::app : 0));
-
-		if (stream.is_open())
-		{
-			stream.write(data.data(), data.size());
-			stream.close();
-			return true;
-		}
-
-		return false;
-	}
-
-	std::string read_file(const std::string& file)
-	{
-		std::string data;
-		read_file(file, &data);
-		return data;
+#else
+		return rename(src.c_str(), target.c_str()) == 0;
+#endif
 	}
 
 	bool read_file(const std::string& file, std::string* data)
 	{
 		if (!data) return false;
-		data->clear();
 
-		if (file_exists(file))
-		{
-			std::ifstream stream(file, std::ios::binary);
-			if (!stream.is_open()) return false;
+		std::ifstream stream(file, std::ios::binary);
+		if (!stream.is_open()) return false;
 
-			stream.seekg(0, std::ios::end);
-			const std::streamsize size = stream.tellg();
-			stream.seekg(0, std::ios::beg);
+		stream.seekg(0, std::ios::end);
+		const auto size = stream.tellg();
+		stream.seekg(0, std::ios::beg);
 
-			if (size > -1)
-			{
-				data->resize(static_cast<uint32_t>(size));
-				stream.read(const_cast<char*>(data->data()), size);
-				stream.close();
-				return true;
-			}
-		}
+		if (size == -1) return false;
 
-		return false;
+		data->resize(static_cast<size_t>(size));
+		stream.read(data->data(), size);
+
+		return true;
+	}
+
+	bool write_file(const std::string& file, const std::string& data, const bool append)
+	{
+		std::ofstream stream(file, 
+			std::ios::binary | 
+			(append ? std::ios::app : std::ios::out));
+
+		if (!stream.is_open()) return false;
+
+		stream.write(data.data(), static_cast<std::streamsize>(data.size()));
+		return true;
+	}
+
+	bool file_exists(const std::string& file)
+	{
+		return std::filesystem::exists(file);
+	}
+
+	bool create_directory(const std::string& directory)
+	{
+		return std::filesystem::create_directories(directory);
+	}
+
+	std::string get_temporary_directory()
+	{
+		return std::filesystem::temp_directory_path().string();
+	}
+
+	std::string get_current_directory()
+	{
+		return std::filesystem::current_path().string();
+	}
+
+	bool set_current_directory(const std::string& directory)
+	{
+		std::error_code ec;
+		std::filesystem::current_path(directory, ec);
+		return !ec;
 	}
 
 	std::string file_name(const std::string& path)
@@ -110,18 +124,9 @@ namespace utils::io
 		return 0;
 	}
 
-	time_t file_timestamp(const std::string& /*file*/) // ERROR ON VPS BUT WHY!?
+	time_t file_timestamp(const std::string& file)
 	{
-		//const auto time = std::chrono::clock_cast<std::chrono::system_clock>(std::filesystem::last_write_time(file));
-
-		//return std::chrono::system_clock::to_time_t(time);
-
-		return time(nullptr);
-	}
-
-	bool create_directory(const std::string& directory)
-	{
-		return std::filesystem::create_directories(directory);
+		return std::filesystem::last_write_time(file).time_since_epoch().count();
 	}
 
 	bool directory_exists(const std::string& directory)
@@ -153,5 +158,12 @@ namespace utils::io
 		std::filesystem::copy(src, target,
 			std::filesystem::copy_options::overwrite_existing |
 			std::filesystem::copy_options::recursive);
+	}
+
+	std::string read_file(const std::string& file)
+	{
+		std::string data;
+		read_file(file, &data);
+		return data;
 	}
 }

@@ -1,0 +1,88 @@
+# Build stage
+FROM ubuntu:22.04 as builder
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    g++ \
+    git \
+    libboost-all-dev \
+    libevent-dev \
+    libprotobuf-dev \
+    libssl-dev \
+    libtomcrypt-dev \
+    libtommath-dev \
+    libzip-dev \
+    minizip \
+    libminizip-dev \
+    protobuf-compiler \
+    xxhash \
+    libxxhash-dev \
+    pkg-config \
+    zlib1g-dev \
+    libsqlite3-dev \
+    rapidjson-dev \
+    libstdc++-11-dev \
+    libcurl4-openssl-dev \
+    libgoogle-glog-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy source files and CMake configuration
+COPY . .
+
+# Create build directory and build
+RUN mkdir -p build && cd build && \
+    cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_CXX_FLAGS="-O3 -Wno-error" \
+        -DCMAKE_CXX_STANDARD=20 \
+        -DCMAKE_CXX_STANDARD_REQUIRED=ON \
+        -DPLATFORM_LINUX=ON \
+        -DRAPIDJSON_BUILD_DOC=OFF \
+        -DRAPIDJSON_BUILD_EXAMPLES=OFF \
+        -DRAPIDJSON_BUILD_TESTS=OFF \
+        -DRAPIDJSON_BUILD_THIRDPARTY_GTEST=OFF && \
+    cmake --build . --config Release -j$(nproc)
+
+# Runtime stage
+FROM ubuntu:22.04
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    libevent-2.1-7 \
+    libprotobuf-dev \
+    libzip4 \
+    libtomcrypt1 \
+    libxxhash0 \
+    libtommath1 \
+    libsqlite3-0 \
+    libstdc++6 \
+    libcurl4 \
+    libgoogle-glog-dev \
+    minizip \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy the built executable and create required directories
+COPY --from=builder /app/build/tsto-server /app/
+RUN mkdir -p /app/dlc /app/webpanel
+
+# Copy webpanel files and config
+COPY webpanel/ /app/webpanel/
+COPY config.json /app/config.json
+
+# Set environment variables
+ENV LD_LIBRARY_PATH=/usr/local/lib
+
+# Create volumes for persistent data
+VOLUME ["/app/towns", "/app/dlc", "/app/webpanel"]
+
+# Expose the server port (adjust if needed)
+EXPOSE 8080
+
+# Set the entrypoint
+ENTRYPOINT ["./tsto-server"]

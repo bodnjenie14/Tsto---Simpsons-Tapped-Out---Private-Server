@@ -6,8 +6,8 @@
 #include <rapidjson/document.h>
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
-#include "compression.hpp"  
-#include "configuration.hpp" 
+#include "utilities/compression.hpp"  
+#include "utilities/configuration.hpp" 
 #include "tsto/events/events.hpp"
 #include "tsto/land/land.hpp"
 #include "tsto/auth/auth.hpp"
@@ -36,11 +36,10 @@ namespace tsto {
             doc.AddMember("DMGId", 0, allocator);
             doc.AddMember("appUpgrade", 0, allocator);
 
-            std::string protocol = "http";
-            const char* forwarded_proto = ctx->FindRequestHeader("X-Forwarded-Proto");
-            if (forwarded_proto && std::string(forwarded_proto) == "https") {
-                protocol = "https";
-            }
+            // Use get_protocol method to determine the protocol
+            std::string protocol = get_protocol(ctx);
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
+                "[DIRECTION] Using protocol: %s", protocol.c_str());
 
             if (platform == "ios") {
                 doc.AddMember("bundleId", "com.ea.simpsonssocial.inc2", allocator);
@@ -75,7 +74,6 @@ namespace tsto {
             pollInterval.AddMember("value", "300", allocator);
             pollIntervals.PushBack(pollInterval, allocator);
             doc.AddMember("pollIntervals", pollIntervals, allocator);
-
             doc.AddMember("productId", 48302, allocator);
             doc.AddMember("resultCode", 0, allocator);
             doc.AddMember("sellId", 857120, allocator);
@@ -84,11 +82,21 @@ namespace tsto {
             rapidjson::Value serverData(rapidjson::kArrayType);
 
             std::string server_address = get_server_address();
+            
+            // Log the server address being used
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
+                "[DIRECTION] Using server address: %s", server_address.c_str());
+
+            // For RTM host, we need to include both ports: DockerPort and 9000
+            std::string rtm_host = protocol + "://" + server_address + ":9000";
+            
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
+                "[DIRECTION] Using RTM host: %s", rtm_host.c_str());
 
             std::vector<std::pair<const char*, std::string>> initialEntries;
             if (platform == "ios") {
                 initialEntries = {
-                    {"antelope.rtm.host", protocol + "://" + server_address + ":9000"},
+                    {"antelope.rtm.host", rtm_host},
                     {"applecert.url", "https://www.apple.com/appleca/AppleIncRootCertificate.cer"},
                     {"origincasualapp.url", protocol + "://" + server_address + "/loader/mobile/ios/"},
                     {"akamai.url", "https://cdn.skum.eamobile.com/skumasset/gameasset/"}
@@ -96,7 +104,7 @@ namespace tsto {
             }
             else {
                 initialEntries = {
-                    {"antelope.rtm.host", protocol + "://" + server_address + ":9000"},
+                    {"antelope.rtm.host", rtm_host},
                     {"origincasualapp.url", protocol + "://" + server_address + "/loader/mobile/android/"},
                     {"akamai.url", "https://cdn.skum.eamobile.com/skumasset/gameasset/"}
                 };
@@ -146,6 +154,7 @@ namespace tsto {
             cb("");
         }
     }
+
 
 
     void TSTOServer::handle_lobby_time(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
@@ -234,7 +243,7 @@ namespace tsto {
 
             if (encoding && strcmp(encoding, "gzip") == 0) {
                 const auto& body = ctx->body();
-                body_str = utils::compression::zlib::decompress(
+                body_str = utils::compression::zlib::decompress_gzip(
                     std::string(body.data(), body.size())
                 );
             }

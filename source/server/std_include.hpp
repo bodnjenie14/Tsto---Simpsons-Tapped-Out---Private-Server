@@ -1,52 +1,120 @@
 #pragma once
 
-#pragma warning(push)
-#pragma warning(disable: 4100)
-#pragma warning(disable: 4127)
-#pragma warning(disable: 4244)
-#pragma warning(disable: 4458)
-#pragma warning(disable: 4702)
-#pragma warning(disable: 4996)
-#pragma warning(disable: 5054)
-#pragma warning(disable: 6011)
-#pragma warning(disable: 6297)
-#pragma warning(disable: 6385)
-#pragma warning(disable: 6386)
-#pragma warning(disable: 6387)
-#pragma warning(disable: 26110)
-#pragma warning(disable: 26451)
-#pragma warning(disable: 26444)
-#pragma warning(disable: 26451)
-#pragma warning(disable: 26489)
-#pragma warning(disable: 26495)
-#pragma warning(disable: 26498)
-#pragma warning(disable: 26812)
-#pragma warning(disable: 28020)
+// Standard C++ includes
+#include <string>
+#include <vector>
+#include <map>
+#include <unordered_map>
+#include <algorithm>
+#include <memory>
+#include <mutex>
+#include <thread>
+#include <chrono>
+#include <functional>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
+#include <iostream>
+#include <cstdint>
+#include <cstring>
+#include <cctype>
 
+// Platform-specific includes
 #ifdef _WIN32
-#pragma warning(disable: 4996)  // Disable UTF-8 warnings
+#include <windows.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <direct.h>
+#include <io.h>
+#else
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <dirent.h>
+#include <dlfcn.h>
+#include <errno.h>
 #endif
 
-#define WIN32_LEAN_AND_MEAN
+// Project includes
+#include <tomcrypt.h>
+#include <rapidjson/document.h>
+#include <rapidjson/prettywriter.h>
+#include <rapidjson/stringbuffer.h>
 
-#include <Windows.h>
-#include <MsHTML.h>
-#include <MsHtmHst.h>
-#include <ExDisp.h>
-#include <WinSock2.h>
-#include <WS2tcpip.h>
-#include <corecrt_io.h>
-#include <fcntl.h>
-#include <shellapi.h>
-#include <csetjmp>
-#include <ShlObj.h>
-#include <winternl.h>
-#include <VersionHelpers.h>
-#include <Psapi.h>
-#include <urlmon.h>
-#include <atlbase.h>
-#include <iphlpapi.h>
-#include <wincrypt.h>
+// Platform-specific definitions
+#ifdef _WIN32
+    #define DIRECTORY_SEPARATOR "\\"
+    #define PATH_SEPARATOR ";"
+    #define LIBRARY_EXTENSION ".dll"
+#else
+    #define DIRECTORY_SEPARATOR "/"
+    #define PATH_SEPARATOR ":"
+    #define LIBRARY_EXTENSION ".so"
+    
+    // Windows types for Linux
+    typedef void* HANDLE;
+    typedef unsigned long DWORD;
+    typedef long LONG;
+    typedef int BOOL;
+    typedef unsigned char BYTE;
+    typedef unsigned short WORD;
+    typedef const char* LPCSTR;
+    typedef char* LPSTR;
+    typedef void* LPVOID;
+    typedef const void* LPCVOID;
+    typedef size_t SIZE_T;
+    
+    #define TRUE 1
+    #define FALSE 0
+    #define INVALID_HANDLE_VALUE ((HANDLE)-1)
+    #define MAX_PATH 260
+    
+    // Common Windows functions
+    inline void Sleep(DWORD dwMilliseconds) {
+        usleep(dwMilliseconds * 1000);
+    }
+    
+    inline DWORD GetLastError() {
+        return errno;
+    }
+    
+    inline void SetLastError(DWORD dwErrCode) {
+        errno = dwErrCode;
+    }
+#endif
+
+// Common macros and utilities
+#define SAFE_DELETE(p) { if(p) { delete (p); (p) = nullptr; } }
+#define SAFE_DELETE_ARRAY(p) { if(p) { delete[] (p); (p) = nullptr; } }
+#define SAFE_FREE(p) { if(p) { free(p); (p) = nullptr; } }
+
+namespace utils
+{
+    inline std::string get_last_error_string()
+    {
+#ifdef _WIN32
+        DWORD error = GetLastError();
+        if (error == 0) return "";
+
+        LPSTR buffer = nullptr;
+        size_t size = FormatMessageA(
+            FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+            nullptr, error, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&buffer, 0, nullptr);
+
+        std::string message(buffer, size);
+        LocalFree(buffer);
+
+        return message;
+#else
+        return std::string(strerror(errno));
+#endif
+    }
+}
 
 // min and max is required by gdi, therefore NOMINMAX won't work
 #ifdef max
@@ -57,32 +125,11 @@
 #undef min
 #endif
 
-#include <map>
-#include <atomic>
-#include <vector>
-#include <mutex>
-#include <queue>
-#include <regex>
-#include <chrono>
-#include <thread>
-#include <fstream>
-#include <iostream>
-#include <utility>
-#include <filesystem>
-#include <functional>
-#include <sstream>
-#include <optional>
-#include <unordered_set>
-#include <variant>
+using namespace std::literals;
 
-#include <tomcrypt.h>
+extern uint32_t server_start_time;
 
-#include <rapidjson/document.h>
-#include <rapidjson/prettywriter.h>
-#include <rapidjson/stringbuffer.h>
-
-#pragma warning(pop)
-#pragma warning(disable: 4100)
+extern void restart_server_logic();  // for server restart 
 
 #pragma comment(lib, "ntdll.lib")
 #pragma comment(lib, "ws2_32.lib")
@@ -91,17 +138,5 @@
 #pragma comment(lib, "Crypt32.lib")
 #pragma comment(lib, "Pdh.lib") //pc stats (cpu ram ect)
 
-
 #pragma comment(lib, "bcrypt.lib") // libevent-arc4random
 //#pragma comment(lib, "glog.lib") 
-
-
-
-using namespace std::literals;
-
-
-
-extern uint32_t server_start_time;
-
-extern void restart_server_logic();  // for server restart 
-

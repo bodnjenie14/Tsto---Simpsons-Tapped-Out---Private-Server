@@ -1,33 +1,34 @@
 #pragma once
 #include <std_include.hpp>
+#include <memory>
 #include <evpp/http/http_server.h>
 #include <rapidjson/document.h>
 #include <rapidjson/writer.h>
 #include <rapidjson/stringbuffer.h>
 
 // Protobuf includes
-#include "AuthData.pb.h"
-#include "ClientConfigData.pb.h"
-#include "ClientLog.pb.h"
-#include "ClientMetrics.pb.h"
-#include "ClientTelemetry.pb.h"
-#include "Common.pb.h"
-#include "CustomerServiceData.pb.h"
-#include "Error.pb.h"
-#include "GambleData.pb.h"
-#include "GameplayConfigData.pb.h"
-#include "GetFriendData.pb.h"
-#include "LandData.pb.h"
-#include "MatchmakingData.pb.h"
-#include "OffersData.pb.h"
-#include "PurchaseData.pb.h"
-#include "WholeLandTokenData.pb.h"
+#include "build/AuthData.pb.h"
+#include "build/ClientConfigData.pb.h"
+#include "build/ClientLog.pb.h"
+#include "build/ClientMetrics.pb.h"
+#include "build/ClientTelemetry.pb.h"
+#include "build/Common.pb.h"
+#include "build/CustomerServiceData.pb.h"
+#include "build/Error.pb.h"
+#include "build/GambleData.pb.h"
+#include "build/GameplayConfigData.pb.h"
+#include "build/GetFriendData.pb.h"
+#include "build/LandData.pb.h"
+#include "build/MatchmakingData.pb.h"
+#include "build/OffersData.pb.h"
+#include "build/PurchaseData.pb.h"
+#include "build/WholeLandTokenData.pb.h"
 
 // Utility includes
-#include "cryptography.hpp"
-#include "http.hpp"
-#include "string.hpp"
-#include <serialization.hpp>
+#include "utilities/cryptography.hpp"
+#include "utilities/http.hpp"
+#include "utilities/string.hpp"
+#include "utilities/serialization.hpp"
 
 // Debugging includes
 #include "debugging/serverlog.hpp"
@@ -37,6 +38,7 @@
 
 #include "tsto/includes/session.hpp"
 #include "tsto/includes/helpers.hpp"
+
 
 namespace server::dispatcher::http {
     class Dispatcher;
@@ -57,14 +59,66 @@ namespace tsto {
         std::string server_ip_;  // Configured through server-config.json
         uint16_t server_port_;   // Configured through server-config.json
 
+        bool reverse_proxy_enabled_;
+        bool reverse_proxy_trust_headers_;
+        std::string reverse_proxy_force_host_;
+        int reverse_proxy_force_port_;
+        std::string reverse_proxy_force_protocol_;
 
         std::string get_server_address() const {
+            // If reverse proxy is enabled and we have a forced host, use that
+            if (reverse_proxy_enabled_ && !reverse_proxy_force_host_.empty()) {
+                // Only add port if it's not the default HTTP/HTTPS port and greater than 0
+                if (reverse_proxy_force_port_ > 0 && 
+                    !((reverse_proxy_force_protocol_ == "http" && reverse_proxy_force_port_ == 80) || 
+                      (reverse_proxy_force_protocol_ == "https" && reverse_proxy_force_port_ == 443))) {
+                    // Don't add port if the host already contains a port
+                    if (reverse_proxy_force_host_.find(':') == std::string::npos) {
+                        return reverse_proxy_force_host_ + ":" + std::to_string(reverse_proxy_force_port_);
+                    }
+                }
+                return reverse_proxy_force_host_;
+            }
+            
+            // Special case for Docker environment (IP starting with 172)
+            if (server_ip_.substr(0, 3) == "172") {
+                // Always include port for Docker environments
+                if (server_ip_.find(':') == std::string::npos) {
+                    return server_ip_ + ":" + std::to_string(server_port_);
+                }
+                return server_ip_;
+            }
+            
+            // Regular case - never include port 80 in URLs
             if (server_port_ == 80) {
                 return server_ip_;
             }
-            return server_ip_ + ":" + std::to_string(server_port_);
+            
+            // Don't add port if the IP already contains a port
+            if (server_ip_.find(':') == std::string::npos) {
+                return server_ip_ + ":" + std::to_string(server_port_);
+            }
+            
+            return server_ip_;
         }
 
+        std::string get_protocol(const evpp::http::ContextPtr& ctx) const {
+            // If reverse proxy is enabled and we have a forced protocol, use that
+            if (reverse_proxy_enabled_ && !reverse_proxy_force_protocol_.empty()) {
+                return reverse_proxy_force_protocol_;
+            }
+            
+            // Check for X-Forwarded-Proto header if we trust headers
+            if (reverse_proxy_enabled_ && reverse_proxy_trust_headers_) {
+                const char* forwarded_proto = ctx->FindRequestHeader("X-Forwarded-Proto");
+                if (forwarded_proto && *forwarded_proto) {
+                    return forwarded_proto;
+                }
+            }
+            
+            // Default to http
+            return "http";
+        }
 
     private:
         // Server config

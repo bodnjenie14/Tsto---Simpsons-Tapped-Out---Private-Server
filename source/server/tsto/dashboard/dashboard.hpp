@@ -1,47 +1,46 @@
 #pragma once
-#include <map>
-#include <string>
-#include <chrono>
 #include <evpp/http/context.h>
 #include <evpp/http/http_server.h>
-#include <evpp/event_loop.h>
+#include <string>
+#include <chrono>
 
-namespace tsto::dashboard {
+using evpp::http::Context;
+using ContextPtr = std::shared_ptr<Context>;
+using HTTPSendResponseCallback = std::function<void(const std::string& response)>;
 
-    class Dashboard {
-    public:
-        static void set_server_info(const std::string& ip, uint16_t port) {
-            server_ip_ = ip;
-            server_port_ = port;
-        }
+namespace tsto {
+namespace dashboard {
 
-        static void handle_dashboard(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx, const evpp::http::HTTPSendResponseCallback& cb);
-        static void handle_server_restart(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx, const evpp::http::HTTPSendResponseCallback& cb);
-        static void handle_server_stop(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx, const evpp::http::HTTPSendResponseCallback& cb);
-        static void handle_update_initial_donuts(evpp::EventLoop*, const evpp::http::ContextPtr&, const evpp::http::HTTPSendResponseCallback&);
-        static void handle_set_event(evpp::EventLoop*, const evpp::http::ContextPtr&, const evpp::http::HTTPSendResponseCallback&);
-        static void handle_force_save_protoland(evpp::EventLoop*, const evpp::http::ContextPtr&, const evpp::http::HTTPSendResponseCallback&);
-        static void handle_update_dlc_directory(evpp::EventLoop*, const evpp::http::ContextPtr&, const evpp::http::HTTPSendResponseCallback&);
-        static void handle_update_server_ip(evpp::EventLoop*, const evpp::http::ContextPtr&, const evpp::http::HTTPSendResponseCallback&);
-        static void handle_update_server_port(evpp::EventLoop*, const evpp::http::ContextPtr&, const evpp::http::HTTPSendResponseCallback&);
-        static void handle_browse_directory(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx, const evpp::http::HTTPSendResponseCallback& cb);
-        static void handle_list_users(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx, const evpp::http::HTTPSendResponseCallback& cb);
-        static void handle_edit_user_currency(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx, const evpp::http::HTTPSendResponseCallback& cb);
-        static void handle_get_user_save(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx, const evpp::http::HTTPSendResponseCallback& cb);
-        static void handle_save_user_save(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx, const evpp::http::HTTPSendResponseCallback& cb);
-        static void handle_upload_town_file(evpp::EventLoop*, const evpp::http::ContextPtr&, const evpp::http::HTTPSendResponseCallback&);
-        
-        // New API endpoints for dashboard refresh
-        static void handle_server_status(evpp::EventLoop*, const evpp::http::ContextPtr&, const evpp::http::HTTPSendResponseCallback&);
-        static void handle_current_event(evpp::EventLoop*, const evpp::http::ContextPtr&, const evpp::http::HTTPSendResponseCallback&);
-        static void handle_events_list(evpp::EventLoop*, const evpp::http::ContextPtr&, const evpp::http::HTTPSendResponseCallback&);
-        static void handle_dashboard_data(evpp::EventLoop*, const evpp::http::ContextPtr&, const evpp::http::HTTPSendResponseCallback&);
+class Dashboard {
+public:
+    static void set_server_info(const std::string& ip, uint16_t port);
+    static void handle_dashboard(evpp::EventLoop* loop, const ContextPtr& ctx, const HTTPSendResponseCallback& cb);
+    static void handle_server_restart(evpp::EventLoop* loop, const ContextPtr& ctx, const HTTPSendResponseCallback& cb);
+    static void handle_server_stop(evpp::EventLoop* loop, const ContextPtr& ctx, const HTTPSendResponseCallback& cb);
+    static void handle_update_initial_donuts(evpp::EventLoop* loop, const ContextPtr& ctx, const HTTPSendResponseCallback& cb);
+    static void handle_set_event(evpp::EventLoop* loop, const ContextPtr& ctx, const HTTPSendResponseCallback& cb);
+    static void handle_force_save_protoland(evpp::EventLoop* loop, const ContextPtr& ctx, const HTTPSendResponseCallback& cb);
+    static void handle_update_dlc_directory(evpp::EventLoop* loop, const ContextPtr& ctx, const HTTPSendResponseCallback& cb);
+    static void handle_update_server_ip(evpp::EventLoop* loop, const ContextPtr& ctx, const HTTPSendResponseCallback& cb);
+    static void handle_update_server_port(evpp::EventLoop* loop, const ContextPtr& ctx, const HTTPSendResponseCallback& cb);
+    static void handle_browse_directory(evpp::EventLoop* loop, const ContextPtr& ctx, const HTTPSendResponseCallback& cb);
+    static void handle_list_users(evpp::EventLoop* loop, const ContextPtr& ctx, const HTTPSendResponseCallback& cb);
+    static void handle_edit_user_currency(evpp::EventLoop* loop, const ContextPtr& ctx, const HTTPSendResponseCallback& cb);
+    static void handle_get_user_save(evpp::EventLoop* loop, const ContextPtr& ctx, const HTTPSendResponseCallback& cb);
+    static void handle_save_user_save(evpp::EventLoop* loop, const ContextPtr& ctx, const HTTPSendResponseCallback& cb);
+    static void handle_upload_town_file(evpp::EventLoop* loop, const ContextPtr& ctx, const HTTPSendResponseCallback& cb);
+    static void handle_server_status(evpp::EventLoop* loop, const ContextPtr& ctx, const HTTPSendResponseCallback& cb);
+    static void handle_current_event(evpp::EventLoop* loop, const ContextPtr& ctx, const HTTPSendResponseCallback& cb);
+    static void handle_events_list(evpp::EventLoop* loop, const ContextPtr& ctx, const HTTPSendResponseCallback& cb);
+    static void handle_dashboard_data(evpp::EventLoop* loop, const ContextPtr& ctx, const HTTPSendResponseCallback& cb);
+    static void restart_server();
 
-        // Game configuration handlers - removed as they should be in dispatcher.cpp
+private:
+    static std::string server_ip_;
+    static uint16_t server_port_;
+    static std::chrono::system_clock::time_point start_time_;
+    static void restart_server_logic();
+};
 
-    private:
-        static std::string server_ip_;
-        static uint16_t server_port_;
-    };
-
-}
+} // namespace dashboard
+} // namespace tsto

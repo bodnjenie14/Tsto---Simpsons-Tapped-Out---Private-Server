@@ -1,255 +1,266 @@
 #include "http.hpp"
-#include <format>
-#include <time.h>
-#include "string.hpp"
+#include <sstream>
+#include <iomanip>
 
 namespace utils::http
 {
-    request_method HttpLite::get_http_request_method(const std::string& method)
-    {
-        if (method == "GET") {
-            return HTTP_REQ_GET;
-        }
-        else if (method == "PUT") {
-            return HTTP_REQ_PUT;
-        }
-        else if (method == "POST") {
-            return HTTP_REQ_POST;
-        }
-        else {
-            return HTTP_REQ_UNKNOWN;
-        }
-    }
-
-    transfer_encoding HttpLite::get_transfer_encoding(const std::string& name)
-    {
-        if (name == "chunked") {
-            return HTTP_TE_CHUNKED;
-        }
-        else if (name == "compress") {
-            return HTTP_TE_COMPRESS;
-        }
-        else if (name == "deflate") {
-            return HTTP_TE_DEFLATE;
-        }
-        else if (name == "gzip") {
-            return HTTP_TE_GZIP;
-        }
-        else {
-            return HTTP_TE_UNKNOWN;
-        }
-    }
-
-    bool HttpLite::GetDataChunk(std::string& output)
-    {
-        auto line_end = this->content.find("\r\n"); // 0x0D 0x0A
-        if (line_end == std::string::npos) return false;
-
-        //  [BEGIN] 13B0 <--> \r\n <--> buffer <--> \r\n [END]
-
-        std::string lengthX16 = this->content.substr(0, line_end);
-        size_t chunk_length = std::stoul(lengthX16, nullptr, 16);
-
-        // buffer could overrun single tcp packet size 
-        //size_t logical_size = line_end + 2 + chunk_length + 2;
-        //if (this->content.size() != logical_size) return false;
-
-        output = this->content.substr(line_end + 2, chunk_length);
-
-        return true;
-    }
-
-    std::string HttpLite::GetRequestPath()
-    {
-        size_t qmark_pos = this->req_uri.find("?");
-
-        return (qmark_pos != std::string::npos ? this->req_uri.substr(0, qmark_pos) : this->req_uri);
-    }
-
-    bool HttpLite::FindQueryRequest(std::string key, std::string& output)
-    {
-        auto uri_segments = string::split(this->req_uri, "/");
-        auto& last_segment = uri_segments[uri_segments.size() - 1];
-
-        size_t key_pos = last_segment.find(key.append("="));
-        if (key_pos != std::string::npos)
+        namespace
         {
-            size_t start_pos = key_pos + key.size();
-            size_t finish_pos = last_segment.find("&", start_pos);
-            output = last_segment.substr(start_pos, finish_pos - start_pos);
+                std::vector<std::string> split_string(const std::string& str, char delimiter)
+                {
+                        std::vector<std::string> tokens;
+                        std::string token;
+                        std::istringstream token_stream(str);
+                        while (std::getline(token_stream, token, delimiter))
+                        {
+                                if (!token.empty() && token != "\r")
+                                {
+                                        tokens.push_back(token);
+                                }
+                        }
+                        return tokens;
+                }
+
+                bool starts_with(const std::string& str, const std::string& prefix)
+                {
+                    return str.length() >= prefix.length() && 
+                           str.compare(0, prefix.length(), prefix) == 0;
+                }
+        }
+
+        request_method HttpLite::get_http_request_method(const std::string& method)
+        {
+            if (method == "GET") return request_method::GET;
+            if (method == "POST") return request_method::POST;
+            if (method == "PUT") return request_method::PUT;
+            if (method == "DELETE") return request_method::DELETE;
+            if (method == "HEAD") return request_method::HEAD;
+            if (method == "OPTIONS") return request_method::OPTIONS;
+            return request_method::UNKNOWN;
+        }
+
+        transfer_encoding HttpLite::get_transfer_encoding(const std::string& name)
+        {
+            if (name == "chunked") return transfer_encoding::CHUNKED;
+            if (name == "compress") return transfer_encoding::COMPRESS;
+            if (name == "deflate") return transfer_encoding::DEFLATE;
+            if (name == "gzip") return transfer_encoding::GZIP;
+            if (name == "identity") return transfer_encoding::IDENTITY;
+            return transfer_encoding::NONE;
+        }
+
+        bool HttpLite::GetDataChunk(std::string& output)
+        {
+            if (chunk_start_ >= body.length()) return false;
+
+            size_t chunk_end = body.find("\r\n", chunk_start_);
+            if (chunk_end == std::string::npos) return false;
+
+            // Parse chunk size
+            std::string chunk_size_str = body.substr(chunk_start_, chunk_end - chunk_start_);
+            size_t chunk_size;
+            std::istringstream(chunk_size_str) >> std::hex >> chunk_size;
+
+            if (chunk_size == 0) return false;
+
+            // Skip CRLF after size
+            chunk_start_ = chunk_end + 2;
+
+            // Extract chunk data
+            output = body.substr(chunk_start_, chunk_size);
+            chunk_start_ += chunk_size + 2; // Skip CRLF after chunk
 
             return true;
         }
 
-        return false;
-    }
-
-    bool HttpLite::ParseRequest(const std::string& request)
-    {
-        auto ridge = request.find("\r\n\r\n");
-        if (ridge != std::string::npos && request[0] != 0x30) {
-            this->header = request.substr(0, ridge);
-            this->content = request.substr(ridge + 4, std::string::npos);
-
-            std::vector<std::string> lines = string::split(this->header, "\r\n");
-            std::vector<std::string> splitter = string::split(lines[0], ' ');
-
-            if (!splitter[2].starts_with("HTTP")) return false;
-
-            this->req_uri = splitter[1];
-            this->req_method = get_http_request_method(splitter[0]);
-
-            //for (size_t i = 1; i < lines.size(); i++)
-            //{
-            //    std:
-            //}
-        }
-        else {
-            this->content = request;
+        std::string HttpLite::GetRequestPath()
+        {
+            return uri::get_path(uri);
         }
 
-        return true;
-    }
-
-    //class HTTPURL /* http://www.zedwood.com/article/cpp-boost-url-regex */
-    //{
-    //private:
-    //    std::string _protocol;// http vs https
-    //    std::string _domain;  // mail.google.com
-    //    uint16_t _port;  // 80,443
-    //    std::string _path;    // /mail/
-    //    std::string _query;   // [after ?] a=b&c=b
-
-    //public:
-    //    const std::string& protocol;
-    //    const std::string& domain;
-    //    const uint16_t& port;
-    //    const std::string& path;
-    //    const std::string& query;
-
-    //    HTTPURL(const std::string& url) : protocol(_protocol), domain(_domain), port(_port), path(_path), query(_query)
-    //    {
-    //        std::string u = _trim(url);
-    //        size_t offset = 0, slash_pos, hash_pos, colon_pos, qmark_pos;
-    //        std::string urlpath, urldomain, urlport;
-    //        uint16_t default_port;
-
-    //        static const char* allowed[] = { "https://", "http://", "ftp://", NULL };
-    //        for (int i = 0; allowed[i] != NULL && this->_protocol.length() == 0; i++)
-    //        {
-    //            const char* c = allowed[i];
-    //            if (u.compare(0, strlen(c), c) == 0) {
-    //                offset = strlen(c);
-    //                this->_protocol = std::string(c, 0, offset - 3);
-    //            }
-    //        }
-    //        default_port = this->_protocol == "https" ? 443 : 80;
-    //        slash_pos = u.find_first_of('/', offset + 1);
-    //        urlpath = slash_pos == std::string::npos ? "/" : u.substr(slash_pos);
-    //        urldomain = std::string(u.begin() + offset, slash_pos != std::string::npos ? u.begin() + slash_pos : u.end());
-    //        urlpath = (hash_pos = urlpath.find("#")) != std::string::npos ? urlpath.substr(0, hash_pos) : urlpath;
-    //        urlport = (colon_pos = urldomain.find(":")) != std::string::npos ? urldomain.substr(colon_pos + 1) : "";
-    //        urldomain = urldomain.substr(0, colon_pos != std::string::npos ? colon_pos : urldomain.length());
-    //        this->_domain = _ttolower(urldomain);
-    //        this->_query = (qmark_pos = urlpath.find("?")) != std::string::npos ? urlpath.substr(qmark_pos + 1) : "";
-    //        this->_path = qmark_pos != std::string::npos ? urlpath.substr(0, qmark_pos) : urlpath;
-    //        this->_port = urlport.length() == 0 ? default_port : _atoi(urlport);
-    //    };
-    //private:
-    //    static inline std::string _trim(const string& input)
-    //    {
-    //        std::string str = input;
-    //        size_t endpos = str.find_last_not_of(" \t\n\r");
-    //        if (std::string::npos != endpos)
-    //        {
-    //            str = str.substr(0, endpos + 1);
-    //        }
-    //        size_t startpos = str.find_first_not_of(" \t\n\r");
-    //        if (std::string::npos != startpos)
-    //        {
-    //            str = str.substr(startpos);
-    //        }
-    //        return str;
-    //    };
-    //    static inline std::string _ttolower(const std::string& input)
-    //    {
-    //        std::string str = input;
-    //        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
-    //        return str;
-    //    };
-    //    static inline int _atoi(const std::string& input)
-    //    {
-    //        int r;
-    //        std::stringstream(input) >> r;
-    //        return r;
-    //    };
-    //};
-
-	std::string header::get_server_time()
-	{
-		char date[64];
-		const auto now = time(nullptr);
-		tm gmtm{};
-		gmtime_s(&gmtm, &now);
-		strftime(date, 64, "%a, %d %b %G %T", &gmtm);
-
-		return std::format("{} GMT", date);
-	}
-
-    const char* header::get_content_type(const char* ext)
-    {
-        if (ext == nullptr) {
-            return "type/invalid";
+        bool HttpLite::FindQueryRequest(std::string key, std::string& output)
+        {
+            output = uri::get_query(uri, key);
+            return !output.empty();
         }
-        else if (strlen(ext) == 0) {
-            return "text/plain";
-        }
-        else if (!strcmp(ext, "html")) {
-            return "text/html";
-        }
-        else if (!strcmp(ext, "css")) {
-            return "text/css";
-        }
-        else if (!strcmp(ext, "js")) {
-            return "application/javascript";
-        }
-        else if (!strcmp(ext, "jpg")) {
-            return "image/jpeg";
-        }
-        else if (!strcmp(ext, "png")) {
-            return "image/png";
-        }
-        else if (!strcmp(ext, "ico")) {
-            return "image/x-icon";
-        }
-        else if (!strcmp(ext, "json")) {
-            return "application/json";
-        }
-        else {
-            return "type/unknown";
-        }
-    }
 
-	std::string uri::get_query(const std::string& uri, std::string key)
-	{
-		auto uri_segments = string::split(uri,"/");
-		auto& last_segment = uri_segments[uri_segments.size() - 1];
+        bool HttpLite::ParseRequest(const std::string& request)
+        {
+                auto lines = split_string(request, '\n');
+                if (lines.empty()) return false;
 
-		size_t key_pos = last_segment.find(key.append("="));
-		if (key_pos != std::string::npos)
-		{
-			size_t start_pos = key_pos + key.size();
-			size_t finish_pos = last_segment.find("&", start_pos);
-			return last_segment.substr(start_pos, finish_pos - start_pos);
-		}
+                // Parse request line
+                auto parts = split_string(lines[0], ' ');
+                if (parts.size() != 3) return false;
 
-		return "";
-	}
+                method = parts[0];
+                uri = parts[1];
+                version = parts[2];
 
-    std::string uri::get_path(const std::string& uri)
-    {
-        size_t qmark_pos = uri.find("?");
+                // Parse headers
+                headers.clear();
+                for (size_t i = 1; i < lines.size(); ++i)
+                {
+                        auto& line = lines[i];
+                        if (line.empty() || line == "\r") break;
 
-        return (qmark_pos != std::string::npos ? uri.substr(0, qmark_pos) : uri);
-    }
+                        auto pos = line.find(':');
+                        if (pos == std::string::npos) continue;
+
+                        auto key = line.substr(0, pos);
+                        auto value = line.substr(pos + 1);
+                        while (!value.empty() && (value[0] == ' ' || value[0] == '\r'))
+                        {
+                                value.erase(0, 1);
+                        }
+                        while (!value.empty() && value.back() == '\r')
+                        {
+                                value.pop_back();
+                        }
+
+                        headers[key] = value;
+                }
+
+                return true;
+        }
+
+        std::string HttpLite::GetHeader(const std::string& key) const
+        {
+                auto it = headers.find(key);
+                return (it != headers.end()) ? it->second : "";
+        }
+
+        void HttpLite::SetHeader(const std::string& key, const std::string& value)
+        {
+                headers[key] = value;
+        }
+
+        std::string HttpLite::BuildResponse() const
+        {
+                std::ostringstream response;
+                response << version << " " << status_code << " " << status_text << "\r\n";
+
+                for (const auto& header : headers)
+                {
+                        response << header.first << ": " << header.second << "\r\n";
+                }
+
+                response << "\r\n" << body;
+                return response.str();
+        }
+
+        std::string url_encode(const std::string& data)
+        {
+                std::ostringstream encoded;
+                encoded.fill('0');
+                encoded << std::hex;
+
+                for (char c : data)
+                {
+                        if (std::isalnum(static_cast<unsigned char>(c)) || c == '-' || c == '_' || c == '.' || c == '~')
+                        {
+                                encoded << c;
+                        }
+                        else
+                        {
+                                encoded << '%' << std::setw(2) << std::uppercase 
+                                      << static_cast<int>(static_cast<unsigned char>(c));
+                        }
+                }
+
+                return encoded.str();
+        }
+
+        std::string url_decode(const std::string& data)
+        {
+                std::string result;
+                result.reserve(data.length());
+
+                for (size_t i = 0; i < data.length(); ++i)
+                {
+                        if (data[i] == '%' && i + 2 < data.length())
+                        {
+                                int value;
+                                std::istringstream hex_chars(data.substr(i + 1, 2));
+                                hex_chars >> std::hex >> value;
+                                result += static_cast<char>(value);
+                                i += 2;
+                        }
+                        else if (data[i] == '+')
+                        {
+                                result += ' ';
+                        }
+                        else
+                        {
+                                result += data[i];
+                        }
+                }
+
+                return result;
+        }
+
+        namespace header
+        {
+                std::string get_server_time()
+                {
+                        time_t now = time(nullptr);
+                        struct tm tm_time;
+#ifdef _WIN32
+                        gmtime_s(&tm_time, &now);
+#else
+                        gmtime_r(&now, &tm_time);
+#endif
+                        char buffer[128];
+                        strftime(buffer, sizeof(buffer), "%a, %d %b %Y %H:%M:%S GMT", &tm_time);
+                        return std::string(buffer);
+                }
+
+                const char* get_content_type(const char* ext)
+                {
+                        if (!ext || ext[0] == '\0') return "application/octet-stream";
+
+                        static const std::map<std::string, const char*> mime_types = {
+                                {"html", "text/html"},
+                                {"htm", "text/html"},
+                                {"css", "text/css"},
+                                {"js", "application/javascript"},
+                                {"json", "application/json"},
+                                {"png", "image/png"},
+                                {"jpg", "image/jpeg"},
+                                {"jpeg", "image/jpeg"},
+                                {"gif", "image/gif"},
+                                {"svg", "image/svg+xml"},
+                                {"ico", "image/x-icon"}
+                        };
+
+                        auto it = mime_types.find(ext);
+                        return (it != mime_types.end()) ? it->second : "application/octet-stream";
+                }
+        }
+
+        namespace uri
+        {
+                std::string get_path(const std::string& uri)
+                {
+                        size_t qmark_pos = uri.find('?');
+                        return (qmark_pos != std::string::npos) ? uri.substr(0, qmark_pos) : uri;
+                }
+
+                std::string get_query(const std::string& uri, std::string key)
+                {
+                        size_t qmark_pos = uri.find('?');
+                        if (qmark_pos == std::string::npos) return "";
+
+                        std::string query = uri.substr(qmark_pos + 1);
+                        key += "=";
+                        size_t key_pos = query.find(key);
+                        if (key_pos == std::string::npos) return "";
+
+                        size_t value_start = key_pos + key.length();
+                        size_t value_end = query.find('&', value_start);
+                        if (value_end == std::string::npos) value_end = query.length();
+
+                        return query.substr(value_start, value_end - value_start);
+                }
+        }
 }

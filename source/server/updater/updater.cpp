@@ -1,12 +1,17 @@
-#include <std_include.hpp>
+#include "std_include.hpp"
 #include "updater.hpp"
-#include <rapidjson/document.h>
-#include <rapidjson/writer.h>
-#include <rapidjson/stringbuffer.h>
-#include <wininet.h>
-#include <shlobj.h>
-#pragma comment(lib, "wininet.lib")
-#include "configuration.hpp"
+#include "debugging/serverlog.hpp"
+#include "utilities/linux_compat.hpp"
+#include "utilities/configuration.hpp"
+#include <curl/curl.h>
+#include <filesystem>
+
+namespace {
+    size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
+        ((std::string*)userp)->append((char*)contents, size * nmemb);
+        return size * nmemb;
+    }
+}
 
 namespace updater {
 
@@ -15,31 +20,30 @@ namespace updater {
     const std::string DOWNLOAD_URL_BASE = "https://github.com/bodnjenie14/Tsto---Simpsons-Tapped-Out---Private-Server/releases/download/";
 
     bool check_for_updates() {
-        logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_INITIALIZER, "Checking GitHub API: %s", GITHUB_API_URL.c_str());
-
-        HINTERNET hInternet = InternetOpenA("TSTO-Server-Updater", INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
-        if (!hInternet) {
-            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_INITIALIZER, "Failed to initialize WinINet");
+        CURL* curl = curl_easy_init();
+        if (!curl) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_UPDATE, 
+                "Failed to initialize CURL");
             return false;
         }
 
-        HINTERNET hConnect = InternetOpenUrlA(hInternet, GITHUB_API_URL.c_str(), NULL, 0, INTERNET_FLAG_RELOAD, 0);
-        if (!hConnect) {
-            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_INITIALIZER, "Failed to connect to GitHub API");
-            InternetCloseHandle(hInternet);
-            return false;
-        }
-
-        char buffer[4096];
-        DWORD bytesRead;
         std::string response;
+        
+        curl_easy_setopt(curl, CURLOPT_URL, GITHUB_API_URL.c_str());
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+        curl_easy_setopt(curl, CURLOPT_USERAGENT, "TSTO-Server/1.0");
+        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L); // For development only
 
-        while (InternetReadFile(hConnect, buffer, sizeof(buffer), &bytesRead) && bytesRead > 0) {
-            response.append(buffer, bytesRead);
+        CURLcode res = curl_easy_perform(curl);
+        curl_easy_cleanup(curl);
+
+        if (res != CURLE_OK) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_UPDATE,
+                "Failed to check for updates: %s", curl_easy_strerror(res));
+            return false;
         }
-
-        InternetCloseHandle(hConnect);
-        InternetCloseHandle(hInternet);
 
         // Parse JSON response to get latest version and asset name
         size_t tagPos = response.find("\"tag_name\":");
@@ -62,6 +66,7 @@ namespace updater {
             // Store the asset name for download_and_update
             utils::configuration::WriteString("UpdateInfo", "LatestVersion", latestVersion);
             utils::configuration::WriteString("UpdateInfo", "AssetName", assetName);
+
 
             // For alpha/beta releases, check the asset version number
             if (latestVersion == "alpha" || latestVersion == "beta") {
@@ -112,7 +117,7 @@ namespace updater {
                 logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_INITIALIZER,
                     "No update needed or version extraction failed");
                 logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_INITIALIZER,
-                    "✓ Running latest version");
+                    "Running latest version");
                 return false;
             }
 
@@ -136,77 +141,99 @@ namespace updater {
         return SERVER_VERSION;
     }
 
-void download_and_update() {
-    std::string latestVersion = utils::configuration::ReadString("UpdateInfo", "LatestVersion", "alpha");
-    std::string assetName = utils::configuration::ReadString("UpdateInfo", "AssetName", "Tsto_Server_Bodnjenie.V0.05.zip");
+    bool download_update(const std::string& url, const std::string& output_path) {
+        CURL* curl = curl_easy_init();
+        if (!curl) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_UPDATE,
+                "Failed to initialize CURL for download");
+            return false;
+        }
 
-    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_INITIALIZER, "Starting update process to version %s", latestVersion.c_str());
-    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_INITIALIZER, "Asset name: %s", assetName.c_str());
+        FILE* fp = fopen(output_path.c_str(), "wb");
+        if (!fp) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_UPDATE,
+                "Failed to open output file: %s", output_path.c_str());
+            curl_easy_cleanup(curl);
+            return false;
+        }
 
-    char tempPath[MAX_PATH];
-    GetTempPathA(MAX_PATH, tempPath);
-    std::string updateDir = std::string(tempPath) + "\\tsto_update";
-    CreateDirectoryA(updateDir.c_str(), NULL);
+        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, NULL);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
+        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L); // For development only
 
-    std::string downloadUrl = DOWNLOAD_URL_BASE + latestVersion + "/" + assetName;
-    std::string zipPath = updateDir + "\\update.zip";
+        CURLcode res = curl_easy_perform(curl);
+        curl_easy_cleanup(curl);
+        fclose(fp);
 
-    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_INITIALIZER, "Download URL: %s", downloadUrl.c_str());
-    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_INITIALIZER, "Update directory: %s", updateDir.c_str());
-    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_INITIALIZER, "Zip path: %s", zipPath.c_str());
+        if (res != CURLE_OK) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_UPDATE,
+                "Failed to download update: %s", curl_easy_strerror(res));
+            return false;
+        }
 
-    std::string psCommand = "powershell -Command \"";
-    psCommand += "$ProgressPreference = 'SilentlyContinue'; ";
-    psCommand += "try {";
+        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_UPDATE,
+            "Update downloaded successfully to: %s", output_path.c_str());
 
-    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_UPDATE, "[UPDATE] Downloading update file...");
-    psCommand += "  Invoke-WebRequest '" + downloadUrl + "' -OutFile '" + zipPath + "' -ErrorAction Stop; ";
-    psCommand += "  Start-Sleep -Seconds 1; ";
-
-    psCommand += "  if (Test-Path '" + zipPath + "') {";
-    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_UPDATE, "[UPDATE] Download complete. Extracting files...");
-    
-    psCommand += "    Expand-Archive -Path '" + zipPath + "' -DestinationPath '" + updateDir + "' -Force -ErrorAction Stop; ";
-    psCommand += "    Start-Sleep -Seconds 1; ";
-    
-    logger::write(logger::LOG_LEVEL_WARN, logger::LOG_LABEL_UPDATE, "[UPDATE] Extraction complete. Stopping current server...");
-    psCommand += "    Stop-Process -Name 'tsto_server' -Force -ErrorAction SilentlyContinue; ";
-    psCommand += "    Start-Sleep -Seconds 3; ";
-
-    psCommand += "    if (-not (Test-Path '" + updateDir + "')) { exit 2; }";
-
-    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_UPDATE, "[UPDATE] Installing new version...");
-    psCommand += "    Copy-Item -Path '" + updateDir + "\\*' -Destination '.' -Recurse -Force -ErrorAction Stop; ";
-    psCommand += "    Start-Sleep -Seconds 1; ";
-
-    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_UPDATE, "[UPDATE] Cleaning up...");
-    psCommand += "    Remove-Item '" + zipPath + "' -Force -ErrorAction SilentlyContinue; ";
-    psCommand += "    Remove-Item '" + updateDir + "' -Recurse -Force -ErrorAction SilentlyContinue; ";
-
-    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_UPDATE, "[UPDATE] Update complete! Starting new server version...");
-    psCommand += "    Start-Sleep -Seconds 2; ";
-    psCommand += "    Start-Process 'tsto_server.exe' -ErrorAction Stop; ";
-    
-    psCommand += "  } else { exit 3; }";
-    psCommand += "} catch { exit 1; }\"";
-
-    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_INITIALIZER, "Executing update process...");
-    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_INITIALIZER, "Server will restart automatically if update succeeds");
-
-    int result = system(psCommand.c_str());
-
-    if (result == 1) {
-        logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_UPDATE, "[ERROR] PowerShell execution failed.");
-    } else if (result == 2) {
-        logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_UPDATE, "[ERROR] Extraction failed. Update directory missing.");
-    } else if (result == 3) {
-        logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_UPDATE, "[ERROR] Download failed. File not found.");
-    } else if (result == 0) {
-        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_UPDATE, "[UPDATE] Update process completed successfully!");
-    } else {
-        logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_UPDATE, "[ERROR] Unknown error during update process. Exit code: %d", result);
+        return true;
     }
-}
 
+    void download_and_update() {
+        std::string latestVersion = utils::configuration::ReadString("UpdateInfo", "LatestVersion", "alpha");
+        std::string assetName = utils::configuration::ReadString("UpdateInfo", "AssetName", "Tsto_Server_Bodnjenie.V0.05.zip");
 
-}
+        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_INITIALIZER, "Starting update process to version %s", latestVersion.c_str());
+        logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_INITIALIZER, "Asset name: %s", assetName.c_str());
+
+        std::filesystem::path updateDir = std::filesystem::temp_directory_path() / "tsto_update";
+        std::filesystem::create_directories(updateDir);
+
+        std::string downloadUrl = DOWNLOAD_URL_BASE + latestVersion + "/" + assetName;
+        std::string zipPath = (updateDir / "update.zip").string();
+
+        logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_INITIALIZER, "Download URL: %s", downloadUrl.c_str());
+        logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_INITIALIZER, "Update directory: %s", updateDir.string().c_str());
+        logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_INITIALIZER, "Zip path: %s", zipPath.c_str());
+
+        if (!download_update(downloadUrl, zipPath)) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_UPDATE, "[ERROR] Failed to download update");
+            return;
+        }
+
+        // Platform-specific update process
+#ifdef _WIN32
+        std::string psCommand = "powershell -Command \"";
+        psCommand += "$ProgressPreference = 'SilentlyContinue'; ";
+        psCommand += "try {";
+        psCommand += "  Expand-Archive -Path '" + zipPath + "' -DestinationPath '" + updateDir.string() + "' -Force -ErrorAction Stop; ";
+        psCommand += "  Start-Sleep -Seconds 1; ";
+        psCommand += "  Stop-Process -Name 'tsto_server' -Force -ErrorAction SilentlyContinue; ";
+        psCommand += "  Start-Sleep -Seconds 3; ";
+        psCommand += "  Copy-Item -Path '" + updateDir.string() + "\\*' -Destination '.' -Recurse -Force -ErrorAction Stop; ";
+        psCommand += "  Remove-Item '" + zipPath + "' -Force -ErrorAction SilentlyContinue; ";
+        psCommand += "  Remove-Item '" + updateDir.string() + "' -Recurse -Force -ErrorAction SilentlyContinue; ";
+        psCommand += "  Start-Process 'tsto_server.exe' -ErrorAction Stop; ";
+        psCommand += "} catch { exit 1; }\"";
+        if (system(psCommand.c_str()) != 0) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_UPDATE, "[ERROR] Update process failed");
+        }
+#else
+        std::string bashCommand = "bash -c '";
+        bashCommand += "unzip -o \"" + zipPath + "\" -d \"" + updateDir.string() + "\" && ";
+        bashCommand += "sleep 1 && ";
+        bashCommand += "pkill -f tsto_server && ";
+        bashCommand += "sleep 3 && ";
+        bashCommand += "cp -rf \"" + updateDir.string() + "/\"* . && ";
+        bashCommand += "rm -f \"" + zipPath + "\" && ";
+        bashCommand += "rm -rf \"" + updateDir.string() + "\" && ";
+        bashCommand += "./tsto_server &'";
+        if (system(bashCommand.c_str()) != 0) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_UPDATE, "[ERROR] Update process failed");
+        }
+#endif
+
+        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_UPDATE, "[UPDATE] Update process completed");
+    }
+
+} // namespace updater

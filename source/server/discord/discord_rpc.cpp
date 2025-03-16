@@ -9,6 +9,7 @@ std::unique_ptr<::discord::Core> DiscordRPC::core_;
 bool DiscordRPC::is_initialized_ = false;
 
 void DiscordRPC::Initialize(const std::string& client_id) {
+#ifdef DISCORD_SDK_ENABLED
     if (is_initialized_) {
         return;
     }
@@ -24,9 +25,13 @@ void DiscordRPC::Initialize(const std::string& client_id) {
     core_.reset(core_ptr);
     is_initialized_ = true;
     logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_DISCORD, "Discord RPC initialized successfully");
+#else
+    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_DISCORD, "Discord RPC disabled - SDK not available");
+#endif
 }
 
 void DiscordRPC::Shutdown() {
+#ifdef DISCORD_SDK_ENABLED
     if (!is_initialized_) {
         return;
     }
@@ -34,12 +39,14 @@ void DiscordRPC::Shutdown() {
     core_.reset();
     is_initialized_ = false;
     logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_DISCORD, "Discord RPC shutdown");
+#endif
 }
 
 void DiscordRPC::UpdatePresence(const std::string& details, 
                                const std::string& state,
                                const std::string& large_image_key,
                                const std::string& large_image_text) {
+#ifdef DISCORD_SDK_ENABLED
     if (!is_initialized_ || !core_) {
         return;
     }
@@ -56,12 +63,15 @@ void DiscordRPC::UpdatePresence(const std::string& details,
             logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_DISCORD, "Failed to update Discord presence");
         }
     });
+#endif
 }
 
 void DiscordRPC::RunCallbacks() {
+#ifdef DISCORD_SDK_ENABLED
     if (is_initialized_ && core_) {
         core_->RunCallbacks();
     }
+#endif
 }
 
 } // namespace discord

@@ -1,23 +1,14 @@
-#include <std_include.hpp>
+#include "std_include.hpp"
 #include "dashboard.hpp"
-#include "configuration.hpp"
 #include "debugging/serverlog.hpp"
-#include "LandData.pb.h"
-#include <Windows.h>
-#include <ShlObj.h>
-#include <rapidjson/document.h>
-#include <rapidjson/stringbuffer.h>
-#include <rapidjson/writer.h>
-#include <rapidjson/prettywriter.h>
-#include <google/protobuf/text_format.h>
-#include <google/protobuf/util/json_util.h>
-#include <chrono>
-#include <filesystem>
+#include "utilities/configuration.hpp"
+#include "utilities/string.hpp"
+#include "utilities/linux_compat.hpp"
 #include <fstream>
-#include <sstream>
-#include <iomanip> 
-#include <random>
-#include <ctime>
+#include <regex>
+#include <thread>
+#include <chrono>
+#include <google/protobuf/util/json_util.h>
 
 #include "tsto/land/land.hpp"
 #include "tsto/events/events.hpp"
@@ -30,6 +21,26 @@ namespace tsto::dashboard {
     // Initialize static members
     std::string Dashboard::server_ip_;
     uint16_t Dashboard::server_port_;
+    std::chrono::system_clock::time_point Dashboard::start_time_ = std::chrono::system_clock::now();
+
+    void Dashboard::set_server_info(const std::string& ip, uint16_t port) {
+        server_ip_ = ip;
+        server_port_ = port;
+    }
+
+    void Dashboard::restart_server_logic() {
+        std::quick_exit(0);
+    }
+
+    void Dashboard::restart_server() {
+        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP, "Server restart requested");
+        
+        // Create a detached thread that will wait briefly then call restart logic
+        std::thread([]{
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+            restart_server_logic();
+        }).detach();
+    }
 
     void Dashboard::handle_server_restart(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx,
         const evpp::http::HTTPSendResponseCallback& cb) {
@@ -41,33 +52,7 @@ namespace tsto::dashboard {
             logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP,
                 "Server stopping for restart...");
 
-            char exePath[MAX_PATH];
-            GetModuleFileNameA(NULL, exePath, MAX_PATH);
-
-            STARTUPINFOA si = { sizeof(STARTUPINFOA) };
-            PROCESS_INFORMATION pi;
-
-            if (CreateProcessA(
-                exePath,
-                NULL,
-                NULL,
-                NULL,
-                FALSE,
-                0,
-                NULL,
-                NULL,
-                &si,
-                &pi
-            )) {
-                CloseHandle(pi.hProcess);
-                CloseHandle(pi.hThread);
-
-                ExitProcess(0);
-            }
-            else {
-                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP,
-                    "Failed to restart server: %d", GetLastError());
-            }
+            restart_server();
         });
     }
 
@@ -98,43 +83,48 @@ namespace tsto::dashboard {
             template_stream << file.rdbuf();
             std::string html_template = template_stream.str();
 
-            html_template = std::regex_replace(html_template, std::regex("%SERVER_IP%"), server_ip_);
-            html_template = std::regex_replace(html_template, std::regex("\\{\\{ GAME_PORT \\}\\}"), std::to_string(server_port_));
+            try {
+                html_template = std::regex_replace(html_template, std::regex("%SERVER_IP%"), server_ip_);
+                html_template = std::regex_replace(html_template, std::regex("\\{\\{ GAME_PORT \\}\\}"), std::to_string(server_port_));
+                
+                std::stringstream uptime_str;
+                auto now = std::chrono::system_clock::now();
+                auto uptime = std::chrono::duration_cast<std::chrono::seconds>(now - start_time_).count();
+                uptime_str << uptime << " seconds";
+                
+                html_template = std::regex_replace(html_template, std::regex("%UPTIME%"), uptime_str.str());
+                
+                std::string dlc_directory = utils::configuration::ReadString("Server", "DLCDirectory", "dlc");
+                html_template = std::regex_replace(html_template, std::regex("%DLC_DIRECTORY%"), dlc_directory);
+                
+                std::string initial_donuts = utils::configuration::ReadString("Server", "InitialDonutAmount", "1000");
+                html_template = std::regex_replace(html_template, std::regex("%INITIAL_DONUTS%"), initial_donuts);
+                
+                auto current_event = tsto::events::Events::get_current_event();
+                html_template = std::regex_replace(html_template, std::regex("%CURRENT_EVENT%"), current_event.name);
 
-            static auto start_time = std::chrono::system_clock::now();
-            auto now = std::chrono::system_clock::now();
-            auto uptime = std::chrono::duration_cast<std::chrono::seconds>(now - start_time);
-            auto hours = std::chrono::duration_cast<std::chrono::hours>(uptime);
-            auto minutes = std::chrono::duration_cast<std::chrono::minutes>(uptime % std::chrono::hours(1));
-            auto seconds = uptime % std::chrono::minutes(1);
-            std::stringstream uptime_str;
-            uptime_str << hours.count() << "h " << minutes.count() << "m " << seconds.count() << "s";
-            html_template = std::regex_replace(html_template, std::regex("%UPTIME%"), uptime_str.str());
+                std::stringstream rows;
+                for (const auto& event_pair : tsto::events::tsto_events) {
+                    if (event_pair.first == 0) continue;
 
-            std::string currency_path = "towns/currency.txt";
-            std::string dlc_directory = utils::configuration::ReadString("Server", "DLCDirectory", "dlc");
-            html_template = std::regex_replace(html_template, std::regex("%DLC_DIRECTORY%"), dlc_directory);
-
-            html_template = std::regex_replace(html_template, std::regex("%INITIAL_DONUTS%"),
-                utils::configuration::ReadString("Server", "InitialDonutAmount", "1000"));
-
-            auto current_event = tsto::events::Events::get_current_event();
-            html_template = std::regex_replace(html_template, std::regex("%CURRENT_EVENT%"), current_event.name);
-
-            std::stringstream rows;
-            for (const auto& event_pair : tsto::events::tsto_events) {
-                if (event_pair.first == 0) continue;
-
-                rows << "<option value=\"" << event_pair.first << "\"";
-                if (event_pair.first == current_event.start_time) {
-                    rows << " selected";
+                    rows << "<option value=\"" << event_pair.first << "\"";
+                    if (event_pair.first == current_event.start_time) {
+                        rows << " selected";
+                    }
+                    rows << ">" << event_pair.second << "</option>\n";
                 }
-                rows << ">" << event_pair.second << "</option>\n";
-            }
 
-            size_t event_pos = html_template.find("%EVENT_ROWS%");
-            if (event_pos != std::string::npos) {
-                html_template.replace(event_pos, 12, rows.str());
+                size_t event_pos = html_template.find("%EVENT_ROWS%");
+                if (event_pos != std::string::npos) {
+                    html_template.replace(event_pos, 12, rows.str());
+                }
+            }
+            catch (const std::regex_error& e) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_DASHBOARD,
+                    "Regex error in dashboard template: %s", e.what());
+                ctx->set_response_http_code(500);
+                cb("Internal server error: Template processing failed");
+                return;
             }
 
             cb(html_template);
@@ -146,6 +136,32 @@ namespace tsto::dashboard {
         }
     }
 
+    void Dashboard::handle_browse_directory(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
+        const evpp::http::HTTPSendResponseCallback& cb) {
+#ifdef _WIN32
+        BROWSEINFO bi = { 0 };
+        bi.lpszTitle = "Select DLC Directory";
+        bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
+        
+        LPITEMIDLIST pidl = SHBrowseForFolder(&bi);
+        if (pidl != nullptr) {
+            char path[MAX_PATH];
+            if (SHGetPathFromIDList(pidl, path)) {
+                CoTaskMemFree(pidl);
+                utils::configuration::WriteString("Server", "DLCDirectory", path);
+                ctx->set_response_http_code(200);
+                cb("Directory selected: " + std::string(path));
+                return;
+            }
+            CoTaskMemFree(pidl);
+        }
+#else
+        // On Linux, we'll return a message suggesting manual configuration
+        ctx->set_response_http_code(200);
+        cb("Directory browsing is not supported on Linux. Please edit the configuration file directly.");
+#endif
+    }
+
     void Dashboard::handle_server_stop(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx,
         const evpp::http::HTTPSendResponseCallback& cb) {
         ctx->AddResponseHeader("Content-Type", "application/json");
@@ -155,7 +171,7 @@ namespace tsto::dashboard {
         loop->RunAfter(evpp::Duration(1.0), []() {
             logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP,
                 "Server stopping...");
-            ExitProcess(0);
+            std::quick_exit(0);
             });
     }
 
@@ -312,46 +328,6 @@ namespace tsto::dashboard {
         catch (const std::exception& ex) {
             logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP,
                 "[CONFIG] Error updating server port: %s", ex.what());
-            ctx->set_response_http_code(500);
-            cb("{\"error\": \"Internal server error\"}");
-        }
-    }
-
-    void Dashboard::handle_browse_directory(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
-        const evpp::http::HTTPSendResponseCallback& cb) {
-        try {
-            BROWSEINFO bi = { 0 };
-            bi.lpszTitle = "Select DLC Directory";
-            bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
-
-            LPITEMIDLIST pidl = SHBrowseForFolder(&bi);
-            if (pidl != nullptr) {
-                char path[MAX_PATH];
-                if (SHGetPathFromIDList(pidl, path)) {
-                    CoTaskMemFree(pidl);
-                    
-                    rapidjson::StringBuffer buffer;
-                    rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-                    writer.StartObject();
-                    writer.Key("success");
-                    writer.Bool(true);
-                    writer.Key("path");
-                    writer.String(path);
-                    writer.EndObject();
-
-                    headers::set_json_response(ctx);
-                    cb(buffer.GetString());
-                    return;
-                }
-                CoTaskMemFree(pidl);
-            }
-
-            headers::set_json_response(ctx);
-            cb("{\"success\":false,\"error\":\"No directory selected\"}");
-        }
-        catch (const std::exception& ex) {
-            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP,
-                "[CONFIG] Error browsing directory: %s", ex.what());
             ctx->set_response_http_code(500);
             cb("{\"error\": \"Internal server error\"}");
         }
@@ -792,19 +768,20 @@ namespace tsto::dashboard {
                     return;
                 }
 
-                // Convert protobuf to JSON
                 std::string json_string;
+#if defined(__ARCH__)
                 google::protobuf::util::JsonPrintOptions options;
                 options.add_whitespace = true;
-                options.preserve_proto_field_names = true;
-                
+                options.preserve_proto_field_names = false;
+#else
+                google::protobuf::util::JsonOptions options;
+                options.add_whitespace = true;
+                options.always_print_primitive_fields = true;
+#endif
+
                 auto status = google::protobuf::util::MessageToJsonString(save_data, &json_string, options);
                 if (!status.ok()) {
-                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, 
-                        "Failed to convert save to JSON for user: %s - %s", username.c_str(), status.ToString().c_str());
-                    ctx->set_response_http_code(500);
-                    cb("{\"error\": \"Failed to convert save to JSON\"}");
-                    return;
+                    throw std::runtime_error("Failed to convert protobuf to JSON: " + status.ToString());
                 }
 
                 logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP, 
@@ -833,58 +810,58 @@ namespace tsto::dashboard {
             logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, 
                 "Exception in handle_get_user_save: %s", e.what());
             ctx->set_response_http_code(500);
-            cb(std::string("{\"error\": \"Server error: ") + e.what() + "\"}");
+            cb(std::string("{\"error\": \"Internal server error: ") + e.what() + "\"}");
         }
     }
 
     void Dashboard::handle_save_user_save(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx, const evpp::http::HTTPSendResponseCallback& cb) {
         ctx->AddResponseHeader("Content-Type", "application/json");
-        
+
         try {
             std::string requestBody = std::string(ctx->body().data(), ctx->body().size());
             //logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP, 
             //    "Received save request body: %s", requestBody.c_str());
-    
+
             rapidjson::Document request;
             rapidjson::ParseResult parseResult = request.Parse(requestBody.c_str());
             if (parseResult.IsError()) {
-                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, 
-                    "Failed to parse request JSON: error code %d at offset %zu", 
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP,
+                    "Failed to parse request JSON: error code %d at offset %zu",
                     parseResult.Code(), parseResult.Offset());
                 ctx->set_response_http_code(400);
                 cb("{\"error\": \"Invalid JSON in request\"}");
                 return;
             }
-    
-            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP, 
-                "Request has fields - username: %d, isLegacy: %d, save: %d", 
+
+            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP,
+                "Request has fields - username: %d, isLegacy: %d, save: %d",
                 request.HasMember("username"), request.HasMember("isLegacy"), request.HasMember("save"));
-    
+
             if (!request.HasMember("username") || !request.HasMember("isLegacy") || !request.HasMember("save")) {
                 logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, "Missing required fields in request");
                 ctx->set_response_http_code(400);
                 cb("{\"error\": \"Missing required fields\"}");
                 return;
             }
-    
+
             if (!request["username"].IsString() || !request["isLegacy"].IsBool() || !request["save"].IsString()) {
                 logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, "Invalid field types in request");
                 ctx->set_response_http_code(400);
                 cb("{\"error\": \"Invalid field types\"}");
                 return;
             }
-    
+
             const std::string username = request["username"].GetString();
             const bool isLegacy = request["isLegacy"].GetBool();
             const std::string json_string = request["save"].GetString();
 
             try {
                 Data::LandMessage save_data;
-                
+
                 // Convert JSON back to protobuf
                 auto status = google::protobuf::util::JsonStringToMessage(json_string, &save_data);
                 if (!status.ok()) {
-                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, 
+                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP,
                         "Failed to parse JSON for user: %s - %s", username.c_str(), status.ToString().c_str());
                     ctx->set_response_http_code(400);
                     cb("{\"error\": \"Invalid save data format\"}");
@@ -896,7 +873,7 @@ namespace tsto::dashboard {
                     logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP,
                         "Creating towns directory: %s", savePath.string().c_str());
                     if (!std::filesystem::create_directories(savePath)) {
-                        logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, 
+                        logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP,
                             "Failed to create towns directory: %s", savePath.string().c_str());
                         ctx->set_response_http_code(500);
                         cb("{\"error\": \"Failed to create towns directory\"}");
@@ -906,7 +883,8 @@ namespace tsto::dashboard {
 
                 if (isLegacy) {
                     savePath /= "mytown.pb";
-                } else {
+                }
+                else {
                     savePath /= (username + ".pb");
                 }
 
@@ -946,24 +924,27 @@ namespace tsto::dashboard {
                     }
                 }
 
-                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP, 
+                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP,
                     "Successfully saved and verified file for user: %s", username.c_str());
 
                 ctx->set_response_http_code(200);
                 cb("{\"success\": true}");
-            } catch (const std::exception& e) {
-                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, 
+            }
+            catch (const std::exception& e) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP,
                     "Exception while saving: %s", e.what());
                 ctx->set_response_http_code(500);
                 cb(std::string("{\"error\": \"Failed to save file: ") + e.what() + "\"}");
             }
-        } catch (const std::exception& e) {
-            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP, 
+        }
+        catch (const std::exception& e) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_SERVER_HTTP,
                 "Exception in handle_save_user_save: %s", e.what());
             ctx->set_response_http_code(500);
             cb(std::string("{\"error\": \"Server error: ") + e.what() + "\"}");
         }
     }
+
 
     void Dashboard::handle_dashboard_data(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
         const evpp::http::HTTPSendResponseCallback& cb) {
