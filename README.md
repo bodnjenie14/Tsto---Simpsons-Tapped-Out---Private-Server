@@ -7,6 +7,27 @@ Before you begin, ensure that you have the following tools installed:
 - [Docker](https://docs.docker.com/get-docker/) (Linux users)
 - [Git](https://git-scm.com/)
 
+## Dependencies
+
+### For Ubuntu 24.04
+```bash
+sudo apt-get update
+sudo apt-get install -y \
+    libevent-dev \
+    libgoogle-glog-dev \
+    libtomcrypt-dev \
+    libzip-dev
+```
+
+### For Ubuntu 22.04
+```bash
+sudo apt-get update
+sudo apt-get install -y \
+    libprotobuf23 \
+    libgoogle-glog0v5 \
+    libtomcrypt1
+```
+
 
 ## Compilation Methods
 
