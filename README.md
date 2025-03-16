@@ -33,6 +33,13 @@ Update v.010
 ## Overview
 This guide provides instructions to set up the TSTO server, patch the `tsto.apk`, and configure the system to use the server and DLC files.
 
+
+
+Some work in progress documentation here [here](https://jenienbods-organization.gitbook.io/bodnjenie-tsto-private-server).
+
+WE NOW SUPPORT LINUX [here](https://github.com/bodnjenie14/Tsto---Simpsons-Tapped-Out---Private-Server/tree/linux).
+
+
 ---
 
 ## APK Patching Requirements
