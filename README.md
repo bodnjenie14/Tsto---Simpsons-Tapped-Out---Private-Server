@@ -1,176 +1,216 @@
-# TSTO Server and APK Patching Guide
+# TSTO Server - Docker Setup Guide
 
-## UPDATE NOTES
+## Prerequisites
 
-Update v.010
+Before you begin, ensure that you have the following tools installed:
+- [Docker Desktop](https://www.docker.com/products/docker-desktop) (Windows/macOS users)
+- [Docker](https://docs.docker.com/get-docker/) (Linux users)
+- [Git](https://git-scm.com/)
 
-- **Dob fix:** Attempt to fix dob screen.
-- **Whole new dashboard:** Town operations , save editing , game config editing.
-- **Land:** Saving and loading improvement
-- **Full event list:** Thanks to joee.
-- **Much more:** Server improvements and bug fixes.
-- **Events fixed:** True event handling on dashboard.
-- **Custom Dlc folder location:** Edit via server config json or dashboard.
-- **Force save game from dashboard:** Use dashboard to force save (if needed).
-- **New Design for dashboard:** Few improvements and new design.
-- **IP and Port adjustable via dashboard:** Will disable auto-detect IP when manually set.
-- **Town Switching system:** Option to switch towns using the login system. ( Not true multiuser - but could be used as 1 )
-- **User Donuts:** Edit on the dashboard.
-- **Auto Updater** No more downloading binarys.
-- **Fixed Donuts:** Real donut saving
-- **Discord Rpc:** Need that advertising haha (can be disabled in server config)
-- **Real donut system:** Donuts are now saved and earnt
-- **Donuts:** Can be editied from dashboard
-- **RESTART BUG FIXED:** No longer need to reboot server if you close game.
-- **Ios/Apple Support:** Fully supports ios/apple devices. Non jailbroke via sideloady and jailbroke devices.
-- **Taps Event can be completed:** Dont need to minuplate time to finish taps.
-- **Webpanel Dashboard:** ``http://localhost/dashboard`` - Can be used for basic servercontrols and to restore old events.
-- **Async DLC download:** DLC speeds have been improved.
-- **Better land handling:** Land handling has been improved.
-- **Events fix** Events will now count down correctly..
+
+## Compilation Methods
+
+### 1. Cross-Compile from Windows using Docker (Recommended)
+This guide focuses on using Docker for cross-compilation from Windows, which is the recommended approach. Simply follow the Docker setup instructions above.
+
+### 2. Direct Linux Compilation
+If you prefer to compile directly on Linux without Docker, please refer to:
+[Linux Build Instructions](Linux_Build_Instructions.md)
+
+This alternative method provides instructions for:
+- Cross-compiling from Windows using Visual Studio
+- Direct compilation on Linux systems
+- Handling dependencies and common issues
+
+Note: While both methods work, **Docker** is recommended as it provides a consistent build environment and handles all dependencies automatically.
+
+
+## Quick Start for Docker/Windows.
+
+1. **Clone the repository**:
+    ```bash
+    git clone <repository-url>
+    cd <repository-directory>
+    ```
+
+2. **Build and start the server**:
+    - Build the Docker container without using the cache:
+    ```bash
+    docker compose build --no-cache
+    ```
+
+    - Start the server in the foreground to view the logs:
+    ```bash
+    docker compose up
+    ```
+
+    - Or, start the server in the background:
+    ```bash
+    docker compose up -d
+    ```
+
+## DLC Setup
+
+There are two ways to handle the DLC files (approximately 30GB):
+
+1. **Auto-Linking (Default)**:
+   - Place DLC files in the source folder
+   - Docker will automatically link and use these files
+   - No rebuild needed when updating DLC
+   - Saves container size and build time
+
+2. **Docker Copy Method**:
+   - Open `Dockerfile.multistage`
+   - Uncomment these lines:
+   ```dockerfile
+   # COPY dlc/ /app/dlc/
+   # COPY dlc/dlc/ /app/dlc/dlc/
+   ```
+   - This will copy DLC into the container
+   - Increases container size by ~30GB
+   - Requires rebuild when updating DLC
+
+Note: Build time is around 15-20 minutes.
+
+## Directory Structure
+
+```plaintext
+/
+├── Dockerfile.multistage    # Docker build configuration
+├── docker-compose.yml       # Docker compose configuration
+├── cmake.txt                # CMake configuration
+├── source/                  # Source code
+├── deps/                    # Dependencies
+├── cmake/                   # CMake files
+├── tools/                   # Tools
+├── webpanel/                # Web interface files
+├── config.json              # Server configuration
+└── dlc/                     # Game DLC files (30GB)
+```
+
+## Detailed Setup
+
+### Building the Docker Container
+
+To build the Docker container from scratch without using the cache:
+
+```bash
+docker compose build --no-cache
+```
+
+This ensures that the latest dependencies and configurations are used.
+
+### Dlc Setup
+
+Dlc files to be placed in the `dlc` folder before building the container.
+
+### Running the Server
+
+After building the container, you can start the server:
+
+- **Run in foreground (view logs)**:
+    ```bash
+    docker compose up
+    ```
+
+- **Run in the background (detached mode)**:
+    ```bash
+    docker compose up -d
+    ```
+
+### Stopping the Server
+
+To stop the server that’s running in the background, use:
+
+```bash
+docker compose down
+```
+
+## Compiling for Different Ubuntu Versions
+
+The server can be compiled for different Ubuntu versions by modifying the Dockerfile. Here's how to do it:
+
+1. Open `Dockerfile.multistage` in your text editor
+2. Change both the build and runtime stages to use your desired Ubuntu version. For example, to use Ubuntu 22.04:
+
+```dockerfile
+# Build stage
+FROM ubuntu:22.04 as builder
+
+# ... rest of build stage ...
+
+# Runtime stage
+FROM ubuntu:22.04
+
+# ... rest of runtime stage ...
+```
+
+### Example Ubuntu Versions:
+- Ubuntu 22.04 (Jammy Jellyfish): `ubuntu:22.04`
+- Ubuntu 23.04 (Lunar Lobster): `ubuntu:23.04`
+- Ubuntu 23.10 (Mantic Minotaur): `ubuntu:23.10`
+- Ubuntu 24.04 (Noble Numbat): `ubuntu:24.04`
+
+Note: Package names and versions might differ between Ubuntu releases. You may need to adjust the package installation commands in the Dockerfile accordingly.
+
+## Windows Development Workflow
+
+If you're developing on Windows and want to extract the compiled Linux binary:
+
+1. After successfully building and running the Docker container, run:
+```batch
+extract_for_windows.bat
+```
+
+This script will:
+- Extract the compiled ELF binary from the Docker container
+- Place it in your local directory for deployment or testing
+- Preserve all necessary dependencies and configurations
+
+This is particularly useful when:
+- Cross-compiling from Windows to Linux
+- Testing the server on different Linux environments
+- Deploying to a production Linux server
+
 ---
 
-## Overview
-This guide provides instructions to set up the TSTO server, patch the `tsto.apk`, and configure the system to use the server and DLC files.
+## Linux-Specific Setup
+
+For Linux users, the steps are similar to the ones above, with a few variations in the setup.
+
+### Prerequisites for Linux
+
+- Install Docker on your Linux system using the following commands:
+    ```bash
+    sudo apt update
+    sudo apt install apt-transport-https ca-certificates curl software-properties-common
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    sudo apt update
+    sudo apt install docker-ce docker-ce-cli containerd.io
+    sudo usermod -aG docker $USER
+    ```
+
+### Docker Compose on Linux
+
+To install Docker Compose on Linux:
+
+```bash
+sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
+```
+
+### Build and Run Docker Container on Linux
+
+Once Docker is installed, follow the same steps as mentioned earlier to build and run the Docker container:
+
+```bash
+git clone <repository-url>
+cd <repository-directory>
+docker compose build --no-cache
+docker compose up -d
+```
 
 ---
 
-## APK Patching Requirements
-- **Python 3** (only for patching the APK; a C++ version is on the way).
-- **Patched APK**: Created using the provided GUI patcher (`windows_gui_patcher.py` script).
-- **30GB of free disk space** for the DLC.
-
----
-
-
-## Private Server Requirements
-- Windows Operating system.
-  
----
-
-## Steps to Patch APK and Configure the Server
-
-### 1. Patch the APK
-1. Download the `tsto.apk` file from the repository and place it into the `apk_patcher` folder.
-   - Ensure the file is named `tsto.apk`.
-2. Use the **Windows GUI Patcher** (`windows_gui_patcher.py`) to patch the `tsto.apk`:
-   - Navigate to the `apk_patcher` folder.
-   - Open the terminal in this folder:
-     - Hold **Shift** and **Right-Click** anywhere inside the folder, then select **"Open PowerShell window here"** (or **"Open Command Prompt here"** depending on your system).
-   - Run the following command:
-     ```
-     python windows_gui_patcher.py
-     ```
-   - The graphical user interface (GUI) will open.
-   - Enter the following details:
-     - **Server IP:** Enter the server IP in the format: `http://[ip_here]:80`.
-     - **DLC IP:** Enter the DLC IP in the format: `http://[ip_here]:80`.
-   - Click on the **"Patch APK"** button to create a patched APK.
-3. The patched APK will be saved in the same folder as the original `tsto.apk`.
-4. Transfer the patched APK to your mobile device or BlueStacks.
-5. Install the patched APK.
-
-
-
----
-
-### 2. IP Address Example
-- **Server IP:** `http://192.168.1.1:80`
-- **DLC IP:** `http://192.168.1.2:80`
-
----
-
-### 3. Download and Add DLC
-1. Download the DLC.
-2. Place the downloaded DLC file into the `DLC` folder.
-   - (More detailed instructions can be found in the `instructions` folder.)
-
----
-
-### 4. Setup the Town File
-1. Add your town file to the `towns/` folder.
-2. Rename the file to `mytown.pb`:
-   - **If the save is from `tsto.de`:** The file name will be your email address. Rename it to `mytown.pb`.
-   - **If the save is from `tsto.me`:** The file name will be `protoland.pb`. Rename it to `mytown.pb`.
-
----
-
-### 5. Adjust Windows Folder Options (if needed)
-- If necessary, enable the option to view and edit known file extensions:
-  - Open File Explorer.
-  - Go to **View > Options > Change folder and search options**.
-  - Under the **View** tab, uncheck **Hide extensions for known file types**.
-
----
-
-### 6. Install DLC on the Server
-- Do **not** open any application until the DLC is properly installed on the server.
-
----
-
-### 7. Launch the Server
-1. Open the server by running `tsto_server.exe`.
-2. A console window will appear—keep this window open.
-
----
-
-### 8. Run the APK
-- Once the server is running, open the patched APK on your mobile device or BlueStacks.
-
----
-
-
-### 9.How to townswitch
-
-Log in with a fake or invalid email.( no sign up required )
-**Ignore** the error message that appears.
-Return to the main screen and click "Play Anonymously."
-
-To **Reload** login same email and "Play Anonymously."
-
-How to sync (you can use any email you want these are just examples) 
-
-open game go to login make a email you want example: Bods@server.goat you will get an error that’s fine before going farther go to my towns and note the new file it created in this case it will be Bods@server.goat.pb
-
- Delete it the new file and take your Town save you wanna load and change it to the same name Bod@server.goat.pb
-
-Now you you may enter 
-
-Want more towns Rince and repeat
-
-Want to reload just enter the account again 
-
-Bods@server.goat 
-
----
-
-## Dashboard preview
-
-![image](https://github.com/user-attachments/assets/9b454aa5-0022-4247-98e5-99e69dddb8cb)
-
-
-
----
-
-## Additional Notes
-- **GUI Patcher Location:** The `windows_gui_patcher.py` script is located in the `apk_patcher` folder.
-- **IP and Port Configuration:**
-  - Modify the `server-config.json` file to adjust the IP and port settings, if needed.
-- **Source code be uploaded soon.**
----
-
-Follow these steps sequentially for proper setup. Enjoy!
-
----
-
-## Building the project currently needs `vcpkg` 
-- abseil libary
-  ( vcpkg install abseil )
----
-
-
-
-
-Follow these steps sequentially for proper setup. Enjoy!
-
----
+For more details, refer to the [TSTO Server GitHub Repository](<https://github.com/bodnjenie14/Tsto---Simpsons-Tapped-Out---Private-Server/tree/main>) or check out the [documentation](https://jenienbods-organization.gitbook.io/bodnjenie-tsto-private-server).
