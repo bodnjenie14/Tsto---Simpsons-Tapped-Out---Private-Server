@@ -145,7 +145,7 @@ You can also modify the Docker configuration directly in the server startup code
 // Read Docker configuration
 bool docker_enabled = utils::configuration::ReadBoolean(CONFIG_SECTION, "DockerEnabled", false);
 int docker_port = static_cast<int>(utils::configuration::ReadUnsignedInteger(CONFIG_SECTION, "DockerPort", 8080));
-
+```
 
 
 
