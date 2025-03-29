@@ -116,7 +116,7 @@ When Docker mode is enabled:
 
 ### Recommended Settings
 
-For Docker environments, we recommend:
+For Docker environments,:
 ```json
 {
   "ServerConfig": {

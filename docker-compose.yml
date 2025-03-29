@@ -10,4 +10,4 @@ services:
       - "8080:80"
     volumes:
       - ./data:/app/data
-      - "C:/Source Code/Tsto---Simpsons-Tapped-Out---Private-Server/dlc:/app/dlc"
+      - ./dlc:/app/dlc
