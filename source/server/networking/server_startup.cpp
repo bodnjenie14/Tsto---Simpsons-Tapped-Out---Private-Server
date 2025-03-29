@@ -200,9 +200,12 @@ namespace server {
 
         int game_port = static_cast<int>(utils::configuration::ReadUnsignedInteger(CONFIG_SECTION, "GamePort", 80));
 
-        // Read Docker port configuration
+        // Read Docker configuration
+        bool docker_enabled = utils::configuration::ReadBoolean(CONFIG_SECTION, "DockerEnabled", false);
         int docker_port = static_cast<int>(utils::configuration::ReadUnsignedInteger(CONFIG_SECTION, "DockerPort", 8080));
-        // Ensure the DockerPort exists in config
+        
+        // Ensure the Docker config exists in config
+        utils::configuration::WriteBoolean(CONFIG_SECTION, "DockerEnabled", docker_enabled);
         utils::configuration::WriteUnsignedInteger(CONFIG_SECTION, "DockerPort", static_cast<unsigned int>(docker_port));
 
         // Ensure the ReverseProxy section exists in the config file
@@ -225,6 +228,10 @@ namespace server {
         auto tsto_server = std::make_shared<tsto::TSTOServer>();
         tsto_server->server_ip_ = server_ip;
         tsto_server->server_port_ = static_cast<uint16_t>(game_port);
+        
+        // Set Docker configuration directly
+        tsto_server->docker_enabled_ = docker_enabled;
+        tsto_server->docker_port_ = static_cast<uint16_t>(docker_port);
 
         // Auto-detect Docker environment and configure reverse proxy settings
         bool in_docker = is_running_in_docker();

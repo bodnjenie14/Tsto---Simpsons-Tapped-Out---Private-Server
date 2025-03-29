@@ -29,6 +29,7 @@
 #include "utilities/http.hpp"
 #include "utilities/string.hpp"
 #include "utilities/serialization.hpp"
+#include "utilities/configuration.hpp"
 
 // Debugging includes
 #include "debugging/serverlog.hpp"
@@ -59,6 +60,11 @@ namespace tsto {
         std::string server_ip_;  // Configured through server-config.json
         uint16_t server_port_;   // Configured through server-config.json
 
+        // Docker configuration
+        public:
+        bool docker_enabled_;    // Whether Docker mode is enabled
+        uint16_t docker_port_;   // Docker port mapping (default 8080)
+
         bool reverse_proxy_enabled_;
         bool reverse_proxy_trust_headers_;
         std::string reverse_proxy_force_host_;
@@ -66,39 +72,8 @@ namespace tsto {
         std::string reverse_proxy_force_protocol_;
 
         std::string get_server_address() const {
-            // If reverse proxy is enabled and we have a forced host, use that
-            if (reverse_proxy_enabled_ && !reverse_proxy_force_host_.empty()) {
-                // Only add port if it's not the default HTTP/HTTPS port and greater than 0
-                if (reverse_proxy_force_port_ > 0 && 
-                    !((reverse_proxy_force_protocol_ == "http" && reverse_proxy_force_port_ == 80) || 
-                      (reverse_proxy_force_protocol_ == "https" && reverse_proxy_force_port_ == 443))) {
-                    // Don't add port if the host already contains a port
-                    if (reverse_proxy_force_host_.find(':') == std::string::npos) {
-                        return reverse_proxy_force_host_ + ":" + std::to_string(reverse_proxy_force_port_);
-                    }
-                }
-                return reverse_proxy_force_host_;
-            }
-            
-            // Special case for Docker environment (IP starting with 172)
-            if (server_ip_.substr(0, 3) == "172") {
-                // Always include port for Docker environments
-                if (server_ip_.find(':') == std::string::npos) {
-                    return server_ip_ + ":" + std::to_string(server_port_);
-                }
-                return server_ip_;
-            }
-            
-            // Regular case - never include port 80 in URLs
-            if (server_port_ == 80) {
-                return server_ip_;
-            }
-            
-            // Don't add port if the IP already contains a port
-            if (server_ip_.find(':') == std::string::npos) {
-                return server_ip_ + ":" + std::to_string(server_port_);
-            }
-            
+            // Use the server_ip_ directly - this is set during initialization
+            // from the configuration in server_startup.cpp
             return server_ip_;
         }
 
@@ -131,7 +106,7 @@ namespace tsto {
         //shite
         void set_server_ip(const std::string& ip) { server_ip_ = ip; }
         void set_server_port(uint16_t port) { server_port_ = port; }
-
+        
         //void handle_dashboard(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx, const evpp::http::HTTPSendResponseCallback& cb);
         //void handle_server_restart(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx, const evpp::http::HTTPSendResponseCallback& cb);
         //void handle_server_stop(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx, const evpp::http::HTTPSendResponseCallback& cb);

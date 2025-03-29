@@ -7,27 +7,6 @@ Before you begin, ensure that you have the following tools installed:
 - [Docker](https://docs.docker.com/get-docker/) (Linux users)
 - [Git](https://git-scm.com/)
 
-## Dependencies
-
-### For Ubuntu 24.04
-```bash
-sudo apt-get update
-sudo apt-get install -y \
-    libevent-dev \
-    libgoogle-glog-dev \
-    libtomcrypt-dev \
-    libzip-dev
-```
-
-### For Ubuntu 22.04
-```bash
-sudo apt-get update
-sudo apt-get install -y \
-    libprotobuf23 \
-    libgoogle-glog0v5 \
-    libtomcrypt1
-```
-
 
 ## Compilation Methods
 
@@ -108,6 +87,67 @@ Note: Build time is around 15-20 minutes.
 ├── config.json              # Server configuration
 └── dlc/                     # Game DLC files (30GB)
 ```
+
+## Docker Configuration
+
+The server includes specific configuration options for Docker environments:
+
+### Docker Configuration Options
+
+In your `server-config.json` file, you can configure the following Docker-specific settings:
+
+```json
+{
+  "ServerConfig": {
+    "DockerEnabled": true,
+    "DockerPort": 8080
+  }
+}
+```
+
+- **DockerEnabled**: Set to `true` to enable Docker mode (default: `false`)
+- **DockerPort**: The port mapping for Docker (default: `8080`)
+
+When Docker mode is enabled:
+1. The server will use the Docker port for constructing URLs
+2. The RTM host URL will include the Docker port
+3. All redirected service URLs will include the Docker port
+4. Docker configuration will be exposed to clients through the serverData array
+
+### Recommended Settings
+
+For Docker environments, we recommend:
+```json
+{
+  "ServerConfig": {
+    "DockerEnabled": true,
+    "DockerPort": 8080
+  }
+}
+```
+
+For non-Docker environments, keep the default settings:
+```json
+{
+  "ServerConfig": {
+    "DockerEnabled": false,
+    "DockerPort": 8080
+  }
+}
+```
+
+## Advanced Configuration
+
+You can also modify the Docker configuration directly in the server startup code **Before compiling**:
+
+1. The Docker configuration is initialized in `source/server/networking/server_startup.cpp`:
+```cpp
+// Read Docker configuration
+bool docker_enabled = utils::configuration::ReadBoolean(CONFIG_SECTION, "DockerEnabled", false);
+int docker_port = static_cast<int>(utils::configuration::ReadUnsignedInteger(CONFIG_SECTION, "DockerPort", 8080));
+
+
+
 
 ## Detailed Setup
 
@@ -233,5 +273,7 @@ docker compose up -d
 ```
 
 ---
+
+
 
 For more details, refer to the [TSTO Server GitHub Repository](<https://github.com/bodnjenie14/Tsto---Simpsons-Tapped-Out---Private-Server/tree/main>) or check out the [documentation](https://jenienbods-organization.gitbook.io/bodnjenie-tsto-private-server).

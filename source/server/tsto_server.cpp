@@ -20,142 +20,176 @@ namespace tsto {
         return utils::cryptography::random::get_challenge();
     }
 
-    void TSTOServer::handle_get_direction(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
-        const evpp::http::HTTPSendResponseCallback& cb, const std::string& platform) {
-        headers::set_json_response(ctx);
+       void TSTOServer::handle_get_direction(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
+       const evpp::http::HTTPSendResponseCallback& cb, const std::string& platform) {
+       headers::set_json_response(ctx);
 
-        try {
-            logger::write(logger::LOG_LEVEL_INCOMING, logger::LOG_LABEL_GAME,
-                "[DIRECTION] Request from %s: %s (Platform: %s)",
-                ctx->remote_ip().data(), ctx->uri().data(), platform.c_str());
+       try {
+           logger::write(logger::LOG_LEVEL_INCOMING, logger::LOG_LABEL_GAME,
+               "[DIRECTION] Request from %s: %s (Platform: %s)",
+               ctx->remote_ip().data(), ctx->uri().data(), platform.c_str());
 
-            rapidjson::Document doc;
-            doc.SetObject();
-            auto& allocator = doc.GetAllocator();
+           rapidjson::Document doc;
+           doc.SetObject();
+           auto& allocator = doc.GetAllocator();
 
-            doc.AddMember("DMGId", 0, allocator);
-            doc.AddMember("appUpgrade", 0, allocator);
+           doc.AddMember("DMGId", 0, allocator);
+           doc.AddMember("appUpgrade", 0, allocator);
 
-            // Use get_protocol method to determine the protocol
-            std::string protocol = get_protocol(ctx);
-            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
-                "[DIRECTION] Using protocol: %s", protocol.c_str());
+           std::string protocol = "http";
+           const char* forwarded_proto = ctx->FindRequestHeader("X-Forwarded-Proto");
+           if (forwarded_proto && std::string(forwarded_proto) == "https") {
+               protocol = "https";
+           }
 
-            if (platform == "ios") {
-                doc.AddMember("bundleId", "com.ea.simpsonssocial.inc2", allocator);
-                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
-                    "[DIRECTION] Platform is iOS, bundleId set to: com.ea.simpsonssocial.inc2");
-            }
-            else {
-                doc.AddMember("bundleId", "com.ea.game.simpsons4_row", allocator);
-                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
-                    "[DIRECTION] Platform is Android, bundleId set to: com.ea.game.simpsons4_row");
-            }
+           if (platform == "ios") {
+               doc.AddMember("bundleId", "com.ea.simpsonssocial.inc2", allocator);
+               logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
+                   "[DIRECTION] Platform is iOS, bundleId set to: com.ea.simpsonssocial.inc2");
+           }
+           else {
+               doc.AddMember("bundleId", "com.ea.game.simpsons4_row", allocator);
+               logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
+                   "[DIRECTION] Platform is Android, bundleId set to: com.ea.game.simpsons4_row");
+           }
 
-            std::string clientId = "simpsons4-" + platform + "-client";
-            doc.AddMember("clientId", rapidjson::StringRef(clientId.c_str()), allocator);
+           std::string clientId = "simpsons4-" + platform + "-client";
+           doc.AddMember("clientId", rapidjson::StringRef(clientId.c_str()), allocator);
 
-            doc.AddMember("clientSecret", "D0fpQvaBKmAgBRCwGPvROmBf96zHnAuZmNepQht44SgyhbCdCfFgtUTdCezpWpbRI8N6oPtb38aOVg2y", allocator);
-            doc.AddMember("disabledFeatures", rapidjson::Value(rapidjson::kArrayType), allocator);
-            doc.AddMember("facebookAPIKey", "43b9130333cc984c79d06aa0cad3a0c8", allocator);
-            doc.AddMember("facebookAppId", "185424538221919", allocator);
-            doc.AddMember("hwId", 2363, allocator);
-            doc.AddMember("mayhemGameCode", "bg_gameserver_plugin", allocator);
+           doc.AddMember("clientSecret", "D0fpQvaBKmAgBRCwGPvROmBf96zHnAuZmNepQht44SgyhbCdCfFgtUTdCezpWpbRI8N6oPtb38aOVg2y", allocator);
+           doc.AddMember("disabledFeatures", rapidjson::Value(rapidjson::kArrayType), allocator);
+           doc.AddMember("facebookAPIKey", "43b9130333cc984c79d06aa0cad3a0c8", allocator);
+           doc.AddMember("facebookAppId", "185424538221919", allocator);
+           doc.AddMember("hwId", 2363, allocator);
+           doc.AddMember("mayhemGameCode", "bg_gameserver_plugin", allocator);
 
-            std::string mdmAppKey = "simpsons-4-" + platform;
-            doc.AddMember("mdmAppKey", rapidjson::StringRef(mdmAppKey.c_str()), allocator);
+           std::string mdmAppKey = "simpsons-4-" + platform;
+           doc.AddMember("mdmAppKey", rapidjson::StringRef(mdmAppKey.c_str()), allocator);
 
-            doc.AddMember("millennialId", "", allocator);
-            doc.AddMember("packageId", "com.ea.game.simpsons4_row", allocator);
+           doc.AddMember("millennialId", "", allocator);
+           doc.AddMember("packageId", "com.ea.game.simpsons4_row", allocator);
 
-            rapidjson::Value pollIntervals(rapidjson::kArrayType);
-            rapidjson::Value pollInterval(rapidjson::kObjectType);
-            pollInterval.AddMember("key", "badgePollInterval", allocator);
-            pollInterval.AddMember("value", "300", allocator);
-            pollIntervals.PushBack(pollInterval, allocator);
-            doc.AddMember("pollIntervals", pollIntervals, allocator);
-            doc.AddMember("productId", 48302, allocator);
-            doc.AddMember("resultCode", 0, allocator);
-            doc.AddMember("sellId", 857120, allocator);
-            doc.AddMember("serverApiVersion", "1.0.0", allocator);
+           rapidjson::Value pollIntervals(rapidjson::kArrayType);
+           rapidjson::Value pollInterval(rapidjson::kObjectType);
+           pollInterval.AddMember("key", "badgePollInterval", allocator);
+           pollInterval.AddMember("value", "300", allocator);
+           pollIntervals.PushBack(pollInterval, allocator);
+           doc.AddMember("pollIntervals", pollIntervals, allocator);
 
-            rapidjson::Value serverData(rapidjson::kArrayType);
+           doc.AddMember("productId", 48302, allocator);
+           doc.AddMember("resultCode", 0, allocator);
+           doc.AddMember("sellId", 857120, allocator);
+           doc.AddMember("serverApiVersion", "1.0.0", allocator);
 
-            std::string server_address = get_server_address();
-            
-            // Log the server address being used
-            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
-                "[DIRECTION] Using server address: %s", server_address.c_str());
+           rapidjson::Value serverData(rapidjson::kArrayType);
 
-            // For RTM host, we need to include both ports: DockerPort and 9000
-            std::string rtm_host = protocol + "://" + server_address + ":9000";
-            
-            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
-                "[DIRECTION] Using RTM host: %s", rtm_host.c_str());
+           std::string server_address = get_server_address();
+           
+           logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
+               "[DIRECTION] Using server address: %s", server_address.c_str());
+           
+           // Format RTM host URL based on Docker configuration
+           std::string rtm_host;
+           std::string base_ip = server_ip_;
+           size_t colon_pos = base_ip.find(':');
+           if (colon_pos != std::string::npos) {
+               base_ip = base_ip.substr(0, colon_pos);
+           }
+           
+           if (docker_enabled_) {
+               // In Docker mode, use the base IP with Docker port and RTM port
+               rtm_host = protocol + "://" + base_ip + ":" + std::to_string(docker_port_) + ":9000";
+               logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
+                   "[DIRECTION] Docker mode enabled, using RTM host with Docker port: %s", rtm_host.c_str());
+           } else {
+               // In normal mode, just use port 9000
+               rtm_host = protocol + "://" + base_ip + ":9000";
+               logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
+                   "[DIRECTION] Using standard RTM host: %s", rtm_host.c_str());
+           }
 
-            std::vector<std::pair<const char*, std::string>> initialEntries;
-            if (platform == "ios") {
-                initialEntries = {
-                    {"antelope.rtm.host", rtm_host},
-                    {"applecert.url", "https://www.apple.com/appleca/AppleIncRootCertificate.cer"},
-                    {"origincasualapp.url", protocol + "://" + server_address + "/loader/mobile/ios/"},
-                    {"akamai.url", "https://cdn.skum.eamobile.com/skumasset/gameasset/"}
-                };
-            }
-            else {
-                initialEntries = {
-                    {"antelope.rtm.host", rtm_host},
-                    {"origincasualapp.url", protocol + "://" + server_address + "/loader/mobile/android/"},
-                    {"akamai.url", "https://cdn.skum.eamobile.com/skumasset/gameasset/"}
-                };
-            }
+           std::vector<std::pair<const char*, std::string>> initialEntries;
+           if (platform == "ios") {
+               initialEntries = {
+                   {"antelope.rtm.host", rtm_host},
+                   {"applecert.url", "https://www.apple.com/appleca/AppleIncRootCertificate.cer"},
+                   {"origincasualapp.url", protocol + "://" + server_address + "/loader/mobile/ios/"},
+                   {"akamai.url", "https://cdn.skum.eamobile.com/skumasset/gameasset/"}
+               };
+           }
+           else {
+               initialEntries = {
+                   {"antelope.rtm.host", rtm_host},
+                   {"origincasualapp.url", protocol + "://" + server_address + "/loader/mobile/android/"},
+                   {"akamai.url", "https://cdn.skum.eamobile.com/skumasset/gameasset/"}
+               };
+           }
 
-            for (const auto& entry : initialEntries) {
-                rapidjson::Value serverEntry(rapidjson::kObjectType);
-                serverEntry.AddMember("key", rapidjson::StringRef(entry.first), allocator);
-                serverEntry.AddMember("value", rapidjson::StringRef(entry.second.c_str()), allocator);
-                serverData.PushBack(serverEntry, allocator);
-            }
+           for (const auto& entry : initialEntries) {
+               rapidjson::Value serverEntry(rapidjson::kObjectType);
+               serverEntry.AddMember("key", rapidjson::StringRef(entry.first), allocator);
+               serverEntry.AddMember("value", rapidjson::StringRef(entry.second.c_str()), allocator);
+               serverData.PushBack(serverEntry, allocator);
+           }
 
-            const std::vector<const char*> redirectKeys = {
-                "nexus.portal", "antelope.groups.url", "service.discovery.url",
-                "synergy.tracking", "antelope.friends.url", "dmg.url",
-                "avatars.url", "synergy.m2u", "akamai.url", "synergy.pns",
-                "mayhem.url", "group.recommendations.url", "synergy.s2s",
-                "friend.recommendations.url", "geoip.url", "river.pin",
-                "origincasualserver.url", "ens.url", "eadp.friends.host",
-                "synergy.product", "synergy.drm", "synergy.user",
-                "antelope.inbox.url", "antelope.rtm.url", "friends.url",
-                "aruba.url", "synergy.cipgl", "nexus.connect",
-                "synergy.director", "pin.aruba.url", "nexus.proxy"
-            };
+           // Add Docker configuration to serverData if enabled
+           if (docker_enabled_) {
+               rapidjson::Value dockerConfigItem(rapidjson::kObjectType);
+               dockerConfigItem.AddMember("key", "docker.enabled", allocator);
+               dockerConfigItem.AddMember("value", "true", allocator);
+               serverData.PushBack(dockerConfigItem, allocator);
+               
+               // Convert port to string properly
+               std::string portStr = std::to_string(docker_port_);
+               rapidjson::Value dockerPortItem(rapidjson::kObjectType);
+               dockerPortItem.AddMember("key", "docker.port", allocator);
+               dockerPortItem.AddMember("value", rapidjson::Value(portStr.c_str(), allocator), allocator);
+               serverData.PushBack(dockerPortItem, allocator);
+               
+               logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
+                   "[DIRECTION] Added Docker configuration to serverData (port: %d)", docker_port_);
+           }
 
-            std::string baseUrl = protocol + "://" + server_address;
-            for (const auto& key : redirectKeys) {
-                rapidjson::Value serverEntry(rapidjson::kObjectType);
-                serverEntry.AddMember("key", rapidjson::StringRef(key), allocator);
-                serverEntry.AddMember("value", rapidjson::StringRef(baseUrl.c_str()), allocator);
-                serverData.PushBack(serverEntry, allocator);
-            }
+           const std::vector<const char*> redirectKeys = {
+               "nexus.portal", "antelope.groups.url", "service.discovery.url",
+               "synergy.tracking", "antelope.friends.url", "dmg.url",
+               "avatars.url", "synergy.m2u", "akamai.url", "synergy.pns",
+               "mayhem.url", "group.recommendations.url", "synergy.s2s",
+               "friend.recommendations.url", "geoip.url", "river.pin",
+               "origincasualserver.url", "ens.url", "eadp.friends.host",
+               "synergy.product", "synergy.drm", "synergy.user",
+               "antelope.inbox.url", "antelope.rtm.url", "friends.url",
+               "aruba.url", "synergy.cipgl", "nexus.connect",
+               "synergy.director", "pin.aruba.url", "nexus.proxy"
+           };
 
-            doc.AddMember("serverData", serverData, allocator);
-            doc.AddMember("telemetryFreq", 300, allocator);
+           std::string baseUrl = protocol + "://" + server_address;
+           if (docker_enabled_) {
+               baseUrl += ":" + std::to_string(docker_port_);
+           }
+           for (const auto& key : redirectKeys) {
+               rapidjson::Value serverEntry(rapidjson::kObjectType);
+               serverEntry.AddMember("key", rapidjson::StringRef(key), allocator);
+               serverEntry.AddMember("value", rapidjson::StringRef(baseUrl.c_str()), allocator);
+               serverData.PushBack(serverEntry, allocator);
+           }
 
-            std::string response = utils::serialization::serialize_json(doc);
-            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
-                "[DIRECTION] Response for %s platform: %s", platform.c_str(), response.c_str());
+           doc.AddMember("serverData", serverData, allocator);
+           doc.AddMember("telemetryFreq", 300, allocator);
 
-            cb(response);
-        }
-        catch (const std::exception& ex) {
-            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
-                "[DIRECTION] Error handling %s platform: %s", platform.c_str(), ex.what());
-            ctx->set_response_http_code(500);
-            cb("");
-        }
-    }
+           std::string response = utils::serialization::serialize_json(doc);
+           logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
+               "[DIRECTION] Response for %s platform: %s", platform.c_str(), response.c_str());
 
-
+           cb(response);
+       }
+       catch (const std::exception& ex) {
+           logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+               "[DIRECTION] Error handling %s platform: %s", platform.c_str(), ex.what());
+           ctx->set_response_http_code(500);
+           cb("");
+       }
+   }
 
     void TSTOServer::handle_lobby_time(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
         const evpp::http::HTTPSendResponseCallback& cb) {
@@ -229,9 +263,6 @@ namespace tsto {
         cb(utils::serialization::serialize_json(doc));
     }
 
-
-
-
     void TSTOServer::handle_pin_events(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
         const evpp::http::HTTPSendResponseCallback& cb) {
         try {
@@ -271,7 +302,6 @@ namespace tsto {
             cb("");
         }
     }
-
 
     void TSTOServer::handle_geoage_requirements(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
         const evpp::http::HTTPSendResponseCallback& cb) {
@@ -632,7 +662,5 @@ namespace tsto {
             cb("");
         }
     }
-
-
 
 }
