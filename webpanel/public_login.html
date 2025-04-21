@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TSTO Public Login</title>
+    <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --simpsons-yellow: #FED90F;
+            --simpsons-blue: #3E67B1;
+            --simpsons-red: #E53935;
+            --simpsons-green: #7BC142;
+            --simpsons-white: #ffffff;
+            --simpsons-black: #333333;
+            --simpsons-orange: #F57C00;
+            --simpsons-panel: #FFF3D4;
+            --simpsons-shadow: rgba(0, 0, 0, 0.3);
+        }
+
+        html {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Comic Neue', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: url('images/background.png') no-repeat center center fixed;
+            background-size: cover;
+            min-height: 100vh;
+            color: var(--simpsons-black);
+            box-sizing: border-box;
+        }
+        
+        /* Dark mode */
+        body.dark-mode {
+            --background: #1a1a2e;
+            --panel-bg: #282838;
+            --text-color: var(--simpsons-yellow);
+            --text-primary: var(--simpsons-yellow);
+            --text-secondary: var(--simpsons-orange);
+            --border-color: var(--simpsons-blue);
+            --hover-bg: #2d2d44;
+            --input-bg: #1f1f2f;
+            --editor-bg: #1E1E2E;
+            background-color: var(--background);
+            color: var(--text-color);
+        }
+        
+        body.dark-mode .panel {
+            background-color: var(--panel-bg);
+            border-color: var(--text-color);
+        }
+        
+        body.dark-mode h2 {
+            color: var(--text-color);
+            border-bottom-color: var(--text-color);
+        }
+        
+        body.dark-mode .form-group label {
+            color: var(--text-color);
+        }
+        
+        body.dark-mode input[type="text"],
+        body.dark-mode input[type="email"],
+        body.dark-mode input[type="password"],
+        body.dark-mode select {
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            border-color: var(--border-color);
+        }
+        
+        body.dark-mode .theme-toggle {
+            background-color: #333;
+            color: var(--simpsons-yellow);
+            border-color: var(--simpsons-yellow);
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .panel {
+            background-color: var(--simpsons-panel);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 6px 10px var(--simpsons-shadow);
+            border: 4px solid var(--simpsons-yellow);
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--simpsons-yellow);
+            margin-bottom: 30px;
+            font-size: 48px;
+            font-weight: bold;
+            text-shadow: 2px 2px 0 var(--simpsons-black), 
+                        -2px -2px 0 var(--simpsons-black),
+                        2px -2px 0 var(--simpsons-black),
+                        -2px 2px 0 var(--simpsons-black),
+                        0 2px 0 var(--simpsons-black),
+                        2px 0 0 var(--simpsons-black),
+                        0 -2px 0 var(--simpsons-black),
+                        -2px 0 0 var(--simpsons-black);
+            letter-spacing: 1px;
+        }
+
+        h2 {
+            color: var(--simpsons-blue);
+            border-bottom: 2px solid var(--simpsons-blue);
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: var(--simpsons-blue);
+        }
+
+        input[type="text"],
+        input[type="email"],
+        input[type="password"],
+        select {
+            width: 100%;
+            padding: 12px 15px;
+            border-radius: 10px;
+            border: 2px solid var(--simpsons-blue);
+            font-family: 'Comic Neue', sans-serif;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+
+        button {
+            background-color: var(--simpsons-blue);
+            color: white;
+            border: none;
+            padding: 14px 24px;
+            border-radius: 10px;
+            font-family: 'Comic Neue', sans-serif;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-block;
+            box-shadow: 0 4px 0 #2A4B85;
+            position: relative;
+            top: 0;
+        }
+
+        button:hover {
+            background-color: #5482D0;
+            top: -2px;
+            box-shadow: 0 6px 0 #2A4B85;
+        }
+        
+        button:active {
+            top: 4px;
+            box-shadow: 0 0 0 #2A4B85;
+        }
+
+        .response {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            display: none;
+        }
+
+        .success {
+            background-color: var(--simpsons-green);
+            color: white;
+        }
+
+        .error {
+            background-color: var(--simpsons-red);
+            color: white;
+        }
+
+        .info {
+            background-color: var(--simpsons-blue);
+            color: white;
+        }
+
+        .theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: var(--simpsons-yellow);
+            color: var(--simpsons-black);
+            border: 2px solid var(--simpsons-black);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            z-index: 100;
+        }
+
+        .donut {
+            position: fixed;
+            width: 100px;
+            height: 100px;
+            z-index: -1;
+        }
+
+        .donut1 {
+            top: 10%;
+            left: 5%;
+            animation: float 8s ease-in-out infinite;
+        }
+
+        .donut2 {
+            top: 20%;
+            right: 5%;
+            animation: float 10s ease-in-out infinite;
+            animation-delay: 1s;
+        }
+
+        .donut3 {
+            bottom: 10%;
+            left: 10%;
+            animation: float 9s ease-in-out infinite;
+            animation-delay: 2s;
+        }
+
+        .donut4 {
+            bottom: 15%;
+            right: 10%;
+            animation: float 11s ease-in-out infinite;
+            animation-delay: 3s;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(10deg); }
+            100% { transform: translateY(0) rotate(0deg); }
+        }
+
+        .back-button {
+            display: inline-block;
+            color: var(--simpsons-blue);
+            text-decoration: none;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        .back-button:hover {
+            text-decoration: underline;
+        }
+
+        .forgot-password {
+            text-align: right;
+            margin-top: 5px;
+        }
+
+        .forgot-password a {
+            color: var(--simpsons-blue);
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .forgot-password a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="theme-toggle" onclick="toggleTheme()">
+        <i class="fas fa-moon"></i>
+    </div>
+
+    <!-- Decorative Donuts -->
+    <svg class="donut donut1" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="40" fill="#F57C00" />
+        <circle cx="50" cy="50" r="15" fill="#FFF3D4" />
+        <circle cx="50" cy="50" r="45" fill="none" stroke="#FED90F" stroke-width="3" />
+        <circle cx="30" cy="35" r="5" fill="#E53935" />
+        <circle cx="65" cy="30" r="5" fill="#7BC142" />
+        <circle cx="70" cy="60" r="5" fill="#3E67B1" />
+    </svg>
+    
+    <svg class="donut donut2" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="40" fill="#E53935" />
+        <circle cx="50" cy="50" r="15" fill="#FFF3D4" />
+        <circle cx="50" cy="50" r="45" fill="none" stroke="#FED90F" stroke-width="3" />
+        <circle cx="30" cy="35" r="5" fill="#7BC142" />
+        <circle cx="65" cy="30" r="5" fill="#F57C00" />
+        <circle cx="70" cy="60" r="5" fill="#3E67B1" />
+    </svg>
+    
+    <svg class="donut donut3" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="40" fill="#7BC142" />
+        <circle cx="50" cy="50" r="15" fill="#FFF3D4" />
+        <circle cx="50" cy="50" r="45" fill="none" stroke="#FED90F" stroke-width="3" />
+        <circle cx="30" cy="35" r="5" fill="#E53935" />
+        <circle cx="65" cy="30" r="5" fill="#F57C00" />
+        <circle cx="70" cy="60" r="5" fill="#3E67B1" />
+    </svg>
+    
+    <svg class="donut donut4" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="40" fill="#3E67B1" />
+        <circle cx="50" cy="50" r="15" fill="#FFF3D4" />
+        <circle cx="50" cy="50" r="45" fill="none" stroke="#FED90F" stroke-width="3" />
+        <circle cx="30" cy="35" r="5" fill="#E53935" />
+        <circle cx="65" cy="30" r="5" fill="#F57C00" />
+        <circle cx="70" cy="60" r="5" fill="#7BC142" />
+    </svg>
+
+    <div class="container">
+        <h1>Welcome to TSTO</h1>
+        
+        <div class="panel" id="login-section">
+            <h2>Login to Your Account</h2>
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="login-email">Email Address</label>
+                    <input type="email" id="login-email" name="email" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" name="password" required>
+                    <div class="forgot-password">
+                        <a href="#" onclick="showRequestCodeForm()">Forgot password?</a>
+                    </div>
+                </div>
+                
+                <button type="submit" id="login-button">Login</button>
+            </form>
+            
+            <div id="login-response" class="response"></div>
+            
+            <div style="margin-top: 20px; text-align: center;">
+                <p>Don't have an account? <a href="public_register.html" style="color: var(--simpsons-blue); font-weight: bold;">Register here</a></p>
+            </div>
+        </div>
+        
+        <div class="panel" id="request-code-section" style="display: none;">
+            <h2>Reset Password</h2>
+            
+            <!-- Step 1: Request Code -->
+            <div id="reset-step-1">
+                <p>Enter your email address to receive a verification code.</p>
+                <form id="request-code-form">
+                    <div class="form-group">
+                        <label for="request-email">Email Address</label>
+                        <input type="email" id="request-email" name="email" required>
+                    </div>
+                    
+                    <button type="submit" id="request-button">Request Code</button>
+                </form>
+                
+                <div id="request-response" class="response"></div>
+            </div>
+            
+            <!-- Step 2: Reset Password -->
+            <div id="reset-step-2" style="display: none;">
+                <p>Enter the verification code sent to your email and your new password.</p>
+                <form id="reset-password-form">
+                    <div class="form-group">
+                        <label for="reset-email">Email Address</label>
+                        <input type="email" id="reset-email" name="email" readonly>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="reset-code">Verification Code</label>
+                        <input type="text" id="reset-code" name="code" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="reset-password">New Password</label>
+                        <input type="password" id="reset-password" name="password" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="reset-confirm">Confirm Password</label>
+                        <input type="password" id="reset-confirm" name="confirm" required>
+                    </div>
+                    
+                    <button type="submit" id="reset-button">Reset Password</button>
+                </form>
+                
+                <div id="reset-response" class="response"></div>
+            </div>
+            
+            <a href="#" class="back-button" onclick="showLoginForm()">
+                <i class="fas fa-arrow-left"></i> Back to Login
+            </a>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if user is already logged in
+            checkLoginStatus();
+            
+            // Event Listeners
+            document.getElementById('login-form').addEventListener('submit', handleLogin);
+            document.getElementById('request-code-form').addEventListener('submit', handleRequestCode);
+            document.getElementById('reset-password-form').addEventListener('submit', handleResetPassword);
+            
+            // Initialize theme
+            const isDarkMode = localStorage.getItem('darkMode') === 'true';
+            if (isDarkMode) {
+                document.body.classList.add('dark-mode');
+                document.querySelector('.theme-toggle i').classList.remove('fa-moon');
+                document.querySelector('.theme-toggle i').classList.add('fa-sun');
+            }
+        });
+        
+        // Functions
+        function checkLoginStatus() {
+            // Get token from localStorage
+            const token = localStorage.getItem('publicUserToken');
+            const email = localStorage.getItem('publicUserEmail');
+            
+            if (token && email) {
+                // Validate token on server
+                fetch('/api/public/validate_token', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: email,
+                        token: token
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Token is valid, redirect to dashboard
+                        window.location.href = 'public_dashboard.html';
+                    } else {
+                        // Token is invalid, clear localStorage
+                        localStorage.removeItem('publicUserToken');
+                        localStorage.removeItem('publicUserEmail');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error validating token:', error);
+                });
+            }
+        }
+        
+        function handleLogin(event) {
+            event.preventDefault();
+            
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            const responseElement = document.getElementById('login-response');
+            
+            // Clear previous response
+            responseElement.textContent = '';
+            responseElement.className = 'response';
+            
+            // Show loading message
+            responseElement.textContent = 'Logging in...';
+            responseElement.className = 'response info';
+            responseElement.style.display = 'block';
+            
+            // Disable login button
+            const loginButton = document.getElementById('login-button');
+            loginButton.disabled = true;
+            loginButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Logging in...';
+            
+            // Send login request
+            fetch('/api/public/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    email: email,
+                    password: password
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Store token in localStorage
+                    localStorage.setItem('publicUserToken', data.token);
+                    localStorage.setItem('publicUserEmail', email);
+                    
+                    // Show success message
+                    responseElement.textContent = 'Login successful! Redirecting...';
+                    responseElement.className = 'response success';
+                    
+                    // Redirect to dashboard
+                    setTimeout(function() {
+                        window.location.href = 'public_dashboard.html';
+                    }, 1000);
+                } else {
+                    // Show error message
+                    responseElement.textContent = data.error || 'Login failed. Please check your credentials.';
+                    responseElement.className = 'response error';
+                    
+                    // Re-enable login button
+                    loginButton.disabled = false;
+                    loginButton.textContent = 'Login';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                responseElement.textContent = 'An error occurred. Please try again later.';
+                responseElement.className = 'response error';
+                
+                // Re-enable login button
+                loginButton.disabled = false;
+                loginButton.textContent = 'Login';
+            });
+        }
+        
+        function handleRequestCode(event) {
+            event.preventDefault();
+            
+            const email = document.getElementById('request-email').value;
+            const responseElement = document.getElementById('request-response');
+            
+            // Clear previous response
+            responseElement.textContent = '';
+            responseElement.className = 'response';
+            
+            // Show loading message
+            responseElement.textContent = 'Sending request...';
+            responseElement.className = 'response info';
+            responseElement.style.display = 'block';
+            
+            // Disable request button
+            const requestButton = document.getElementById('request-button');
+            requestButton.disabled = true;
+            requestButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+            
+            // Send request
+            fetch('/api/public/request_code', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    email: email
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Show success message
+                    responseElement.textContent = 'Verification code sent! Please check your email.';
+                    responseElement.className = 'response success';
+                    
+                    // Show the reset password form
+                    document.getElementById('reset-step-1').style.display = 'none';
+                    document.getElementById('reset-step-2').style.display = 'block';
+                    
+                    // Set the email in the reset form
+                    document.getElementById('reset-email').value = email;
+                } else {
+                    // Show error message
+                    responseElement.textContent = data.error || 'Failed to send verification code.';
+                    responseElement.className = 'response error';
+                }
+                
+                // Re-enable request button
+                requestButton.disabled = false;
+                requestButton.textContent = 'Request Code';
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                responseElement.textContent = 'An error occurred. Please try again later.';
+                responseElement.className = 'response error';
+                
+                // Re-enable request button
+                requestButton.disabled = false;
+                requestButton.textContent = 'Request Code';
+            });
+        }
+        
+        function showLoginForm() {
+            document.getElementById('login-section').style.display = 'block';
+            document.getElementById('request-code-section').style.display = 'none';
+        }
+        
+        function showRequestCodeForm() {
+            document.getElementById('login-section').style.display = 'none';
+            document.getElementById('request-code-section').style.display = 'block';
+            document.getElementById('reset-step-1').style.display = 'block';
+            document.getElementById('reset-step-2').style.display = 'none';
+            document.getElementById('request-response').textContent = '';
+            document.getElementById('request-response').className = 'response';
+            document.getElementById('request-response').style.display = 'none';
+            document.getElementById('reset-response').textContent = '';
+            document.getElementById('reset-response').className = 'response';
+            document.getElementById('reset-response').style.display = 'none';
+        }
+        
+        function handleResetPassword(event) {
+            event.preventDefault();
+            
+            const email = document.getElementById('reset-email').value;
+            const code = document.getElementById('reset-code').value;
+            const password = document.getElementById('reset-password').value;
+            const confirmPassword = document.getElementById('reset-confirm').value;
+            const responseElement = document.getElementById('reset-response');
+            
+            // Clear previous response
+            responseElement.textContent = '';
+            responseElement.className = 'response';
+            
+            // Validate passwords match
+            if (password !== confirmPassword) {
+                responseElement.textContent = 'Passwords do not match';
+                responseElement.className = 'response error';
+                responseElement.style.display = 'block';
+                return;
+            }
+            
+            // Show loading message
+            responseElement.textContent = 'Resetting password...';
+            responseElement.className = 'response info';
+            responseElement.style.display = 'block';
+            
+            // Disable reset button
+            const resetButton = document.getElementById('reset-button');
+            resetButton.disabled = true;
+            resetButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Resetting...';
+            
+            // Send request
+            fetch('/api/public/reset_password', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    email: email,
+                    code: code,
+                    password: password
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Show success message
+                    responseElement.textContent = 'Password reset successful! You can now login with your new password.';
+                    responseElement.className = 'response success';
+                    
+                    // Redirect to login after 3 seconds
+                    setTimeout(() => {
+                        showLoginForm();
+                    }, 3000);
+                } else {
+                    // Show error message
+                    responseElement.textContent = data.error || 'Failed to reset password.';
+                    responseElement.className = 'response error';
+                }
+                
+                // Re-enable reset button
+                resetButton.disabled = false;
+                resetButton.textContent = 'Reset Password';
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                responseElement.textContent = 'An error occurred. Please try again later.';
+                responseElement.className = 'response error';
+                
+                // Re-enable reset button
+                resetButton.disabled = false;
+                resetButton.textContent = 'Reset Password';
+            });
+        }
+        
+        function toggleTheme() {
+            const body = document.body;
+            const icon = document.querySelector('.theme-toggle i');
+            
+            body.classList.toggle('dark-mode');
+            
+            if (body.classList.contains('dark-mode')) {
+                icon.classList.remove('fa-moon');
+                icon.classList.add('fa-sun');
+                localStorage.setItem('darkMode', 'true');
+            } else {
+                icon.classList.remove('fa-sun');
+                icon.classList.add('fa-moon');
+                localStorage.setItem('darkMode', 'false');
+            }
+        }
+    </script>
+	    <footer style="text-align: center; padding: 20px; margin-top: 30px; color: var(--text-primary); font-size: 14px; font-family: 'Comic Neue', cursive;">
+     Server created and designed by BodNJenie&trade;
+    </footer>
+</body>
+</html>

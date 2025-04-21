@@ -1,5 +1,6 @@
 #include <std_include.hpp>
 #include "game.hpp"
+#include "game_config_cache.hpp"
 #include <rapidjson/document.h>
 #include <rapidjson/writer.h>
 #include <rapidjson/stringbuffer.h>
@@ -10,77 +11,75 @@
 #include <tuple>
 #include <string>
 
+//todo proto config to json 
+
 namespace tsto::game {
 
     void Game::handle_gameplay_config(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
         const evpp::http::HTTPSendResponseCallback& cb) {
-        
+
         const std::string method = ctx->GetMethod();
-        
-        logger::write(logger::LOG_LEVEL_INCOMING, logger::LOG_LABEL_GAME, 
-            "[GAMEPLAY-CONFIG] Handling request from %s, Method: %s, URI: %s", 
+
+        logger::write(logger::LOG_LEVEL_INCOMING, logger::LOG_LABEL_GAME,
+            "[GAMEPLAY-CONFIG] Handling request from %s, Method: %s, URI: %s",
             ctx->remote_ip().data(), method.c_str(), ctx->uri().c_str());
-        
-        // For game client requests, we need to return a protobuf response
-        // For simplicity, we'll assume all requests to this endpoint are from the game client
-        // unless they explicitly have browser headers or are POST requests
-        
+
         bool is_web_request = false;
-        
-        // Check if this is a web request by examining the URI and headers
+
         if (method == "POST") {
             is_web_request = true;
-        } else if (ctx->uri().find("/api/config/game") == 0) {
-            // Requests to /api/config/game are always web requests
+        }
+        else if (ctx->uri().find("/api/config/game") == 0) {
             is_web_request = true;
-        } else {
+        }
+        else {
             try {
-                std::string accept_header = ctx->FindRequestHeader("Accept");
-                if (!accept_header.empty() && 
-                    (accept_header.find("application/json") != std::string::npos || 
-                     accept_header.find("text/html") != std::string::npos)) {
-                    is_web_request = true;
+                const char* accept_header_ptr = ctx->FindRequestHeader("Accept");
+                if (accept_header_ptr != nullptr) {
+                    std::string accept_header = accept_header_ptr;
+                    if (!accept_header.empty() &&
+                        (accept_header.find("application/json") != std::string::npos ||
+                            accept_header.find("text/html") != std::string::npos)) {
+                        is_web_request = true;
+                    }
                 }
-                
-            } catch (...) {
-                //ignore exceptions, assume it's a game client
+            }
+            catch (...) {
             }
         }
-        
-        logger::write(logger::LOG_LEVEL_INCOMING, logger::LOG_LABEL_GAME, 
-            "[GAMEPLAY-CONFIG] Request identified as: %s", 
+
+        logger::write(logger::LOG_LEVEL_INCOMING, logger::LOG_LABEL_GAME,
+            "[GAMEPLAY-CONFIG] Request identified as: %s",
             is_web_request ? "Web Browser" : "Game Client");
-        
+
         if (method == "GET" && is_web_request) {
-            //GET request from web browser - return the current config as JSON
             try {
                 std::string json_data;
                 if (!utils::io::read_file("config.json", &json_data)) {
                     throw std::runtime_error("Failed to read config.json");
                 }
 
-                // Validate JSON before sending it to the client
                 rapidjson::Document doc;
                 doc.Parse<rapidjson::kParseCommentsFlag | rapidjson::kParseTrailingCommasFlag>(json_data.c_str());
 
                 if (doc.HasParseError()) {
                     rapidjson::ParseErrorCode error = doc.GetParseError();
                     size_t errorOffset = doc.GetErrorOffset();
-                    
+
                     std::string errorContext;
                     size_t start = (errorOffset > 20) ? errorOffset - 20 : 0;
-                    size_t length = 40; // Show about 40 characters around the error
+                    size_t length = 40;        
                     if (start + length > json_data.size()) {
                         length = json_data.size() - start;
                     }
                     errorContext = json_data.substr(start, length);
-                    
+
                     std::replace(errorContext.begin(), errorContext.end(), '\n', ' ');
-                    
-                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME, 
-                        "[GAMEPLAY-CONFIG] JSON parse error: code %d at offset %zu, context: '...%s...'", 
+
+                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                        "[GAMEPLAY-CONFIG] JSON parse error: code %d at offset %zu, context: '...%s...'",
                         error, errorOffset, errorContext.c_str());
-                    
+
                     throw std::runtime_error("Failed to parse config.json: parse error at offset " + std::to_string(errorOffset));
                 }
 
@@ -89,8 +88,8 @@ namespace tsto::game {
                 doc.Accept(writer);
                 std::string formatted_json = buffer.GetString();
 
-                logger::write(logger::LOG_LEVEL_RESPONSE, logger::LOG_LABEL_GAME, 
-                    "[GAMEPLAY-CONFIG] Sending JSON response to web client (%zu bytes)", 
+                logger::write(logger::LOG_LEVEL_RESPONSE, logger::LOG_LABEL_GAME,
+                    "[GAMEPLAY-CONFIG] Sending JSON response to web client (%zu bytes)",
                     formatted_json.size());
 
                 ctx->AddResponseHeader("Content-Type", "application/json");
@@ -101,7 +100,7 @@ namespace tsto::game {
                 return;
             }
             catch (const std::exception& ex) {
-                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME, 
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
                     "[GAMEPLAY-CONFIG] Error reading config: %s", ex.what());
                 ctx->set_response_http_code(500);
                 ctx->AddResponseHeader("Content-Type", "application/json");
@@ -109,9 +108,8 @@ namespace tsto::game {
                 return;
             }
         }
-        
+
         if (method == "POST") {
-            //POST request - update the config
             try {
                 std::string body = ctx->body().ToString();
                 rapidjson::Document doc;
@@ -121,16 +119,19 @@ namespace tsto::game {
                     throw std::runtime_error("Invalid JSON format in request body");
                 }
 
-                //save new configuration to file
                 if (!utils::io::write_file("config.json", body)) {
                     throw std::runtime_error("Failed to write config.json");
                 }
+
+                tsto::game::GameConfigCache::invalidate();
+                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                    "[GAMEPLAY-CONFIG] Configuration updated, cache invalidated");
 
                 ctx->AddResponseHeader("Content-Type", "application/json");
                 cb("{\"status\": \"success\"}");
             }
             catch (const std::exception& ex) {
-                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME, 
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
                     "[GAMEPLAY-CONFIG] Error updating config: %s", ex.what());
                 ctx->set_response_http_code(500);
                 cb("");
@@ -138,57 +139,38 @@ namespace tsto::game {
             return;
         }
 
-        // GET from game client - TSTO
         try {
             Data::GameplayConfigResponse response;
-            
-            //read the config file
-            std::string json_data;
-            if (!utils::io::read_file("config.json", &json_data)) {
-                throw std::runtime_error("Failed to read config.json");
-            }
 
-            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME, 
-                "[GAMEPLAY-CONFIG] Parsing JSON data (%zu bytes)", json_data.size());
+            if (!tsto::game::GameConfigCache::is_valid()) {
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
+                    "[GAMEPLAY-CONFIG] Cache invalid, loading config from file");
 
-            rapidjson::Document doc;
-            doc.Parse<rapidjson::kParseCommentsFlag | rapidjson::kParseTrailingCommasFlag>(json_data.c_str());
-
-            if (doc.HasParseError()) {
-                rapidjson::ParseErrorCode error = doc.GetParseError();
-                size_t errorOffset = doc.GetErrorOffset();
-                
-                std::string errorContext;
-                size_t start = (errorOffset > 20) ? errorOffset - 20 : 0;
-                size_t length = 40; // Show about 40 characters around the error
-                if (start + length > json_data.size()) {
-                    length = json_data.size() - start;
+                if (!tsto::game::GameConfigCache::load()) {
+                    throw std::runtime_error("Failed to load config.json into cache");
                 }
-                errorContext = json_data.substr(start, length);
-                
-                std::replace(errorContext.begin(), errorContext.end(), '\n', ' ');
-                
-                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME, 
-                    "[GAMEPLAY-CONFIG] JSON parse error: code %d at offset %zu, context: '...%s...'", 
-                    error, errorOffset, errorContext.c_str());
-                
-                throw std::runtime_error("Failed to parse config.json: parse error at offset " + std::to_string(errorOffset));
             }
+            else {
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
+                    "[GAMEPLAY-CONFIG] Using cached configuration");
+            }
+
+            const rapidjson::Document& doc = tsto::game::GameConfigCache::get_document();
 
             if (!doc.IsObject()) {
-                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME, 
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
                     "[GAMEPLAY-CONFIG] JSON root is not an object");
                 throw std::runtime_error("Invalid config.json structure: root is not an object");
             }
 
             if (!doc.HasMember("GameplayConfig")) {
-                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME, 
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
                     "[GAMEPLAY-CONFIG] Missing GameplayConfig object");
                 throw std::runtime_error("Invalid config.json structure: missing GameplayConfig object");
             }
 
             if (!doc["GameplayConfig"].IsObject()) {
-                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME, 
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
                     "[GAMEPLAY-CONFIG] GameplayConfig is not an object");
                 throw std::runtime_error("Invalid config.json structure: GameplayConfig is not an object");
             }
@@ -196,10 +178,9 @@ namespace tsto::game {
             const auto& config = doc["GameplayConfig"];
             response.mutable_item()->Reserve(config.MemberCount());
 
-            //all config items from the JSON
             for (auto it = config.MemberBegin(); it != config.MemberEnd(); ++it) {
                 if (!it->name.IsString() || !it->value.IsString()) {
-                    logger::write(logger::LOG_LEVEL_WARN, logger::LOG_LABEL_GAME, 
+                    logger::write(logger::LOG_LEVEL_WARN, logger::LOG_LABEL_GAME,
                         "[GAMEPLAY-CONFIG] Skipping non-string config item");
                     continue;
                 }
@@ -213,20 +194,20 @@ namespace tsto::game {
             }
 
             ctx->AddResponseHeader("Content-Type", "application/x-protobuf");
-            
+
             std::string serialized;
             if (!response.SerializeToString(&serialized)) {
                 throw std::runtime_error("Failed to serialize protobuf response");
             }
 
-            logger::write(logger::LOG_LEVEL_RESPONSE, logger::LOG_LABEL_GAME, 
-                "[GAMEPLAY-CONFIG] Generated protobuf response with %zu items (%zu bytes)", 
+            logger::write(logger::LOG_LEVEL_RESPONSE, logger::LOG_LABEL_GAME,
+                "[GAMEPLAY-CONFIG] Generated protobuf response with %zu items (%zu bytes)",
                 config.MemberCount(), serialized.size());
 
             cb(serialized);
         }
         catch (const std::exception& ex) {
-            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME, 
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
                 "[GAMEPLAY-CONFIG] Error generating protobuf response: %s", ex.what());
             ctx->set_response_http_code(500);
             cb("");
@@ -245,11 +226,6 @@ namespace tsto::game {
 
 
 #ifdef DEBUG
-
-            //logger::write(logger::LOG_LEVEL_INCOMING, logger::LOG_LABEL_GAME,
-            //    "[CLIENT CONFIG] Request from %s - URI: %s",
-            //    ctx->remote_ip().data(),
-            //    ctx->uri().c_str());
 
 #endif 
 
@@ -289,7 +265,7 @@ namespace tsto::game {
                 {45, "TelemetryEnabled.android.amazon", "0"},
                 {47, "MinimumVersion.android.amazon", "4.69.0"},
                 {48, "CurrentVersion.android.amazon", "4.69.0"},
-                {52, "OriginAvatarsUrl", "https://m.avatar.dm.origin.com"},
+                {52, "OriginAvatarsUrl", "https://m.avatar.dm.origin.com"},   
                 {54, "TutorialDLCEnabled.io", "1"},
                 {55, "TutorialDLCEnabled.android", "1"},
                 {56, "TutorialDLCEnabled.android.amazon", "1"},
@@ -354,8 +330,6 @@ namespace tsto::game {
                 {138, "MaxSimultaneousBGDownloadsAndroid", "1"},
                 {139, "MaxSimultaneousBGDownloadsAmazon", "1"},
                 {140, "BGDownloadQuickCheckEnabled", "0"},
-                {1010, "MHVersion", "1"},
-                {1011, "RequestsPerSecond", "29"},
                 {996, "GeolocationCountryCode", "US"},
                 {997, "GeolocationCountryName", "United States"},
                 {950, "TntAuthUrl", "https://auth.tnt-ea.com"},
@@ -363,7 +337,6 @@ namespace tsto::game {
                 {952, "TntNucleusUrl", "https://nucleus.tnt-ea.com"},
                 {953, "OriginFriendUrl", "https://m.friends.dm.origin.com"},
                 {954, "SynergyUrl", "https://synergy.eamobile.com:443"},
-                {1015, "FriendsProxyUrl", "https://friends.simpsons-ea.com"},
                 {949, "SynergyFormatUrl", "https://%s.sn.eamobile.com"},
                 {995, "KillswitchAllowFriends", "0"},
                 {994, "ServerVersion", "local"},
@@ -371,10 +344,12 @@ namespace tsto::game {
                 {1001, "ParamUrl.ea.na", "https://kaleidoscope.ea.com?tag=81c4640c68f5eee1"},
                 {1002, "ParamUrl.ea.row", "https://kaleidoscope.ea.com?tag=4dada08e18133a83"},
                 {1003, "TntUrl", "https://tnt-auth.ea.com?trackingKey=3e92a468de3d2c33"},
-                {1011, "MH_Version", "2"}
+                {1010, "MHVersion", "1" },
+                {1011, "RequestsPerSecond", "29" },
+                {1011, "MH_Version", "2"},
+                {1015, "FriendsProxyUrl", "https://friends.simpsons-ea.com" }
             };
 
-            // Add all config items
             for (const auto& [id, name, value] : config_entries) {
                 auto* item = response.add_items();
                 item->set_clientconfigid(id);
@@ -391,11 +366,6 @@ namespace tsto::game {
 
 
 #ifdef DEBUG
-
-            //logger::write(logger::LOG_LEVEL_RESPONSE, logger::LOG_LABEL_GAME,
-            //    "[CLIENT CONFIG] Sending %zu items (%zu bytes)",
-            //    config_entries.size(),
-            //    serialized.size());
 
 #endif 
 

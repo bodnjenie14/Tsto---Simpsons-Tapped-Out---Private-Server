@@ -4,6 +4,7 @@
     <title>TSTO Game Configuration</title>
     <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="js/login.js"></script>
     <style>
         :root {
             --simpsons-yellow: #FED90F;
@@ -33,7 +34,7 @@
         body {
             font-family: 'Comic Neue', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
-            padding: 40px 20px;
+            padding: 20px;
             background: url('images/background.png') no-repeat center center fixed;
             background-size: cover;
             min-height: 100vh;
@@ -326,7 +327,7 @@
             box-shadow: 0 0 0 #2A4B85;
         }
 
-        /* Dark mode */
+        /* Dark mode styles */
         body.dark-mode {
             --background: #1a1a2e;
             --panel-bg: #282838;
@@ -336,20 +337,21 @@
             --border-color: var(--simpsons-blue);
             --hover-bg: #2d2d44;
             --input-bg: #1f1f2f;
-            --editor-bg: #1E1E2E;
             background-color: var(--background);
             color: var(--text-color);
         }
 
-        body.dark-mode .panel {
+        body.dark-mode .panel, 
+        body.dark-mode .tab-content,
+        body.dark-mode .config-container {
             background-color: var(--panel-bg);
             border-color: var(--text-color);
         }
 
         body.dark-mode .config-editor {
-            background-color: var(--editor-bg);
+            background-color: #282838;
             color: var(--text-color);
-            border-color: var(--border-color);
+            border-color: rgb(100, 100, 100);
         }
 
         body.dark-mode .form-input {
@@ -359,45 +361,151 @@
         }
 
         body.dark-mode .theme-toggle {
-            background-color: var(--input-bg);
-            color: var(--text-color);
+            background-color: #333;
+            color: var(--simpsons-yellow);
+            border-color: var(--simpsons-yellow);
         }
-
-        body.dark-mode .theme-toggle:hover {
+        
+        /* Removing hover effect as requested */
+        /* body.dark-mode .theme-toggle:hover {
             background-color: var(--hover-bg);
-        }
+        } */
 
         body.dark-mode h2 {
             color: var(--simpsons-yellow);
             border-bottom-color: var(--simpsons-yellow);
         }
-
-        body.dark-mode .form-group label {
+        
+        /* Dark mode styles for navigation bar */
+        body.dark-mode .nav-bar {
+            background-color: #1a1a2e;
+            border-color: var(--simpsons-yellow);
+        }
+        
+        body.dark-mode .nav-button {
+            color: var(--simpsons-yellow);
+            background-color: transparent;
+        }
+        
+        body.dark-mode .nav-button.active {
+            background-color: var(--simpsons-blue);
+            color: var(--simpsons-yellow);
+        }
+        
+        body.dark-mode .nav-button:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+        
+        body.dark-mode .nav-title {
             color: var(--simpsons-yellow);
         }
 
+        /* Theme toggle button with NO animations or hover effects */
         .theme-toggle {
-            position: fixed;
-            top: 20px;
-            right: 20px;
+            position: fixed !important;
+            top: 20px !important;
+            right: 20px !important;
+            background-color: var(--simpsons-yellow) !important;
+            color: var(--simpsons-black) !important;
+            border: 2px solid var(--simpsons-blue) !important;
+            border-radius: 50% !important;
+            width: 40px !important;
+            height: 40px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            cursor: pointer !important;
+            font-size: 24px !important;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2) !important;
+            z-index: 1000 !important;
+            font-weight: bold !important;
+            /* Explicitly disable all animations and transitions */
+            transition: none !important;
+            transform: none !important;
+            animation: none !important;
+        }
+        
+        /* Remove hover effect completely */
+        .theme-toggle:hover {
+            background-color: var(--simpsons-yellow) !important;
+        }
+        
+        /* Dark mode theme toggle with NO animations or hover effects */
+        body.dark-mode .theme-toggle {
+            background-color: #333 !important;
+            color: var(--simpsons-yellow) !important;
+            border-color: var(--simpsons-yellow) !important;
+        }
+        
+        /* Remove dark mode hover effect completely */
+        body.dark-mode .theme-toggle:hover {
+            background-color: #333 !important;
+        }
+
+        /* Navigation Bar Styles */
+        .nav-bar {
             background-color: var(--simpsons-blue);
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
+            padding: 10px 0;
+            margin-bottom: 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 8px var(--simpsons-shadow);
+            border: 4px solid var(--simpsons-yellow);
+            max-width: 1200px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        .nav-container {
             display: flex;
+            justify-content: space-between;
             align-items: center;
-            justify-content: center;
+            padding: 0 20px;
+        }
+        
+        .nav-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .nav-button {
+            background-color: var(--simpsons-yellow);
+            color: var(--simpsons-blue);
+            border: none;
+            padding: 8px 15px;
+            border-radius: 10px;
+            font-weight: bold;
+            text-decoration: none;
+            transition: background-color 0.3s ease;
             cursor: pointer;
-            font-size: 20px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            z-index: 1000;
+        }
+        
+        .nav-button:hover {
+            background-color: var(--simpsons-white);
+        }
+        
+        .nav-button.active {
+            background-color: var(--simpsons-white);
+            box-shadow: 0 2px 4px var(--simpsons-shadow);
+        }
+        
+        .logout-btn {
+            background-color: var(--simpsons-red);
+            color: white;
+        }
+        
+        .user-info {
+            color: var(--simpsons-white);
             font-weight: bold;
         }
 
-        .theme-toggle:hover {
-            background-color: #5482D0;
+        body.dark-mode .response {
+            background-color: rgba(123, 193, 66, 0.1);
+            border-left-color: var(--simpsons-green);
+        }
+        
+        body.dark-mode .response.error {
+            background-color: rgba(229, 57, 53, 0.2);
+            border-left-color: var(--simpsons-red);
         }
     </style>
     <script src="proto/client_config.js"></script>
@@ -421,6 +529,23 @@
     <button class="theme-toggle" id="theme-toggle">
         <i class="fas fa-moon"></i>
     </button>
+
+    <div class="nav-bar">
+        <div class="nav-container">
+            <div class="nav-buttons">
+                <a href="/dashboard.html" class="nav-button">Dashboard</a>
+                <a href="/town_operations.html" class="nav-button">Town Operations</a>
+                <a href="/game_config.html" class="nav-button active">Game Config</a>
+                <a href="/user_management.html" class="nav-button">User Management</a>
+                <a href="/user_search.html" class="nav-button">User Search</a>
+                <a href="/admin_management.html" class="nav-button">Admin Management</a>
+                <a href="#" onclick="logout(); return false;" class="nav-button logout-btn">Logout</a>
+            </div>
+            <div class="user-info">
+                <span id="current-user">Loading...</span>
+            </div>
+        </div>
+    </div>
 
     <div class="container">
         <h1>TSTO Game Configuration</h1>
@@ -727,6 +852,99 @@
         // Load initial data
         // loadClientConfig(); // Commented out as client config is not implemented yet
         loadGameplayConfig();
+        
+        // Function to update the current user display in the navigation bar
+        function updateCurrentUser() {
+            // Get the session token from cookies
+            const cookies = document.cookie.split(';');
+            let sessionToken = '';
+            
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.startsWith('tsto_session=')) {
+                    sessionToken = cookie.substring('tsto_session='.length);
+                    break;
+                }
+            }
+            
+            if (sessionToken) {
+                // Since we're on a protected page, we know we're authenticated
+                fetch('/api/auth/validate_session', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ token: sessionToken })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.username) {
+                        document.getElementById('current-user').innerHTML = `<i class="fas fa-user"></i> Logged in as: ${data.username}`;
+                    } else {
+                        // If we're on this page, we must be logged in, so get username from localStorage
+                        const username = localStorage.getItem('tsto_username') || 'User';
+                        document.getElementById('current-user').innerHTML = `<i class="fas fa-user"></i> Logged in as: ${username}`;
+                    }
+                    
+                    // Highlight the active page in the navigation
+                    highlightActivePage();
+                })
+                .catch(error => {
+                    console.error('Error validating session:', error);
+                    // Fallback to showing logged in status without username
+                    document.getElementById('current-user').innerHTML = `<i class="fas fa-user"></i> Logged in`;
+                });
+            } else {
+                // Fallback - if we're on a protected page, we must be logged in
+                document.getElementById('current-user').innerHTML = `<i class="fas fa-user"></i> Logged in`;
+            }
+        }
+        
+        // Function to highlight the active page in the navigation
+        function highlightActivePage() {
+            const currentPath = window.location.pathname;
+            const navButtons = document.querySelectorAll('.nav-button');
+            
+            navButtons.forEach(button => {
+                const href = button.getAttribute('href');
+                if (currentPath === href || 
+                    (currentPath === '/game_config.html' && href === '/game_config.html') ||
+                    (currentPath === '/game_config' && href === '/game_config.html')) {
+                    button.classList.add('active');
+                } else {
+                    button.classList.remove('active');
+                }
+            });
+        }
+        
+        // Function to handle logout
+        async function logoutUser() {
+            try {
+                // First, try the API endpoint
+                const response = await fetch('/logout', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                // Clear session token from cookies
+                document.cookie = 'tsto_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+                
+                // Clear username from localStorage
+                localStorage.removeItem('tsto_username');
+                
+                // Redirect to login page
+                window.location.href = '/login.html';
+            } catch (error) {
+                console.error('Error logging out:', error);
+                // Even if there's an error, try to redirect to login
+                window.location.href = '/login.html';
+            }
+        }
+        
+        // Call updateCurrentUser when the page loads
+        updateCurrentUser();
     </script>
     <footer style="text-align: center; padding: 20px; margin-top: 30px; color: var(--text-primary); font-size: 14px; font-family: 'Comic Neue', cursive;">
      Server created and designed by BodNJenie&trade;

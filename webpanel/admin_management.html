@@ -1,0 +1,1509 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TSTO Admin Management</title>
+    <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="js/login.js"></script>
+    <style>
+        :root {
+            --background: #ffffff;
+            --panel-bg: #FFF3D4;
+            --text-color: #333333;
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --border-color: #ddd;
+            --hover-bg: #f5f5f5;
+            --input-bg: #ffffff;
+            --editor-bg: #ffffff;
+            --simpsons-yellow: #FED90F;
+            --simpsons-blue: #3E67B1;
+            --simpsons-red: #E53935;
+            --simpsons-green: #7BC142;
+            --simpsons-white: #ffffff;
+            --simpsons-black: #333333;
+            --simpsons-orange: #F57C00;
+            --simpsons-panel: #FFF3D4;
+            --simpsons-shadow: rgba(0, 0, 0, 0.3);
+        }
+
+        html {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Comic Neue', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: url('images/background.png') no-repeat center center fixed;
+            background-size: cover;
+            min-height: 100vh;
+            color: var(--simpsons-black);
+            box-sizing: border-box;
+        }
+        
+        /* Dark mode */
+        body.dark-mode {
+            --background: #1a1a2e;
+            --panel-bg: #282838;
+            --text-color: var(--simpsons-yellow);
+            --text-primary: var(--simpsons-yellow);
+            --text-secondary: var(--simpsons-orange);
+            --border-color: var(--simpsons-blue);
+            --hover-bg: #2d2d44;
+            --input-bg: #1f1f2f;
+            --editor-bg: #1E1E2E;
+            background-color: var(--background);
+            color: var(--text-color);
+        }
+
+        body.dark-mode .panel,
+        body.dark-mode .modal-content,
+        body.dark-mode .user-list {
+            background-color: var(--panel-bg);
+            border-color: var(--text-color);
+        }
+
+        body.dark-mode input,
+        body.dark-mode select,
+        body.dark-mode textarea {
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            border-color: var(--border-color);
+        }
+
+        body.dark-mode button {
+            background-color: var(--simpsons-blue);
+            color: var(--text-color);
+            border-color: var(--border-color);
+        }
+
+        body.dark-mode button:hover {
+            background-color: #2a4b8d;
+        }
+
+        body.dark-mode h2,
+        body.dark-mode h3 {
+            color: var(--text-primary);
+            border-bottom-color: var(--text-primary);
+        }
+
+        body.dark-mode label {
+            color: var(--text-primary);
+        }
+
+        body.dark-mode .theme-toggle {
+            background-color: #333;
+            color: var(--simpsons-yellow);
+            border-color: var(--simpsons-yellow);
+        }
+        
+        body.dark-mode .theme-toggle:hover {
+            background-color: #444;
+        }
+
+        body.dark-mode .user-item {
+            background-color: var(--panel-bg);
+            border-color: var(--border-color);
+        }
+
+        body.dark-mode .user-item:hover {
+            background-color: var(--hover-bg);
+        }
+
+        body.dark-mode .role-description {
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            border-color: var(--border-color);
+        }
+
+        .theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: var(--simpsons-yellow);
+            color: var(--simpsons-black);
+            border: 2px solid var(--simpsons-blue);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 24px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 1000;
+            font-weight: bold;
+        }
+
+        .theme-toggle:hover {
+            background-color: #FFE44D;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel {
+            background-color: var(--simpsons-panel);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 6px 10px var(--simpsons-shadow);
+            border: 4px solid var(--simpsons-yellow);
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--simpsons-yellow);
+            margin-bottom: 30px;
+            font-size: 48px;
+            font-weight: bold;
+            text-shadow: 2px 2px 0 var(--simpsons-black), 
+                        -2px -2px 0 var(--simpsons-black),
+                        2px -2px 0 var(--simpsons-black),
+                        -2px 2px 0 var(--simpsons-black),
+                        0 2px 0 var(--simpsons-black),
+                        2px 0 0 var(--simpsons-black),
+                        0 -2px 0 var(--simpsons-black),
+                        -2px 0 0 var(--simpsons-black);
+            letter-spacing: 1px;
+        }
+
+        h2 {
+            color: var(--simpsons-blue);
+            margin-top: 0;
+            font-size: 24px;
+            border-bottom: 2px solid var(--simpsons-yellow);
+            padding-bottom: 8px;
+            display: inline-block;
+        }
+
+        .user-list {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .user-list th {
+            background-color: var(--simpsons-blue);
+            color: var(--simpsons-white);
+            padding: 12px;
+            text-align: left;
+            border-radius: 5px 5px 0 0;
+        }
+
+        .user-list td {
+            padding: 12px;
+            border-bottom: 1px solid rgba(62, 103, 177, 0.2);
+        }
+
+        .user-list tr:last-child td {
+            border-bottom: none;
+        }
+
+        .user-list tr:nth-child(even) {
+            background-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .user-list tr:hover {
+            background-color: rgba(254, 217, 15, 0.1);
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            font-family: 'Comic Neue', cursive;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 0 rgba(0,0,0,0.2);
+            position: relative;
+            top: 0;
+        }
+
+        .btn-primary {
+            background-color: var(--simpsons-blue);
+            color: var(--simpsons-white);
+            box-shadow: 0 4px 0 #2A4B85;
+        }
+
+        .btn-primary:hover {
+            background-color: #5482D0;
+            top: -2px;
+            box-shadow: 0 6px 0 #2A4B85;
+        }
+
+        .btn-primary:active {
+            top: 4px;
+            box-shadow: 0 0 0 #2A4B85;
+        }
+
+        .btn-danger {
+            background-color: var(--simpsons-red);
+            color: var(--simpsons-white);
+            box-shadow: 0 4px 0 #B71C1C;
+        }
+
+        .btn-danger:hover {
+            background-color: #F44336;
+            top: -2px;
+            box-shadow: 0 6px 0 #B71C1C;
+        }
+
+        .btn-danger:active {
+            top: 4px;
+            box-shadow: 0 0 0 #B71C1C;
+        }
+
+        .btn-success {
+            background-color: var(--simpsons-green);
+            color: var(--simpsons-white);
+            box-shadow: 0 4px 0 #4CAF50;
+        }
+
+        .btn-success:hover {
+            background-color: #8BC34A;
+            top: -2px;
+            box-shadow: 0 6px 0 #4CAF50;
+        }
+
+        .btn-success:active {
+            top: 4px;
+            box-shadow: 0 0 0 #4CAF50;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: var(--simpsons-blue);
+            font-size: 16px;
+        }
+
+        input[type="text"],
+        input[type="password"],
+        select {
+            width: 100%;
+            padding: 10px;
+            border-radius: 10px;
+            background-color: var(--simpsons-white);
+            color: var(--simpsons-black);
+            border: 3px solid var(--simpsons-blue);
+            font-size: 16px;
+            font-family: 'Comic Neue', cursive;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);
+            box-sizing: border-box;
+        }
+
+        input[type="text"]:focus,
+        input[type="password"]:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--simpsons-orange);
+            box-shadow: 0 0 0 3px rgba(245, 124, 0, 0.25);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: var(--simpsons-panel);
+            margin: 10% auto;
+            padding: 20px;
+            border: 4px solid var(--simpsons-yellow);
+            border-radius: 15px;
+            width: 80%;
+            max-width: 500px;
+            box-shadow: 0 6px 10px var(--simpsons-shadow);
+            position: relative;
+        }
+
+        .close {
+            position: absolute;
+            right: 20px;
+            top: 10px;
+            color: var(--simpsons-black);
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: var(--simpsons-red);
+        }
+
+        .modal-title {
+            margin-top: 0;
+            color: var(--simpsons-blue);
+            border-bottom: 2px solid var(--simpsons-yellow);
+            padding-bottom: 10px;
+        }
+
+        .modal-footer {
+            margin-top: 20px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .response {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 10px;
+            background-color: rgba(123, 193, 66, 0.2);
+            border-left: 4px solid var(--simpsons-green);
+            display: none;
+            font-weight: bold;
+        }
+
+        .error {
+            background-color: rgba(229, 57, 53, 0.2);
+            border-left-color: var(--simpsons-red);
+        }
+
+        .nav-links {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .nav-links a {
+            display: inline-block;
+            margin: 0 10px;
+            color: var(--simpsons-blue);
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        .nav-links a:hover {
+            color: var(--simpsons-orange);
+            text-decoration: underline;
+        }
+
+        /* Navigation Bar Styles */
+        .nav-bar {
+            background-color: var(--simpsons-blue);
+            padding: 10px 0;
+            margin-bottom: 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 8px var(--simpsons-shadow);
+            border: 4px solid var(--simpsons-yellow);
+            max-width: 1200px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        .nav-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+        }
+        
+        .nav-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .nav-button {
+            background-color: var(--simpsons-yellow);
+            color: var(--simpsons-blue);
+            border: none;
+            padding: 8px 15px;
+            border-radius: 10px;
+            font-weight: bold;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .nav-button:hover {
+            background-color: var(--simpsons-white);
+            transform: translateY(-2px);
+        }
+        
+        .nav-button.active {
+            background-color: var(--simpsons-white);
+            box-shadow: 0 2px 4px var(--simpsons-shadow);
+        }
+        
+        .logout-btn {
+            background-color: var(--simpsons-red);
+            color: white;
+        }
+        
+        .user-info {
+            color: var(--simpsons-white);
+            font-weight: bold;
+        }
+
+        body.dark-mode .nav-bar {
+            background-color: #1a1a2e;
+            border-color: var(--simpsons-yellow);
+        }
+        
+        body.dark-mode .nav-button {
+            color: var(--simpsons-yellow);
+            background-color: transparent;
+        }
+        
+        body.dark-mode .nav-button.active {
+            background-color: var(--simpsons-blue);
+            color: var(--simpsons-yellow);
+        }
+        
+        body.dark-mode .nav-button:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+        
+        body.dark-mode .nav-title {
+            color: var(--simpsons-yellow);
+        }
+
+        /* Decorative donuts */
+        .donut {
+            position: fixed;
+            width: 100px;
+            height: 100px;
+            z-index: -1;
+        }
+
+        .donut1 {
+            top: 10%;
+            left: 5%;
+            animation: float 8s ease-in-out infinite;
+        }
+
+        .donut2 {
+            top: 20%;
+            right: 5%;
+            animation: float 10s ease-in-out infinite;
+            animation-delay: 1s;
+        }
+
+        .donut3 {
+            bottom: 15%;
+            left: 10%;
+            animation: float 9s ease-in-out infinite;
+            animation-delay: 2s;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(0) rotate(0deg);
+            }
+            50% {
+                transform: translateY(-20px) rotate(10deg);
+            }
+            100% {
+                transform: translateY(0) rotate(0deg);
+            }
+        }
+        
+        .role-description {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 10px;
+            background-color: rgba(255, 255, 255, 0.5);
+            border-left: 4px solid var(--simpsons-blue);
+        }
+        
+        /* Top uploaders styling */
+        .top-uploader {
+            background-color: #F7DC6F;
+        }
+        
+        .rank-1 {
+            background-color: #FFD700;
+        }
+        
+        .rank-2 {
+            background-color: #C0C0C0;
+        }
+        
+        .rank-3 {
+            background-color: #CD7F32;
+        }
+        
+        /* Dark mode for top uploaders */
+        body.dark-mode .top-uploader {
+            background-color: #5D4037;
+            color: #FFF3D4;
+        }
+        
+        body.dark-mode .rank-1 {
+            background-color: #8D6E63;
+            color: #FFD700;
+        }
+        
+        body.dark-mode .rank-2 {
+            background-color: #795548;
+            color: #C0C0C0;
+        }
+        
+        body.dark-mode .rank-3 {
+            background-color: #6D4C41;
+            color: #CD7F32;
+        }
+    </style>
+</head>
+<body>
+    <!--decorative donuts-->
+    <svg class="donut donut1" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="40" fill="#FFA0B7" />
+        <circle cx="50" cy="50" r="15" fill="#FFF3D4" />
+    </svg>
+    <svg class="donut donut2" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="40" fill="#85C8F2" />
+        <circle cx="50" cy="50" r="15" fill="#FFF3D4" />
+    </svg>
+    <svg class="donut donut3" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="40" fill="#7BC142" />
+        <circle cx="50" cy="50" r="15" fill="#FFF3D4" />
+    </svg>
+
+    <div class="nav-bar">
+        <div class="nav-container">
+            <div class="nav-buttons">
+                <a href="/dashboard.html" class="nav-button">Dashboard</a>
+                <a href="/town_operations.html" class="nav-button">Town Operations</a>
+                <a href="/game_config.html" class="nav-button">Game Config</a>
+                <a href="/user_management.html" class="nav-button">User Management</a>
+                <a href="/user_search.html" class="nav-button">User Search</a>
+                <a href="/admin_management.html" class="nav-button active">Admin Management</a>
+                <a href="#" onclick="logout(); return false;" class="nav-button logout-btn">Logout</a>
+            </div>
+            <div class="user-info">
+                <span id="current-user">Loading...</span>
+            </div>
+        </div>
+    </div>
+
+    <button class="theme-toggle" id="theme-toggle">
+        <i class="fas fa-moon"></i>
+    </button>
+
+    <div class="container">
+        <h1>Admin Management</h1>
+        
+        <div class="panel">
+            <h2>User Management</h2>
+            <div class="action-bar">
+                <button id="add-user-btn" class="btn btn-success"><i class="fas fa-user-plus"></i> Add User</button>
+                <button id="refresh-btn" class="btn btn-primary"><i class="fas fa-sync-alt"></i> Refresh</button>
+                <button id="check-locked-accounts-btn" class="btn btn-warning"><i class="fas fa-lock"></i> Check Locked Accounts</button>
+            </div>
+            
+            <div id="response-message" class="alert" style="display: none;"></div>
+            
+            <table class="user-list">
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Role</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="user-list-body">
+                    <!-- User list will be populated here -->
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="panel">
+            <h2>Town Upload Statistics</h2>
+            <div class="action-bar">
+                <button id="refresh-stats-btn" class="btn btn-primary"><i class="fas fa-sync-alt"></i> Refresh Statistics</button>
+            </div>
+            
+            <div id="stats-loading" class="loading-indicator">
+                <i class="fas fa-spinner fa-spin"></i> Loading statistics...
+            </div>
+            
+            <div id="stats-error" class="alert alert-error" style="display: none;">
+                Failed to load statistics. Please try again.
+            </div>
+            
+            <table class="user-list" id="upload-stats-table">
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Total Uploads</th>
+                        <th>Total Approvals</th>
+                        <th>Last Upload</th>
+                    </tr>
+                </thead>
+                <tbody id="upload-stats-body">
+                    <!-- Upload statistics will be populated here -->
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="4" style="text-align: center; font-style: italic; color: var(--text-secondary);">
+                            Sorted by number of uploads (highest to lowest)
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        
+    </div>
+
+    <!-- Add/Edit User Modal -->
+    <div id="user-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h3 class="modal-title" id="modal-title">Add New User</h3>
+            <form id="user-form">
+                <input type="hidden" id="edit-mode" value="add">
+                
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="confirm-password">Confirm Password</label>
+                    <input type="password" id="confirm-password" name="confirm-password" required>
+                </div>
+                
+                <div class="form-group" id="role-group">
+                    <label for="role">Role</label>
+                    <select id="role" name="role" required>
+                        <option value="">Select a role</option>
+                        <option value="ADMIN">Admin</option>
+                        <option value="TOWN_OPERATOR">Town Operator</option>
+                        <option value="GAME_MODERATOR">Game Moderator</option>
+                        <!-- <option value="CONTENT_MANAGER">Content Manager</option> -->
+                        <!-- <option value="VIEWER">Viewer</option> -->
+                    </select>
+                    <div class="role-description" id="role-description">
+                        Select a role to see its description and permissions.
+                    </div>
+                </div>
+                
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-danger" id="cancel-btn">Cancel</button>
+                    <button type="submit" class="btn btn-success" id="save-btn">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="delete-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h3 class="modal-title">Confirm Delete</h3>
+            <p>Are you sure you want to delete the user <strong id="delete-username"></strong>?</p>
+            <input type="hidden" id="delete-user-id">
+            
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" id="cancel-delete-btn">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirm-delete-btn">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Locked Accounts Modal -->
+    <div id="locked-accounts-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h3 class="modal-title">Locked Accounts</h3>
+            <div id="locked-accounts-message" class="alert" style="display: none;"></div>
+            
+            <div id="no-locked-accounts" style="display: none;">
+                <p>There are currently no locked accounts.</p>
+            </div>
+            
+            <table id="locked-accounts-table" class="user-list" style="display: none;">
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="locked-accounts-body">
+                    <!-- Locked accounts will be populated here -->
+                </tbody>
+            </table>
+            
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" id="close-locked-accounts-btn">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Function to handle logout - defined globally
+        async function logoutUser() {
+            try {
+                // First, try the API endpoint
+                const response = await fetch('/logout', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                // Clear session token from cookies
+                document.cookie = 'tsto_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+                
+                // Clear username from localStorage
+                localStorage.removeItem('tsto_username');
+                
+                // Redirect to login page
+                window.location.href = '/login.html';
+            } catch (error) {
+                console.error('Error logging out:', error);
+                // Even if there's an error, try to redirect to login
+                window.location.href = '/login.html';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // DOM elements
+            const userModal = document.getElementById('user-modal');
+            const deleteModal = document.getElementById('delete-modal');
+            const closeButtons = document.querySelectorAll('.close');
+            const addUserBtn = document.getElementById('add-user-btn');
+            const refreshBtn = document.getElementById('refresh-btn');
+            const checkLockedAccountsBtn = document.getElementById('check-locked-accounts-btn');
+            const refreshStatsBtn = document.getElementById('refresh-stats-btn');
+            const userForm = document.getElementById('user-form');
+            const userListBody = document.getElementById('user-list-body');
+            const roleSelect = document.getElementById('role');
+            const roleDescription = document.getElementById('role-description');
+            const themeToggle = document.getElementById('theme-toggle');
+            
+            // Initial data load
+            loadUsers();
+            loadStatistics();
+            
+            // Event listeners
+            addUserBtn.addEventListener('click', function() {
+                document.getElementById('edit-mode').value = 'add';
+                document.getElementById('modal-title').textContent = 'Add New User';
+                userForm.reset();
+                userModal.style.display = 'block';
+            });
+            
+            refreshBtn.addEventListener('click', loadUsers);
+            
+            checkLockedAccountsBtn.addEventListener('click', checkLockedAccounts);
+            
+            refreshStatsBtn.addEventListener('click', loadStatistics);
+            
+            // Close modals when clicking on X
+            for (let i = 0; i < closeButtons.length; i++) {
+                closeButtons[i].addEventListener('click', function() {
+                    userModal.style.display = 'none';
+                    deleteModal.style.display = 'none';
+                });
+            }
+            
+            // Close modals when clicking outside
+            window.addEventListener('click', function(event) {
+                if (event.target === userModal) {
+                    userModal.style.display = 'none';
+                }
+                if (event.target === deleteModal) {
+                    deleteModal.style.display = 'none';
+                }
+            });
+            
+            // Form submission
+            userForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const username = document.getElementById('username').value;
+                const password = document.getElementById('password').value;
+                const confirmPassword = document.getElementById('confirm-password').value;
+                const role = document.getElementById('role').value;
+                
+                // Validate passwords
+                if (password !== confirmPassword) {
+                    showResponse('Passwords do not match!', true);
+                    return;
+                }
+                
+                // Create or update user
+                if (document.getElementById('edit-mode').value === 'add') {
+                    createUser(username, password, role);
+                } else {
+                    updateUser(username, password, role);
+                }
+            });
+            
+            // Add event listener for checking locked accounts
+            document.getElementById('check-locked-accounts-btn').addEventListener('click', function() {
+                checkLockedAccounts();
+            });
+            
+            // Add event listener for closing locked accounts modal
+            document.getElementById('close-locked-accounts-btn').addEventListener('click', function() {
+                document.getElementById('locked-accounts-modal').style.display = 'none';
+            });
+            
+            // Load users from API
+            function loadUsers() {
+                fetch('/api/users')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            renderUserList(data.users);
+                            
+                            // Check if current user is admin by counting the number of users
+                            // If more than 1 user is returned, the current user must be an admin
+                            const isAdmin = data.users.length > 1 || 
+                                           (data.users.length === 1 && data.users[0].role === 'ADMIN');
+                            
+                            // Show/hide add user button based on admin status
+                            const addUserBtn = document.getElementById('add-user-btn');
+                            addUserBtn.style.display = isAdmin ? 'inline-block' : 'none';
+                            
+                            // Show/hide check locked accounts button based on admin status
+                            const checkLockedAccountsBtn = document.getElementById('check-locked-accounts-btn');
+                            checkLockedAccountsBtn.style.display = isAdmin ? 'inline-block' : 'none';
+                        } else {
+                            showResponse(data.message || 'Failed to load users', true);
+                        }
+                    })
+                    .catch(error => {
+                        showResponse('An error occurred: ' + error.message, true);
+                    });
+            }
+            
+            // Render user list
+            function renderUserList(users) {
+                userListBody.innerHTML = '';
+                
+                users.forEach(user => {
+                    const row = document.createElement('tr');
+                    
+                    const usernameCell = document.createElement('td');
+                    usernameCell.textContent = user.username;
+                    
+                    const roleCell = document.createElement('td');
+                    roleCell.textContent = formatRole(user.role);
+                    
+                    const actionsCell = document.createElement('td');
+                    
+                    // Edit button
+                    const editBtn = document.createElement('button');
+                    editBtn.className = 'btn btn-primary';
+                    editBtn.textContent = 'Edit';
+                    editBtn.addEventListener('click', function() {
+                        editUser(user);
+                    });
+                    
+                    // Delete button (not for admin)
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.className = 'btn btn-danger';
+                    deleteBtn.textContent = 'Delete';
+                    deleteBtn.addEventListener('click', function() {
+                        showDeleteConfirmation(user.username);
+                    });
+                    
+                    // Add buttons to actions cell
+                    const actionButtons = document.createElement('div');
+                    actionButtons.className = 'action-buttons';
+                    actionButtons.appendChild(editBtn);
+                    
+                    // Don't allow deleting the admin user
+                    if (user.username !== 'admin') {
+                        actionButtons.appendChild(deleteBtn);
+                    }
+                    
+                    actionsCell.appendChild(actionButtons);
+                    
+                    // Add cells to row
+                    row.appendChild(usernameCell);
+                    row.appendChild(roleCell);
+                    row.appendChild(actionsCell);
+                    
+                    // Add row to table
+                    userListBody.appendChild(row);
+                });
+            }
+            
+            // Format role for display
+            function formatRole(role) {
+                if (role === 'ADMIN') {
+                    return 'Admin';
+                } else if (role === 'TOWN_OPERATOR') {
+                    return 'Town Operator';
+                } else if (role === 'GAME_MODERATOR') {
+                    return 'Game Moderator';
+                } else if (role === 'CONTENT_MANAGER') {
+                    return 'Content Manager';
+                } else if (role === 'VIEWER') {
+                    return 'Viewer';
+                } else {
+                    return role;
+                }
+            }
+            
+            // Show edit user modal
+            function editUser(user) {
+                document.getElementById('edit-mode').value = 'edit';
+                document.getElementById('modal-title').textContent = 'Edit User';
+                document.getElementById('username').value = user.username;
+                // Store original username for reference when updating
+                document.getElementById('edit-mode').setAttribute('data-original-username', user.username);
+                document.getElementById('password').value = ''; // Don't show password
+                document.getElementById('confirm-password').value = '';
+                document.getElementById('role').value = user.role;
+                
+                // Get the isAdmin value from the page context
+                // This is set during loadUsers() and uses the same logic as for the Add User button
+                const isAdmin = document.getElementById('add-user-btn').style.display !== 'none';
+                
+                // Show/hide role selection based on admin status
+                const roleGroup = document.getElementById('role-group');
+                roleGroup.style.display = isAdmin ? 'block' : 'none';
+                
+                userModal.style.display = 'block';
+            }
+            
+            // Show delete confirmation
+            function showDeleteConfirmation(username) {
+                document.getElementById('delete-username').textContent = username;
+                deleteModal.style.display = 'block';
+                
+                // Set up delete confirmation handler
+                document.getElementById('confirm-delete-btn').onclick = function() {
+                    deleteUser(username);
+                    deleteModal.style.display = 'none';
+                };
+                
+                // Set up cancel handler
+                document.getElementById('cancel-delete-btn').onclick = function() {
+                    deleteModal.style.display = 'none';
+                };
+            }
+            
+            // Create new user
+            function createUser(username, password, role) {
+                fetch('/api/users', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: username,
+                        password: password,
+                        role: role
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        userModal.style.display = 'none';
+                        showResponse('User created successfully!', false);
+                        loadUsers();
+                    } else {
+                        showResponse(data.message || 'Failed to create user', true);
+                    }
+                })
+                .catch(error => {
+                    showResponse('An error occurred: ' + error.message, true);
+                });
+            }
+            
+            // Update existing user
+            function updateUser(username, password, role) {
+                // Get the original username from the hidden field
+                const originalUsername = document.getElementById('edit-mode').getAttribute('data-original-username');
+                
+                // Check if username is being changed
+                const isUsernameChanged = (originalUsername !== username);
+                
+                // If changing admin username, show a warning
+                if (isUsernameChanged && originalUsername === 'admin') {
+                    if (!confirm('Warning: You are changing the admin username. This may affect your ability to log in. Continue?')) {
+                        return;
+                    }
+                }
+                
+                fetch('/api/users', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        action: isUsernameChanged ? 'rename' : 'update',
+                        originalUsername: originalUsername, // Send the original username for reference
+                        username: username,                // New username
+                        password: password,
+                        role: role
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        userModal.style.display = 'none';
+                        
+                        // Special message for username changes
+                        if (isUsernameChanged) {
+                            showResponse(`User renamed from ${originalUsername} to ${username} successfully!`, false);
+                            
+                            // If the user renamed themselves, alert them they may need to log in again
+                            const currentUser = document.getElementById('current-username')?.textContent || '';
+                            if (currentUser === originalUsername) {
+                                setTimeout(() => {
+                                    alert('You have changed your own username. You may need to log out and log in again with your new username.');
+                                }, 500);
+                            }
+                        } else {
+                            showResponse('User updated successfully!', false);
+                        }
+                        
+                        loadUsers();
+                    } else {
+                        showResponse(data.message || 'Failed to update user', true);
+                    }
+                })
+                .catch(error => {
+                    showResponse('An error occurred: ' + error.message, true);
+                });
+            }
+            
+            // Delete user
+            function deleteUser(username) {
+                console.log('Deleting user:', username);
+                
+                // Use query parameters instead of body for DELETE requests
+                // This is more compatible across browsers and server implementations
+                fetch(`/users/api?username=${encodeURIComponent(username)}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => {
+                    console.log('Delete response status:', response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Delete response data:', data);
+                    if (data.success) {
+                        deleteModal.style.display = 'none';
+                        showResponse('User deleted successfully!', false);
+                        loadUsers();
+                    } else {
+                        showResponse(data.message || 'Failed to delete user', true);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error deleting user:', error);
+                    showResponse('An error occurred: ' + error.message, true);
+                });
+            }
+            
+            // Check for locked accounts
+            function checkLockedAccounts() {
+                fetch('/api/security/accounts', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const lockedAccounts = data.locked_accounts || [];
+                        renderLockedAccounts(lockedAccounts);
+                        document.getElementById('locked-accounts-modal').style.display = 'block';
+                    } else {
+                        showResponse(data.error || 'Failed to retrieve locked accounts', true);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking locked accounts:', error);
+                    showResponse('An error occurred: ' + error.message, true);
+                });
+            }
+            
+            // Render locked accounts
+            function renderLockedAccounts(accounts) {
+                const lockedAccountsBody = document.getElementById('locked-accounts-body');
+                const noLockedAccountsMessage = document.getElementById('no-locked-accounts');
+                const lockedAccountsTable = document.getElementById('locked-accounts-table');
+                
+                // Clear previous content
+                lockedAccountsBody.innerHTML = '';
+                
+                // Show appropriate content based on whether there are locked accounts
+                if (accounts.length === 0) {
+                    noLockedAccountsMessage.style.display = 'block';
+                    lockedAccountsTable.style.display = 'none';
+                } else {
+                    noLockedAccountsMessage.style.display = 'none';
+                    lockedAccountsTable.style.display = 'table';
+                    
+                    // Populate table with locked accounts
+                    accounts.forEach(username => {
+                        const row = document.createElement('tr');
+                        
+                        const usernameCell = document.createElement('td');
+                        usernameCell.textContent = username;
+                        
+                        const actionsCell = document.createElement('td');
+                        
+                        // Unlock button
+                        const unlockBtn = document.createElement('button');
+                        unlockBtn.className = 'btn btn-success';
+                        unlockBtn.innerHTML = '<i class="fas fa-unlock"></i> Unlock';
+                        unlockBtn.addEventListener('click', function() {
+                            unlockAccount(username);
+                        });
+                        
+                        // Add button to actions cell
+                        actionsCell.appendChild(unlockBtn);
+                        
+                        // Add cells to row
+                        row.appendChild(usernameCell);
+                        row.appendChild(actionsCell);
+                        
+                        // Add row to table
+                        lockedAccountsBody.appendChild(row);
+                    });
+                }
+            }
+            
+            // Unlock an account
+            function unlockAccount(username) {
+                fetch('/api/security/accounts', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: username
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    const messageElement = document.getElementById('locked-accounts-message');
+                    
+                    if (data.success) {
+                        // Show success message
+                        messageElement.textContent = data.message || `Account '${username}' unlocked successfully`;
+                        messageElement.className = 'alert alert-success';
+                        messageElement.style.display = 'block';
+                        
+                        // Refresh the locked accounts list
+                        setTimeout(() => {
+                            checkLockedAccounts();
+                            messageElement.style.display = 'none';
+                        }, 2000);
+                    } else {
+                        // Show error message
+                        messageElement.textContent = data.error || `Failed to unlock account '${username}'`;
+                        messageElement.className = 'alert alert-danger';
+                        messageElement.style.display = 'block';
+                        
+                        setTimeout(() => {
+                            messageElement.style.display = 'none';
+                        }, 3000);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error unlocking account:', error);
+                    
+                    // Show error message
+                    const messageElement = document.getElementById('locked-accounts-message');
+                    messageElement.textContent = 'An error occurred: ' + error.message;
+                    messageElement.className = 'alert alert-danger';
+                    messageElement.style.display = 'block';
+                    
+                    setTimeout(() => {
+                        messageElement.style.display = 'none';
+                    }, 3000);
+                });
+            }
+            
+            // Show response message
+            function showResponse(message, isError) {
+                responseMessage.textContent = message;
+                responseMessage.style.display = 'block';
+                
+                if (isError) {
+                    responseMessage.classList.add('error');
+                } else {
+                    responseMessage.classList.remove('error');
+                }
+                
+                // Hide after 5 seconds
+                setTimeout(() => {
+                    responseMessage.style.display = 'none';
+                }, 5000);
+            }
+            
+            // Show role description
+            roleSelect.addEventListener('change', function() {
+                const selectedRole = roleSelect.value;
+                let description = '';
+                
+                if (selectedRole === 'ADMIN') {
+                    description = '<strong>Admin:</strong> Full access to all system features including:<br>' +
+                                 '&bull; User Management (create, edit, delete users)<br>' +
+                                 '&bull; Dashboard Controls<br>' +
+                                 '&bull; Town Operations<br>' +
+                                 '&bull; Game Configuration<br>' +
+                                 'Admins can access all pages and features.';
+                } else if (selectedRole === 'TOWN_OPERATOR') {
+                    description = '<strong>Town Operator:</strong> Focused on town management:<br>' +
+                                 '&bull; Access to Town Operations page<br>' +
+                                 '&bull; Access to Currency Editor page<br>' +
+                                 '&bull; Can modify user donut currency<br>' +
+                                 '&bull; Cannot access Dashboard<br>' +
+                                 '&bull; Cannot manage users or access game configuration';
+                } else if (selectedRole === 'GAME_MODERATOR') {
+                    description = '<strong>Game Moderator:</strong> Focused on gameplay moderation:<br>' +
+                                 '&bull; Access to Game Configuration<br>' +
+                                 '&bull; Access to Dashboard<br>' +
+                                 '&bull; Access to Town Operations<br>' +
+                                 '&bull; Cannot manage users';
+                } 
+                /* Commented out Content Manager and Viewer roles
+                else if (selectedRole === 'CONTENT_MANAGER') {
+                    description = '<strong>Content Manager:</strong> Manages game content:<br>' +
+                                 '&bull; Access to Game Configuration<br>' +
+                                 '&bull; Access to Town Operations<br>' +
+                                 '&bull; Limited Dashboard access<br>' +
+                                 '&bull; Cannot manage users';
+                } else if (selectedRole === 'VIEWER') {
+                    description = '<strong>Viewer:</strong> Read-only access:<br>' +
+                                 '&bull; Can view Dashboard statistics<br>' +
+                                 '&bull; Cannot modify any settings<br>' +
+                                 '&bull; Cannot access user management';
+                }
+                */
+                
+                roleDescription.innerHTML = description;
+            });
+            
+            // Function to update the current user display in the navigation bar
+            function updateCurrentUser() {
+                // Get the session token from cookies
+                const cookies = document.cookie.split(';');
+                let sessionToken = '';
+                
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.startsWith('tsto_session=')) {
+                        sessionToken = cookie.substring('tsto_session='.length);
+                        break;
+                    }
+                }
+                
+                if (sessionToken) {
+                    // Since we're on a protected page, we know we're authenticated
+                    fetch('/api/auth/validate_session', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ token: sessionToken })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.valid && data.username) {
+                            document.getElementById('current-user').innerHTML = `<i class="fas fa-user"></i> Logged in as: ${data.username}`;
+                            
+                            // Store user role in a global variable
+                            window.currentUserRole = data.role;
+                            
+                            // Show/hide add user button based on role
+                            const addUserBtn = document.getElementById('add-user-btn');
+                            if (window.currentUserRole === 'ADMIN') {
+                                addUserBtn.style.display = 'block';
+                            } else {
+                                addUserBtn.style.display = 'none';
+                            }
+                        } else {
+                            // If we're on this page, we must be logged in, so get username from localStorage
+                            const username = localStorage.getItem('tsto_username') || 'User';
+                            document.getElementById('current-user').innerHTML = `<i class="fas fa-user"></i> Logged in as: ${username}`;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error validating session:', error);
+                        // Fallback to showing logged in status without username
+                        document.getElementById('current-user').innerHTML = `<i class="fas fa-user"></i> Logged in`;
+                    });
+                } else {
+                    // Fallback - if we're on a protected page, we must be logged in
+                    document.getElementById('current-user').innerHTML = `<i class="fas fa-user"></i> Logged in`;
+                }
+            }
+            
+            // Call updateCurrentUser when the page loads
+            updateCurrentUser();
+        });
+        
+        // Theme toggle functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const themeToggleButton = document.getElementById('theme-toggle');
+            const themeIcon = themeToggleButton.querySelector('i');
+            let isDarkMode = localStorage.getItem('darkMode') === 'true';
+            
+            // Set initial state
+            if (isDarkMode) {
+                document.body.classList.add('dark-mode');
+                themeIcon.className = 'fas fa-sun';
+            } else {
+                themeIcon.className = 'fas fa-moon';
+            }
+            
+            themeToggleButton.addEventListener('click', function() {
+                isDarkMode = !isDarkMode;
+                // Toggle the dark-mode class on the body
+                document.body.classList.toggle('dark-mode');
+                // Save preference to localStorage
+                localStorage.setItem('darkMode', isDarkMode);
+                // Update the icon
+                if (isDarkMode) {
+                    themeIcon.className = 'fas fa-sun';
+                } else {
+                    themeIcon.className = 'fas fa-moon';
+                }
+            });
+        });
+        
+        // Load statistics
+        function loadStatistics() {
+            document.getElementById('stats-loading').style.display = 'block';
+            document.getElementById('stats-error').style.display = 'none';
+            document.getElementById('upload-stats-table').style.display = 'none';
+            
+            fetch('/api/statistics')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Render upload statistics if available
+                    if (data.upload_stats && Array.isArray(data.upload_stats)) {
+                        renderUploadStats(data.upload_stats);
+                    } else {
+                        document.getElementById('stats-error').style.display = 'block';
+                        document.getElementById('stats-error').textContent = 'No upload statistics available';
+                    }
+                    
+                    document.getElementById('stats-loading').style.display = 'none';
+                })
+                .catch(error => {
+                    console.error('Error fetching statistics:', error);
+                    document.getElementById('stats-loading').style.display = 'none';
+                    document.getElementById('stats-error').style.display = 'block';
+                });
+        }
+        
+        // Render upload statistics
+        function renderUploadStats(stats) {
+            const statsBody = document.getElementById('upload-stats-body');
+            
+            // Clear previous content
+            statsBody.innerHTML = '';
+            
+            // Show statistics table
+            document.getElementById('upload-stats-table').style.display = 'table';
+            
+            // Sort stats by total_uploads in descending order (highest to lowest)
+            stats.sort((a, b) => b.total_uploads - a.total_uploads);
+            
+            // Populate table with statistics
+            stats.forEach((stat, index) => {
+                const row = document.createElement('tr');
+                
+                // Add highlight class for top 3 uploaders
+                if (index < 3 && stat.total_uploads > 0) {
+                    row.classList.add('top-uploader');
+                    row.classList.add(`rank-${index + 1}`);
+                }
+                
+                const usernameCell = document.createElement('td');
+                usernameCell.textContent = stat.username;
+                
+                const totalUploadsCell = document.createElement('td');
+                totalUploadsCell.textContent = stat.total_uploads;
+                
+                const totalApprovalsCell = document.createElement('td');
+                totalApprovalsCell.textContent = stat.total_approvals;
+                
+                const lastUploadCell = document.createElement('td');
+                
+                // Format the date nicely if it exists
+                if (stat.last_upload) {
+                    const date = new Date(stat.last_upload.replace(' ', 'T'));
+                    if (!isNaN(date.getTime())) {
+                        lastUploadCell.textContent = date.toLocaleString();
+                    } else {
+                        lastUploadCell.textContent = stat.last_upload;
+                    }
+                } else {
+                    lastUploadCell.textContent = 'Never';
+                }
+                
+                // Add cells to row
+                row.appendChild(usernameCell);
+                row.appendChild(totalUploadsCell);
+                row.appendChild(totalApprovalsCell);
+                row.appendChild(lastUploadCell);
+                
+                // Add row to table
+                statsBody.appendChild(row);
+            });
+            
+            // Add message if no uploads
+            if (stats.length === 0) {
+                const row = document.createElement('tr');
+                const cell = document.createElement('td');
+                cell.colSpan = 4;
+                cell.textContent = 'No town uploads recorded yet';
+                cell.style.textAlign = 'center';
+                cell.style.fontStyle = 'italic';
+                row.appendChild(cell);
+                statsBody.appendChild(row);
+            }
+        }
+    </script>
+	    <footer style="text-align: center; padding: 20px; margin-top: 30px; color: var(--text-primary); font-size: 14px; font-family: 'Comic Neue', cursive;">
+     Server created and designed by BodNJenie&trade;
+    </footer>
+</body>
+</html>

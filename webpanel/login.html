@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TSTO Server Login</title>
+    <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --simpsons-yellow: #FED90F;
+            --simpsons-blue: #3E67B1;
+            --simpsons-red: #E53935;
+            --simpsons-green: #7BC142;
+            --simpsons-white: #ffffff;
+            --simpsons-black: #333333;
+            --simpsons-orange: #F57C00;
+            --simpsons-panel: #FFF3D4;
+            --simpsons-shadow: rgba(0, 0, 0, 0.3);
+        }
+
+        html {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Comic Neue', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: url('images/background.png') no-repeat center center fixed;
+            background-size: cover;
+            min-height: 100vh;
+            color: var(--simpsons-black);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .login-container {
+            background-color: var(--simpsons-panel);
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 6px 10px var(--simpsons-shadow);
+            border: 4px solid var(--simpsons-yellow);
+            width: 400px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        h1 {
+            color: var(--simpsons-yellow);
+            margin-bottom: 30px;
+            font-size: 36px;
+            font-weight: bold;
+            text-shadow: 2px 2px 0 var(--simpsons-black), 
+                        -2px -2px 0 var(--simpsons-black),
+                        2px -2px 0 var(--simpsons-black),
+                        -2px 2px 0 var(--simpsons-black),
+                        0 2px 0 var(--simpsons-black),
+                        2px 0 0 var(--simpsons-black),
+                        0 -2px 0 var(--simpsons-black),
+                        -2px 0 0 var(--simpsons-black);
+            letter-spacing: 1px;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: bold;
+            color: var(--simpsons-blue);
+            font-size: 18px;
+            text-align: left;
+        }
+
+        input[type="password"] {
+            width: 100%;
+            padding: 12px;
+            border-radius: 10px;
+            background-color: var(--simpsons-white);
+            color: var(--simpsons-black);
+            border: 3px solid var(--simpsons-blue);
+            font-size: 16px;
+            font-family: 'Comic Neue', cursive;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);
+            box-sizing: border-box;
+        }
+
+        input[type="password"]:focus {
+            outline: none;
+            border-color: var(--simpsons-orange);
+            box-shadow: 0 0 0 3px rgba(245, 124, 0, 0.25);
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border-radius: 10px;
+            background-color: var(--simpsons-white);
+            color: var(--simpsons-black);
+            border: 3px solid var(--simpsons-blue);
+            font-size: 16px;
+            font-family: 'Comic Neue', cursive;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);
+            box-sizing: border-box;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--simpsons-orange);
+            box-shadow: 0 0 0 3px rgba(245, 124, 0, 0.25);
+        }
+
+        button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 10px;
+            background-color: var(--simpsons-blue);
+            color: var(--simpsons-white);
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: bold;
+            font-family: 'Comic Neue', cursive;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 0 #2A4B85;
+            position: relative;
+            top: 0;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background-color: #5482D0;
+            top: -2px;
+            box-shadow: 0 6px 0 #2A4B85;
+        }
+        
+        button:active {
+            top: 4px;
+            box-shadow: 0 0 0 #2A4B85;
+        }
+
+        .error-message {
+            color: var(--simpsons-red);
+            margin: 15px 0;
+            font-weight: bold;
+            display: none;
+            padding: 10px;
+            border-radius: 8px;
+            background-color: rgba(229, 57, 53, 0.1);
+            border-left: 4px solid var(--simpsons-red);
+        }
+
+        /* Decorative donuts */
+        .donut {
+            position: fixed;
+            width: 100px;
+            height: 100px;
+            z-index: -1;
+        }
+
+        .donut1 {
+            top: 10%;
+            left: 10%;
+            animation: float 8s ease-in-out infinite;
+        }
+
+        .donut2 {
+            top: 20%;
+            right: 15%;
+            animation: float 10s ease-in-out infinite;
+            animation-delay: 1s;
+        }
+
+        .donut3 {
+            bottom: 15%;
+            left: 20%;
+            animation: float 7s ease-in-out infinite;
+            animation-delay: 2s;
+        }
+
+        .donut4 {
+            bottom: 10%;
+            right: 10%;
+            animation: float 9s ease-in-out infinite;
+            animation-delay: 3s;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(0) rotate(0deg);
+            }
+            50% {
+                transform: translateY(-20px) rotate(10deg);
+            }
+            100% {
+                transform: translateY(0) rotate(0deg);
+            }
+        }
+
+        .sprinkle {
+            position: absolute;
+            width: 8px;
+            height: 3px;
+            border-radius: 3px;
+            background-color: var(--simpsons-blue);
+        }
+
+        .logo-container {
+            margin-bottom: 20px;
+        }
+
+        .logo {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto;
+            background-color: var(--simpsons-yellow);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 4px 8px var(--simpsons-shadow);
+            border: 3px solid var(--simpsons-black);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .logo img {
+            width: 90%;
+            height: 90%;
+            object-fit: contain;
+        }
+    </style>
+    <script src="js/login.js"></script>
+</head>
+<body>
+    <!--decorative donuts-->
+    <svg class="donut donut1" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="40" fill="#FFA0B7" />
+        <circle cx="50" cy="50" r="15" fill="#FFF3D4" />
+        <circle cx="50" cy="50" r="5" fill="#FF7BAC" />
+        <circle cx="65" cy="35" r="8" fill="#FFF3D4" />
+        <circle cx="35" cy="65" r="8" fill="#FFF3D4" />
+    </svg>
+    <svg class="donut donut2" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="40" fill="#FFD54F" />
+        <circle cx="50" cy="50" r="15" fill="#FFF3D4" />
+        <circle cx="50" cy="50" r="5" fill="#FFA000" />
+        <circle cx="35" cy="35" r="8" fill="#FFF3D4" />
+        <circle cx="65" cy="65" r="8" fill="#FFF3D4" />
+    </svg>
+    <svg class="donut donut3" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="40" fill="#81C784" />
+        <circle cx="50" cy="50" r="15" fill="#FFF3D4" />
+        <circle cx="50" cy="50" r="5" fill="#388E3C" />
+        <circle cx="65" cy="35" r="8" fill="#FFF3D4" />
+        <circle cx="35" cy="65" r="8" fill="#FFF3D4" />
+    </svg>
+    <svg class="donut donut4" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="40" fill="#64B5F6" />
+        <circle cx="50" cy="50" r="15" fill="#FFF3D4" />
+        <circle cx="50" cy="50" r="5" fill="#1976D2" />
+        <circle cx="35" cy="35" r="8" fill="#FFF3D4" />
+        <circle cx="65" cy="65" r="8" fill="#FFF3D4" />
+    </svg>
+
+    <div class="login-container">
+        <h1>TSTO Server</h1>
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" placeholder="Enter your username" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" placeholder="Enter your password" required>
+            </div>
+            <div id="errorMessage" class="error-message">
+                Invalid username or password
+            </div>
+            <button type="submit">Login</button>
+        </form>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Focus on username field when page loads
+            document.getElementById('username').focus();
+        });
+    </script>
+</body>
+</html>

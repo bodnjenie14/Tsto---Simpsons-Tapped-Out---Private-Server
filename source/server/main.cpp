@@ -5,12 +5,20 @@
 #include "debugging/blackbox.hpp"
 #include "debugging/serverlog.hpp"
 #include <iostream>
+#include <chrono>
 
 #include <tsto_server.hpp>
+#include "tsto/includes/server_time.hpp"
+
+std::chrono::steady_clock::time_point g_server_start_time = std::chrono::steady_clock::now();
 
 namespace tsto {
 
     bool TSTOServer::initialize(uint16_t port) {
+        ::g_server_start_time = std::chrono::steady_clock::now();
+        
+        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_INITIALIZER, "Server start time initialized");
+        
         server_.SetThreadDispatchPolicy(evpp::ThreadDispatchPolicy::kIPAddressHashing);
 
         if (!server_.Init({ port })) {
@@ -18,6 +26,7 @@ namespace tsto {
                 "Failed to initialize TSTO server on port %d", port);
             return false;
         }
+
 
         logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_SERVER_HTTP,
             "TSTO server initialized on port %d", port);

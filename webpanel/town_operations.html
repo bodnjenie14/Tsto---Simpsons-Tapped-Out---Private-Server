@@ -4,7 +4,8 @@
     <title>TSTO Town Operations</title>
     <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <script src="town_operations.js"></script>
+    <script src="js/town_operations.js"></script>
+    <script src="js/login.js"></script>
     <style>
         :root {
             --simpsons-yellow: #FED90F;
@@ -84,6 +85,35 @@
         
         body.dark-mode .tab-content {
             background-color: var(--panel-bg);
+        }
+
+        body.dark-mode .theme-toggle {
+            background-color: #333;
+            color: var(--simpsons-yellow);
+            border-color: var(--simpsons-yellow);
+        }
+        
+        body.dark-mode .nav-bar {
+            background-color: #1a1a2e;
+            border-color: var(--simpsons-yellow);
+        }
+        
+        body.dark-mode .nav-button {
+            color: var(--simpsons-yellow);
+            background-color: transparent;
+        }
+        
+        body.dark-mode .nav-button.active {
+            background-color: var(--simpsons-blue);
+            color: var(--simpsons-yellow);
+        }
+        
+        body.dark-mode .nav-button:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+        
+        body.dark-mode .nav-title {
+            color: var(--simpsons-yellow);
         }
 
         .container {
@@ -328,38 +358,270 @@
             margin-bottom: 10px;
         }
         
-        .theme-toggle {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background-color: var(--simpsons-yellow);
-            color: var(--simpsons-black);
-            border: 2px solid var(--simpsons-blue);
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
+        /* Pending towns styles */
+        .pending-towns-container {
+            margin-top: 20px;
+        }
+        
+        .pending-town-item {
+            background-color: rgba(255, 255, 255, 0.8);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 5px solid var(--simpsons-blue);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+        
+        body.dark-mode .pending-town-item {
+            background-color: rgba(40, 40, 56, 0.8);
+            border-left: 5px solid var(--simpsons-yellow);
+        }
+        
+        .pending-town-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        
+        .pending-town-header {
             display: flex;
+            justify-content: space-between;
             align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            font-size: 24px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            z-index: 1000;
+            margin-bottom: 10px;
+        }
+        
+        .pending-town-title {
             font-weight: bold;
+            font-size: 18px;
+            color: var(--simpsons-blue);
         }
         
-        .theme-toggle:hover {
-            background-color: #FFE44D;
-        }
-        
-        body.dark-mode .theme-toggle {
-            background-color: #333;
+        body.dark-mode .pending-town-title {
             color: var(--simpsons-yellow);
-            border-color: var(--simpsons-yellow);
         }
         
+        .pending-town-date {
+            font-size: 14px;
+            color: #666;
+        }
+        
+        body.dark-mode .pending-town-date {
+            color: #aaa;
+        }
+        
+        .pending-town-details {
+            margin-bottom: 15px;
+        }
+        
+        .pending-town-detail {
+            margin-bottom: 5px;
+        }
+        
+        .pending-town-label {
+            font-weight: bold;
+            color: var(--simpsons-blue);
+            display: inline-block;
+            width: 100px;
+        }
+        
+        body.dark-mode .pending-town-label {
+            color: var(--simpsons-yellow);
+        }
+        
+        .pending-town-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+        
+        .approve-btn {
+            background-color: var(--simpsons-green);
+            box-shadow: 0 4px 0 #4B913B;
+        }
+        
+        .approve-btn:hover {
+            background-color: #4B913B;
+        }
+        
+        .reject-btn {
+            background-color: var(--simpsons-red);
+            box-shadow: 0 4px 0 #B71C1C;
+        }
+        
+        .reject-btn:hover {
+            background-color: #B71C1C;
+        }
+        
+        .loading-spinner {
+            text-align: center;
+            padding: 20px;
+            font-size: 18px;
+            color: var(--simpsons-blue);
+        }
+        
+        body.dark-mode .loading-spinner {
+            color: var(--simpsons-yellow);
+        }
+        
+        .rejection-reason-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        
+        .rejection-reason-content {
+            background-color: var(--panel-bg);
+            margin: 15% auto;
+            padding: 20px;
+            border: 4px solid var(--simpsons-yellow);
+            border-radius: 15px;
+            width: 80%;
+            max-width: 500px;
+            box-shadow: 0 6px 10px var(--simpsons-shadow);
+        }
+        
+        .rejection-reason-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .rejection-reason-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: var(--simpsons-blue);
+        }
+        
+        body.dark-mode .rejection-reason-title {
+            color: var(--simpsons-yellow);
+        }
+        
+        .close-modal {
+            font-size: 24px;
+            cursor: pointer;
+            color: var(--simpsons-red);
+        }
+        
+        .rejection-reason-textarea {
+            width: 100%;
+            padding: 10px;
+            border-radius: 10px;
+            border: 3px solid var(--simpsons-blue);
+            font-size: 16px;
+            font-family: 'Comic Neue', cursive;
+            margin-bottom: 15px;
+            background-color: var(--input-bg);
+            color: var(--text-color);
+        }
+        
+        .rejection-reason-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+        
+        /* Theme toggle button with NO animations or hover effects */
+        .theme-toggle {
+            position: fixed !important;
+            top: 20px !important;
+            right: 20px !important;
+            background-color: var(--simpsons-yellow) !important;
+            color: var(--simpsons-black) !important;
+            border: 2px solid var(--simpsons-blue) !important;
+            border-radius: 50% !important;
+            width: 40px !important;
+            height: 40px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            cursor: pointer !important;
+            font-size: 24px !important;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2) !important;
+            z-index: 1000 !important;
+            font-weight: bold !important;
+            /* Explicitly disable all animations and transitions */
+            transition: none !important;
+            transform: none !important;
+            animation: none !important;
+        }
+        
+        /* Remove hover effect completely */
+        .theme-toggle:hover {
+            background-color: var(--simpsons-yellow) !important;
+        }
+        
+        /* Dark mode theme toggle with NO animations or hover effects */
+        body.dark-mode .theme-toggle {
+            background-color: #333 !important;
+            color: var(--simpsons-yellow) !important;
+            border-color: var(--simpsons-yellow) !important;
+        }
+        
+        /* Remove dark mode hover effect completely */
         body.dark-mode .theme-toggle:hover {
-            background-color: #444;
+            background-color: #333 !important;
+        }
+        
+        /* Navigation Bar Styles */
+        .nav-bar {
+            background-color: var(--simpsons-blue);
+            padding: 10px 0;
+            margin-bottom: 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 8px var(--simpsons-shadow);
+            border: 4px solid var(--simpsons-yellow);
+            max-width: 1200px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        .nav-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+        }
+        
+        .nav-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .nav-button {
+            background-color: var(--simpsons-yellow);
+            color: var(--simpsons-blue);
+            border: none;
+            padding: 8px 15px;
+            border-radius: 10px;
+            font-weight: bold;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .nav-button:hover {
+            background-color: var(--simpsons-white);
+        }
+        
+        .nav-button.active {
+            background-color: var(--simpsons-white);
+            box-shadow: 0 2px 4px var(--simpsons-shadow);
+        }
+        
+        .logout-btn {
+            background-color: var(--simpsons-red);
+            color: white;
+        }
+        
+        .user-info {
+            color: var(--simpsons-white);
+            font-weight: bold;
         }
     </style>
 </head>
@@ -382,6 +644,23 @@
         <i class="fas fa-moon"></i>
     </button>
 
+    <div class="nav-bar">
+        <div class="nav-container">
+            <div class="nav-buttons">
+                <a href="/dashboard.html" class="nav-button">Dashboard</a>
+                <a href="/town_operations.html" class="nav-button active">Town Operations</a>
+                <a href="/game_config.html" class="nav-button">Game Config</a>
+                <a href="/user_management.html" class="nav-button">User Management</a>
+                <a href="/user_search.html" class="nav-button">User Search</a>
+                <a href="/admin_management.html" class="nav-button">Admin Management</a>
+                <a href="#" onclick="logoutUser(); return false;" class="nav-button logout-btn">Logout</a>
+            </div>
+            <div class="user-info">
+                <span id="current-user">Loading...</span>
+            </div>
+        </div>
+    </div>
+
     <h1>Town Operations</h1>
     
     <div class="container">
@@ -390,13 +669,18 @@
         </a>
         
         <div class="tabs">
+            <!-- Commented out tabs but keeping their code for future reference -->
+            <!--
             <div class="tab active" data-tab="load-tab">Load Town</div>
             <div class="tab" data-tab="save-tab">Save Town</div>
             <div class="tab" data-tab="copy-tab">Copy Town</div>
-            <div class="tab" data-tab="import-tab">Import Town</div>
+            -->
+            <div class="tab active" data-tab="import-tab">Import Town</div>
+            <!--div class="tab" data-tab="export-tab">Export Town </div> -->
+            <div class="tab" data-tab="pending-tab">Pending Towns</div>
         </div>
         
-        <div class="panel tab-content active" id="load-tab">
+        <div class="panel tab-content" id="load-tab">
             <h2>Load Town</h2>
             <div class="form-group">
                 <label for="load-user">Select User:</label>
@@ -454,7 +738,7 @@
             <div class="response" id="copy-response"></div>
         </div>
         
-        <div class="panel tab-content" id="import-tab">
+        <div class="panel tab-content active" id="import-tab">
             <h2>Import Town</h2>
             <div class="form-group">
                 <label for="import-email">Email for Imported Town: <span class="optional">(Optional for non-logged-in users)</span></label>
@@ -468,9 +752,73 @@
             <button id="import-button">Import Town</button>
             <div class="response" id="import-response"></div>
         </div>
+        
+        <div class="panel tab-content" id="export-tab">
+            <h2>Export Town</h2>
+            <div class="form-group">
+                <label for="export-search">Search Users:</label>
+                <input type="text" id="export-search" placeholder="Search users by email..." style="width: 100%; padding: 10px; border-radius: 10px; border: 3px solid var(--simpsons-blue); font-size: 16px; margin-bottom: 15px;">
+            </div>
+            <div class="form-group">
+                <label for="export-user">Select User:</label>
+                <select id="export-user">
+                    <option value="">Select a user...</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="export-email">Or Enter Email:</label>
+                <input type="email" id="export-email" placeholder="Enter email to export town from">
+            </div>
+            <button id="export-button">Export Town</button>
+            <div class="response" id="export-response"></div>
+        </div>
+        
+        <div class="panel tab-content" id="pending-tab">
+            <h2>Pending Towns</h2>
+            <div class="form-group">
+                <label for="pending-search">Search Pending Towns:</label>
+                <input type="text" id="pending-search" placeholder="Search by email or town name..." style="width: 100%; padding: 10px; border-radius: 10px; border: 3px solid var(--simpsons-blue); font-size: 16px; margin-bottom: 15px;">
+            </div>
+            <div id="pending-towns-list" class="pending-towns-container">
+                <div class="loading-spinner">
+                    <i class="fas fa-spinner fa-spin"></i> Loading pending towns...
+                </div>
+                <!-- Pending towns will be loaded here -->
+            </div>
+            <div class="no-pending-towns" style="display: none; text-align: center; padding: 20px; color: var(--simpsons-blue);">
+                <i class="fas fa-check-circle" style="font-size: 48px; margin-bottom: 10px;"></i>
+                <p>No pending town uploads to review!</p>
+            </div>
+        </div>
     </div>
 
     <script>
+        // Function to handle logout - defined globally
+        async function logoutUser() {
+            try {
+                // First, try the API endpoint
+                const response = await fetch('/logout', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                // Clear session token from cookies
+                document.cookie = 'tsto_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+                
+                // Clear username from localStorage
+                localStorage.removeItem('tsto_username');
+                
+                // Redirect to login page
+                window.location.href = '/login.html';
+            } catch (error) {
+                console.error('Error logging out:', error);
+                // Even if there's an error, try to redirect to login
+                window.location.href = '/login.html';
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             // Theme toggle functionality
             const themeToggleButton = document.getElementById('theme-toggle');
@@ -504,6 +852,73 @@
             // Load users
             loadUsers();
             
+            // Function to update the current user display in the navigation bar
+            function updateCurrentUser() {
+                // Get the session token from cookies
+                const cookies = document.cookie.split(';');
+                let sessionToken = '';
+                
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.startsWith('tsto_session=')) {
+                        sessionToken = cookie.substring('tsto_session='.length);
+                        break;
+                    }
+                }
+                
+                if (sessionToken) {
+                    // Since we're on a protected page, we know we're authenticated
+                    fetch('/api/auth/validate_session', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ token: sessionToken })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success && data.username) {
+                            document.getElementById('current-user').innerHTML = `<i class="fas fa-user"></i> Logged in as: ${data.username}`;
+                        } else {
+                            // If we're on this page, we must be logged in, so get username from localStorage
+                            const username = localStorage.getItem('tsto_username') || 'User';
+                            document.getElementById('current-user').innerHTML = `<i class="fas fa-user"></i> Logged in as: ${username}`;
+                        }
+                        
+                        // Highlight the active page in the navigation
+                        highlightActivePage();
+                    })
+                    .catch(error => {
+                        console.error('Error validating session:', error);
+                        // Fallback to showing logged in status without username
+                        document.getElementById('current-user').innerHTML = `<i class="fas fa-user"></i> Logged in`;
+                    });
+                } else {
+                    // Fallback - if we're on a protected page, we must be logged in
+                    document.getElementById('current-user').innerHTML = `<i class="fas fa-user"></i> Logged in`;
+                }
+            }
+            
+            // Function to highlight the active page in the navigation
+            function highlightActivePage() {
+                const currentPath = window.location.pathname;
+                const navButtons = document.querySelectorAll('.nav-button');
+                
+                navButtons.forEach(button => {
+                    const href = button.getAttribute('href');
+                    if (currentPath === href || 
+                        (currentPath === '/town_operations.html' && href === '/town_operations.html') ||
+                        (currentPath === '/town_operations' && href === '/town_operations.html')) {
+                        button.classList.add('active');
+                    } else {
+                        button.classList.remove('active');
+                    }
+                });
+            }
+            
+            // Call updateCurrentUser when the page loads
+            updateCurrentUser();
+            
             // Tab switching
             const tabs = document.querySelectorAll('.tab');
             tabs.forEach(tab => {
@@ -513,7 +928,7 @@
                     // Add active class to clicked tab
                     this.classList.add('active');
                     
-                    // Hide all tab contents
+                    // Hide all tab content
                     document.querySelectorAll('.tab-content').forEach(content => {
                         content.classList.remove('active');
                     });
@@ -521,94 +936,324 @@
                     // Show the corresponding tab content
                     const tabId = this.getAttribute('data-tab');
                     document.getElementById(tabId).classList.add('active');
+                    
+                    // If this is the pending tab, load pending towns
+                    if (tabId === 'pending-tab') {
+                        loadPendingTowns();
+                    }
                 });
             });
             
-            // Load Town
-            document.getElementById('load-button').addEventListener('click', async function() {
-                const userSelect = document.getElementById('load-user');
-                const emailInput = document.getElementById('load-email');
-                
-                let email = emailInput.value;
-                if (!email && userSelect.value) {
-                    const userData = JSON.parse(userSelect.value);
-                    email = userData.username || userData.email;
+            // Helper function to show response
+            function showResponse(element, message, isError = false) {
+                element.innerHTML = message;
+                element.className = 'response';
+                if (isError) {
+                    element.classList.add('error');
+                } else {
+                    element.classList.add('success');
                 }
+                element.style.display = 'block';
                 
-                const responseElement = document.getElementById('load-response');
-                
-                if (!email) {
-                    showResponse(responseElement, 'Please select a user or enter an email', true);
-                    return;
-                }
-                
-                try {
-                    const response = await window.TownOperations.loadTown(email);
-                    showResponse(responseElement, JSON.stringify(response, null, 2));
-                } catch (error) {
-                    showResponse(responseElement, error.message, true);
-                }
-            });
+                // Scroll to the response
+                element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
             
-            // Save Town
-            document.getElementById('save-button').addEventListener('click', async function() {
-                const userSelect = document.getElementById('save-user');
-                const emailInput = document.getElementById('save-email');
-                
-                let email = emailInput.value;
-                if (!email && userSelect.value) {
-                    const userData = JSON.parse(userSelect.value);
-                    email = userData.username || userData.email;
-                }
-                
-                const responseElement = document.getElementById('save-response');
-                
-                if (!email) {
-                    showResponse(responseElement, 'Please select a user or enter an email', true);
-                    return;
-                }
-                
+            // Load users from server
+            async function loadUsers() {
                 try {
-                    const response = await window.TownOperations.saveTownAs(email);
-                    showResponse(responseElement, JSON.stringify(response, null, 2));
+                    const response = await fetch('/api/users');
+                    const data = await response.json();
+                    
+                    if (data.success && data.users) {
+                        const userSelects = document.querySelectorAll('select[id$="-user"]');
+                        userSelects.forEach(select => {
+                            // Clear existing options except the first one
+                            while (select.options.length > 1) {
+                                select.remove(1);
+                            }
+                            
+                            // Add user options
+                            data.users.forEach(user => {
+                                const option = document.createElement('option');
+                                option.value = user.email;
+                                option.textContent = user.email;
+                                select.appendChild(option);
+                            });
+                        });
+                    }
                 } catch (error) {
-                    showResponse(responseElement, error.message, true);
+                    console.error('Error loading users:', error);
                 }
-            });
+            }
             
-            // Copy Town
-            document.getElementById('copy-button').addEventListener('click', async function() {
-                const sourceUserSelect = document.getElementById('source-user');
-                const sourceEmailInput = document.getElementById('source-email');
-                const targetUserSelect = document.getElementById('target-user');
-                const targetEmailInput = document.getElementById('target-email');
+            // Load pending town uploads
+            async function loadPendingTowns() {
+                const pendingTownsList = document.getElementById('pending-towns-list');
+                const noPendingTowns = document.querySelector('.no-pending-towns');
                 
-                let sourceEmail = sourceEmailInput.value;
-                if (!sourceEmail && sourceUserSelect.value) {
-                    const userData = JSON.parse(sourceUserSelect.value);
-                    sourceEmail = userData.username || userData.email;
-                }
-                
-                let targetEmail = targetEmailInput.value;
-                if (!targetEmail && targetUserSelect.value) {
-                    const userData = JSON.parse(targetUserSelect.value);
-                    targetEmail = userData.username || userData.email;
-                }
-                
-                const responseElement = document.getElementById('copy-response');
-                
-                if (!sourceEmail || !targetEmail) {
-                    showResponse(responseElement, 'Please select or enter both source and target emails', true);
-                    return;
-                }
+                // Show loading spinner
+                pendingTownsList.innerHTML = `
+                    <div class="loading-spinner">
+                        <i class="fas fa-spinner fa-spin"></i> Loading pending towns...
+                    </div>
+                `;
+                noPendingTowns.style.display = 'none';
                 
                 try {
-                    const response = await window.TownOperations.copyTown(sourceEmail, targetEmail);
-                    showResponse(responseElement, JSON.stringify(response, null, 2));
+                    const pendingTowns = await TownOperations.getPendingTowns();
+                    
+                    // Clear loading spinner
+                    pendingTownsList.innerHTML = '';
+                    
+                    if (pendingTowns.length === 0) {
+                        // Show no pending towns message
+                        noPendingTowns.style.display = 'block';
+                        return;
+                    }
+                    
+                    // Render each pending town
+                    pendingTowns.forEach(town => {
+                        const townElement = createPendingTownElement(town);
+                        pendingTownsList.appendChild(townElement);
+                    });
+                    
+                    // Add search functionality
+                    const searchInput = document.getElementById('pending-search');
+                    searchInput.addEventListener('input', function() {
+                        const searchTerm = this.value.toLowerCase();
+                        const townItems = pendingTownsList.querySelectorAll('.pending-town-item');
+                        
+                        townItems.forEach(item => {
+                            const townName = item.querySelector('.pending-town-title').textContent.toLowerCase();
+                            const email = item.querySelector('.pending-town-email').textContent.toLowerCase();
+                            
+                            if (townName.includes(searchTerm) || email.includes(searchTerm)) {
+                                item.style.display = 'block';
+                            } else {
+                                item.style.display = 'none';
+                            }
+                        });
+                    });
                 } catch (error) {
-                    showResponse(responseElement, error.message, true);
+                    console.error('Error loading pending towns:', error);
+                    pendingTownsList.innerHTML = `
+                        <div class="error" style="padding: 15px; text-align: center;">
+                            <i class="fas fa-exclamation-triangle"></i> Failed to load pending towns: ${error.message}
+                        </div>
+                    `;
                 }
-            });
+            }
+            
+            // Create a pending town element
+            function createPendingTownElement(town) {
+                const townElement = document.createElement('div');
+                townElement.className = 'pending-town-item';
+                townElement.dataset.id = town.id;
+                
+                // Format date
+                const submittedDate = new Date(town.submitted_at);
+                const formattedDate = submittedDate.toLocaleString();
+                
+                townElement.innerHTML = `
+                    <div class="pending-town-header">
+                        <div class="pending-town-title">${town.town_name || 'Unnamed Town'}</div>
+                        <div class="pending-town-date">${formattedDate}</div>
+                    </div>
+                    <div class="pending-town-details">
+                        <div class="pending-town-detail">
+                            <span class="pending-town-label">Email:</span>
+                            <span class="pending-town-email">${town.email}</span>
+                        </div>
+                        <div class="pending-town-detail">
+                            <span class="pending-town-label">File Size:</span>
+                            <span>${formatFileSize(town.file_size || 0)}</span>
+                        </div>
+                        ${town.description ? `
+                        <div class="pending-town-detail">
+                            <span class="pending-town-label">Description:</span>
+                            <span>${town.description}</span>
+                        </div>
+                        ` : ''}
+                    </div>
+                    <div class="pending-town-actions">
+                        <button class="approve-btn" data-id="${town.id}">
+                            <i class="fas fa-check"></i> Approve
+                        </button>
+                        <button class="reject-btn" data-id="${town.id}">
+                            <i class="fas fa-times"></i> Reject
+                        </button>
+                    </div>
+                `;
+                
+                // Add event listeners for approve and reject buttons
+                townElement.querySelector('.approve-btn').addEventListener('click', function() {
+                    handleApproveTown(town.id);
+                });
+                
+                townElement.querySelector('.reject-btn').addEventListener('click', function() {
+                    showRejectionReasonModal(town.id);
+                });
+                
+                return townElement;
+            }
+            
+            // Handle approving a town
+            async function handleApproveTown(townId) {
+                try {
+                    const approveBtn = document.querySelector(`.approve-btn[data-id="${townId}"]`);
+                    const rejectBtn = document.querySelector(`.reject-btn[data-id="${townId}"]`);
+                    
+                    // Disable buttons and show loading state
+                    approveBtn.disabled = true;
+                    rejectBtn.disabled = true;
+                    approveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Approving...';
+                    
+                    // Call the API to approve the town
+                    const result = await TownOperations.approvePendingTown(townId);
+                    
+                    if (result.success) {
+                        // Remove the town item from the list with a fade-out effect
+                        const townItem = document.querySelector(`.pending-town-item[data-id="${townId}"]`);
+                        townItem.style.opacity = '0';
+                        setTimeout(() => {
+                            townItem.remove();
+                            
+                            // Check if there are any towns left
+                            const pendingTownsList = document.getElementById('pending-towns-list');
+                            if (pendingTownsList.children.length === 0) {
+                                document.querySelector('.no-pending-towns').style.display = 'block';
+                            }
+                        }, 300);
+                    } else {
+                        // Show error and reset buttons
+                        alert(`Failed to approve town: ${result.message || 'Unknown error'}`);
+                        approveBtn.disabled = false;
+                        rejectBtn.disabled = false;
+                        approveBtn.innerHTML = '<i class="fas fa-check"></i> Approve';
+                    }
+                } catch (error) {
+                    console.error('Error approving town:', error);
+                    alert(`Error approving town: ${error.message}`);
+                    
+                    // Reset buttons
+                    const approveBtn = document.querySelector(`.approve-btn[data-id="${townId}"]`);
+                    const rejectBtn = document.querySelector(`.reject-btn[data-id="${townId}"]`);
+                    approveBtn.disabled = false;
+                    rejectBtn.disabled = false;
+                    approveBtn.innerHTML = '<i class="fas fa-check"></i> Approve';
+                }
+            }
+            
+            // Show rejection reason modal
+            function showRejectionReasonModal(townId) {
+                // Create modal if it doesn't exist
+                let modal = document.getElementById('rejection-reason-modal');
+                if (!modal) {
+                    modal = document.createElement('div');
+                    modal.id = 'rejection-reason-modal';
+                    modal.className = 'rejection-reason-modal';
+                    
+                    modal.innerHTML = `
+                        <div class="rejection-reason-content">
+                            <div class="rejection-reason-header">
+                                <div class="rejection-reason-title">Rejection Reason</div>
+                                <span class="close-modal">&times;</span>
+                            </div>
+                            <p>Please provide a reason for rejecting this town upload:</p>
+                            <textarea id="rejection-reason" class="rejection-reason-textarea" rows="4" placeholder="Enter rejection reason..."></textarea>
+                            <div class="rejection-reason-actions">
+                                <button id="cancel-rejection" class="cancel-btn">Cancel</button>
+                                <button id="confirm-rejection" class="reject-btn">Confirm Rejection</button>
+                            </div>
+                        </div>
+                    `;
+                    
+                    document.body.appendChild(modal);
+                    
+                    // Add event listeners
+                    modal.querySelector('.close-modal').addEventListener('click', function() {
+                        modal.style.display = 'none';
+                    });
+                    
+                    modal.querySelector('#cancel-rejection').addEventListener('click', function() {
+                        modal.style.display = 'none';
+                    });
+                }
+                
+                // Update the confirm rejection button to use the current town ID
+                const confirmButton = modal.querySelector('#confirm-rejection');
+                confirmButton.dataset.id = townId;
+                confirmButton.onclick = function() {
+                    const reason = document.getElementById('rejection-reason').value;
+                    handleRejectTown(townId, reason);
+                    modal.style.display = 'none';
+                };
+                
+                // Clear the textarea
+                modal.querySelector('#rejection-reason').value = '';
+                
+                // Show the modal
+                modal.style.display = 'block';
+            }
+            
+            // Handle rejecting a town
+            async function handleRejectTown(townId, reason) {
+                try {
+                    const approveBtn = document.querySelector(`.approve-btn[data-id="${townId}"]`);
+                    const rejectBtn = document.querySelector(`.reject-btn[data-id="${townId}"]`);
+                    
+                    // Disable buttons and show loading state
+                    approveBtn.disabled = true;
+                    rejectBtn.disabled = true;
+                    rejectBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Rejecting...';
+                    
+                    // Call the API to reject the town
+                    const result = await TownOperations.rejectPendingTown(townId, reason);
+                    
+                    if (result.success) {
+                        // Remove the town item from the list with a fade-out effect
+                        const townItem = document.querySelector(`.pending-town-item[data-id="${townId}"]`);
+                        townItem.style.opacity = '0';
+                        setTimeout(() => {
+                            townItem.remove();
+                            
+                            // Check if there are any towns left
+                            const pendingTownsList = document.getElementById('pending-towns-list');
+                            if (pendingTownsList.children.length === 0) {
+                                document.querySelector('.no-pending-towns').style.display = 'block';
+                            }
+                        }, 300);
+                    } else {
+                        // Show error and reset buttons
+                        alert(`Failed to reject town: ${result.message || 'Unknown error'}`);
+                        approveBtn.disabled = false;
+                        rejectBtn.disabled = false;
+                        rejectBtn.innerHTML = '<i class="fas fa-times"></i> Reject';
+                    }
+                } catch (error) {
+                    console.error('Error rejecting town:', error);
+                    alert(`Error rejecting town: ${error.message}`);
+                    
+                    // Reset buttons
+                    const approveBtn = document.querySelector(`.approve-btn[data-id="${townId}"]`);
+                    const rejectBtn = document.querySelector(`.reject-btn[data-id="${townId}"]`);
+                    approveBtn.disabled = false;
+                    rejectBtn.disabled = false;
+                    rejectBtn.innerHTML = '<i class="fas fa-times"></i> Reject';
+                }
+            }
+            
+            // Helper function to format file size
+            function formatFileSize(bytes) {
+                if (bytes < 1024) {
+                    return bytes + ' bytes';
+                } else if (bytes < 1024 * 1024) {
+                    return (bytes / 1024).toFixed(2) + ' KB';
+                } else {
+                    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+                }
+            }
             
             // Import Town
             document.getElementById('import-button').addEventListener('click', async function() {
@@ -627,53 +1272,85 @@
                 try {
                     const file = fileInput.files[0];
                     const response = await window.TownOperations.importTown(email, file);
-                    showResponse(responseElement, JSON.stringify(response, null, 2));
+                    showResponse(responseElement, JSON.stringify(response, null, 2) + "\n\nPage will refresh in 3 seconds...");
+                    
+                    // Auto refresh the page after successful town upload
+                    if (response.success) {
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 3000);
+                    }
                 } catch (error) {
                     showResponse(responseElement, error.message, true);
                 }
             });
             
-            // Helper function to show response
-            function showResponse(element, message, isError = false) {
-                element.textContent = message;
-                element.style.display = 'block';
+            // Export town handler
+            document.getElementById('export-button').addEventListener('click', async function() {
+                const userSelect = document.getElementById('export-user');
+                const emailInput = document.getElementById('export-email');
+                const responseElement = document.getElementById('export-response');
                 
-                if (isError) {
-                    element.classList.add('error');
-                } else {
-                    element.classList.remove('error');
+                let email = emailInput.value;
+                if (!email && userSelect.value) {
+                    const userData = JSON.parse(userSelect.value);
+                    email = userData.username;
                 }
-            }
-            
-            // Load users from server
-            async function loadUsers() {
+
+                if (!email) {
+                    showResponse(responseElement, 'Please select a user or enter an email', true);
+                    return;
+                }
+
                 try {
-                    const response = await fetch('/list_users');
-                    if (!response.ok) {
-                        throw new Error('Failed to fetch users');
-                    }
-                    const data = await response.json();
+                    // Instead of using fetch and blob, directly navigate to the export URL
+                    // This will trigger the browser's native download functionality
+                    const exportUrl = `/export_town?email=${encodeURIComponent(email)}&token=${encodeURIComponent(localStorage.getItem('session_token'))}`;
                     
-                    const userSelects = [
-                        document.getElementById('load-user'),
-                        document.getElementById('save-user'),
-                        document.getElementById('source-user'),
-                        document.getElementById('target-user')
-                    ];
+                    // Create an iframe to handle the download without navigating away from the page
+                    const downloadFrame = document.createElement('iframe');
+                    downloadFrame.style.display = 'none';
+                    document.body.appendChild(downloadFrame);
+                    downloadFrame.src = exportUrl;
                     
-                    // Add users to all dropdowns
-                    data.users.forEach(user => {
-                        userSelects.forEach(select => {
-                            const option = document.createElement('option');
-                            option.value = JSON.stringify(user);
-                            option.textContent = user.isLegacy ? 'Legacy User (mytown)' : user.username;
-                            select.appendChild(option);
-                        });
-                    });
+                    // Show success message
+                    showResponse(responseElement, 'Town export initiated! If the download doesn\'t start automatically, check your browser settings.', false);
+                    
+                    // Remove the iframe after a delay
+                    setTimeout(() => {
+                        document.body.removeChild(downloadFrame);
+                    }, 5000);
                 } catch (error) {
-                    console.error('Error loading users:', error);
+                    console.error('Error exporting town:', error);
+                    showResponse(responseElement, error.message, true);
                 }
-            }
+            });
+            
+            // Add search functionality for export users
+            document.getElementById('export-search').addEventListener('input', function() {
+                const searchTerm = this.value.toLowerCase();
+                const userSelect = document.getElementById('export-user');
+                
+                // Find first matching option
+                for (let i = 1; i < userSelect.options.length; i++) {
+                    const option = userSelect.options[i];
+                    const userData = JSON.parse(option.value);
+                    const username = userData.username.toLowerCase();
+                    const displayName = userData.displayName ? userData.displayName.toLowerCase() : '';
+                    
+                    if (username.includes(searchTerm) || displayName.includes(searchTerm)) {
+                        userSelect.selectedIndex = i;
+                        // Clear the manual email input when a user is selected from dropdown
+                        document.getElementById('export-email').value = '';
+                        return;
+                    }
+                }
+                
+                // If no match found, reset to default
+                if (searchTerm === '') {
+                    userSelect.selectedIndex = 0;
+                }
+            });
         });
     </script>
     <footer style="text-align: center; padding: 20px; margin-top: 30px; color: var(--text-primary); font-size: 14px; font-family: 'Comic Neue', cursive;">

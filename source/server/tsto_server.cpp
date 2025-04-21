@@ -9,10 +9,11 @@
 #include "compression.hpp"  
 #include "configuration.hpp" 
 #include "tsto/events/events.hpp"
-#include "tsto/land/land.hpp"
-#include "tsto/auth/auth.hpp"
+#include "tsto/land/new_land.hpp"
+#include "tsto/auth/auth_new.hpp"
 #include "tsto/database/database.hpp"
 #include "tsto/includes/session.hpp"
+#include "tsto/statistics/statistics.hpp"
 
 namespace tsto {
 
@@ -42,7 +43,8 @@ namespace tsto {
                 protocol = "https";
             }
 
-            if (platform == "ios") {
+            // Check for iOS platforms (both "ios" and "iphone" are valid iOS identifiers)
+            if (platform == "ios" || platform == "iphone") {
                 doc.AddMember("bundleId", "com.ea.simpsonssocial.inc2", allocator);
                 logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
                     "[DIRECTION] Platform is iOS, bundleId set to: com.ea.simpsonssocial.inc2");
@@ -53,7 +55,9 @@ namespace tsto {
                     "[DIRECTION] Platform is Android, bundleId set to: com.ea.game.simpsons4_row");
             }
 
-            std::string clientId = "simpsons4-" + platform + "-client";
+            // Normalize platform name for clientId to ensure consistency
+            std::string normalized_platform = (platform == "iphone") ? "ios" : platform;
+            std::string clientId = "simpsons4-" + normalized_platform + "-client";
             doc.AddMember("clientId", rapidjson::StringRef(clientId.c_str()), allocator);
 
             doc.AddMember("clientSecret", "D0fpQvaBKmAgBRCwGPvROmBf96zHnAuZmNepQht44SgyhbCdCfFgtUTdCezpWpbRI8N6oPtb38aOVg2y", allocator);
@@ -67,7 +71,18 @@ namespace tsto {
             doc.AddMember("mdmAppKey", rapidjson::StringRef(mdmAppKey.c_str()), allocator);
 
             doc.AddMember("millennialId", "", allocator);
-            doc.AddMember("packageId", "com.ea.game.simpsons4_row", allocator);
+
+            // Set packageId to match bundleId for iOS
+            if (platform == "ios" || platform == "iphone") {
+                doc.AddMember("packageId", "com.ea.simpsonssocial.inc2", allocator);
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
+                    "[DIRECTION] Platform is iOS, packageId set to: com.ea.simpsonssocial.inc2");
+            }
+            else {
+                doc.AddMember("packageId", "com.ea.game.simpsons4_row", allocator);
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
+                    "[DIRECTION] Platform is Android, packageId set to: com.ea.game.simpsons4_row");
+            }
 
             rapidjson::Value pollIntervals(rapidjson::kArrayType);
             rapidjson::Value pollInterval(rapidjson::kObjectType);
@@ -88,17 +103,17 @@ namespace tsto {
             std::vector<std::pair<const char*, std::string>> initialEntries;
             if (platform == "ios") {
                 initialEntries = {
-                    {"antelope.rtm.host", protocol + "://" + server_address + ":9000"},
+                    {"antelope.rtm.host", protocol + "://" + server_address},
                     {"applecert.url", "https://www.apple.com/appleca/AppleIncRootCertificate.cer"},
                     {"origincasualapp.url", protocol + "://" + server_address + "/loader/mobile/ios/"},
-                    {"akamai.url", "https://cdn.skum.eamobile.com/skumasset/gameasset/"}
+                    {"akamai.url", protocol + "://" + server_address + "/skumasset/gameasset/"}
                 };
             }
             else {
                 initialEntries = {
-                    {"antelope.rtm.host", protocol + "://" + server_address + ":9000"},
+                    {"antelope.rtm.host", protocol + "://" + server_address},
                     {"origincasualapp.url", protocol + "://" + server_address + "/loader/mobile/android/"},
-                    {"akamai.url", "https://cdn.skum.eamobile.com/skumasset/gameasset/"}
+                    {"akamai.url", protocol + "://" + server_address + "/skumasset/gameasset/"}
                 };
             }
 
@@ -157,29 +172,30 @@ namespace tsto {
 
             // Get current event time
             auto current_event = tsto::events::Events::get_current_event();
-            
+
             // Calculate the time to return based on event start time and elapsed time
             time_t current_time = std::time(nullptr);
             time_t event_time = current_event.start_time;
             time_t elapsed_time = 0;
-            
+
             // If we have a valid event start time, calculate elapsed time since then
             if (event_time > 0) {
                 // Get the reference time when the event was set
                 time_t event_reference_time = tsto::events::Events::get_event_reference_time();
-                
+
                 if (event_reference_time > 0) {
                     // Calculate how much real time has passed since the reference time
                     time_t real_time_elapsed = current_time - event_reference_time;
-                    
+
                     // Apply that elapsed time to the event time
                     event_time += real_time_elapsed;
-                    
+
                     logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_LOBBY,
                         "[LOBBY TIME] Event reference time: %lld, Real time elapsed: %lld, Adjusted event time: %lld",
                         event_reference_time, real_time_elapsed, event_time);
                 }
-            } else {
+            }
+            else {
                 // If no event time is available, use current time
                 event_time = current_time;
             }
@@ -355,147 +371,6 @@ namespace tsto {
         }
     }
 
-    void TSTOServer::handle_progreg_code(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx,
-        const evpp::http::HTTPSendResponseCallback& cb) {
-        try {
-            std::string body = ctx->body().ToString();
-            if (body.empty()) {
-                throw std::runtime_error("Empty request body");
-            }
-
-            rapidjson::Document doc;
-            doc.Parse(body.c_str());
-            if (doc.HasParseError() || !doc.IsObject()) {
-                throw std::runtime_error("Invalid JSON in request body");
-            }
-
-            if (!doc.HasMember("email") || !doc["email"].IsString()) {
-                throw std::runtime_error("Missing or invalid 'email' field in request");
-            }
-            std::string email = doc["email"].GetString();
-            std::string filename = email;
-
-            std::string access_token;
-            const char* auth_header = ctx->FindRequestHeader("Authorization");
-            if (auth_header && strncmp(auth_header, "Bearer ", 7) == 0) {
-                access_token = auth_header + 7; // Skip "Bearer " prefix
-            }
-
-            if (access_token.empty()) {
-                throw std::runtime_error("Missing or invalid Authorization header");
-            }
-
-            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
-                "[PROGREG CODE] Access token received: %s", access_token.c_str());
-
-            auto& session = tsto::Session::get();
-            session.reinitialize();
-
-            auto& db = tsto::database::Database::get_instance();
-
-            std::string existing_email;
-            bool token_exists = db.get_email_by_token(access_token, existing_email);
-            
-            std::string user_id;
-            int64_t mayhem_id = 0;
-            std::string access_code;
-            
-            if (token_exists) {
-
-                std::string stored_user_id;
-                if (db.get_user_id(existing_email, stored_user_id)) {
-                    user_id = stored_user_id;
-                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
-                        "[PROGREG CODE] Converting anonymous user to registered user. Email: %s -> %s, User ID: %s", 
-                        existing_email.c_str(), email.c_str(), user_id.c_str());
-                
-                db.get_mayhem_id(existing_email, mayhem_id);
-                if (mayhem_id == 0) {
-                    mayhem_id = db.get_next_mayhem_id();
-                }
-            } else {
-                user_id = session.user_user_id;
-                mayhem_id = db.get_next_mayhem_id();
-                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
-                    "[PROGREG CODE] Could not find user_id for existing token. Generated new user_id: %s", 
-                    user_id.c_str());
-            }
-        } else {
-            std::string stored_user_id;
-            if (db.get_user_id(filename, stored_user_id)) {
-                user_id = stored_user_id;
-                db.get_mayhem_id(filename, mayhem_id);
-                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
-                    "[PROGREG CODE] Using existing user_id for %s: %s", 
-                    filename.c_str(), stored_user_id.c_str());
-            } else {
-                user_id = session.user_user_id;
-                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
-                    "[PROGREG CODE] Generated new user_id for %s: %s", 
-                    filename.c_str(), user_id.c_str());
-                
-                mayhem_id = db.get_next_mayhem_id();
-                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
-                    "[PROGREG CODE] Generated new mayhem_id for %s: %lld", 
-                    filename.c_str(), mayhem_id);
-            }
-        }
-
-        if (token_exists && existing_email != email) {
-            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
-                "[PROGREG CODE] Updating user from %s to %s with the same access token", 
-                existing_email.c_str(), email.c_str());
-            
-
-            std::string empty_token = ""; 
-            if (!db.update_access_token(existing_email, empty_token)) {
-                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
-                    "[PROGREG CODE] Failed to clear access token for old email: %s", existing_email.c_str());
-            }
-        }
-
-        access_code = tsto::auth::Auth::generate_access_code(user_id);
-        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
-            "[PROGREG CODE] Generated access code for %s: %s", 
-            filename.c_str(), access_code.c_str());
-
-        if (!db.store_user_id(filename, user_id, access_token, mayhem_id, access_code)) {
-            throw std::runtime_error("Failed to store user data in database");
-        }
-
-        tsto::land::Land land;
-        land.set_email(filename);
-        if (!land.instance_load_town()) {
-            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
-                "[PROGREG CODE] Failed to load/create town for user: %s", filename.c_str());
-            throw std::runtime_error("Failed to load/create town");
-        }
-
-        logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
-            "[PROGREG CODE] Successfully loaded/created town for user: %s with filename: %s.pb", 
-            filename.c_str(), land.get_filename().c_str());
-
-        rapidjson::Document response;
-        response.SetObject();
-        rapidjson::Document::AllocatorType& allocator = response.GetAllocator();
-
-        response.AddMember("code", rapidjson::Value(access_code.c_str(), allocator), allocator);
-        response.AddMember("user_id", rapidjson::Value(user_id.c_str(), allocator), allocator);
-        response.AddMember("mayhem_id", mayhem_id, allocator);
-
-        rapidjson::StringBuffer buffer;
-        rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-        response.Accept(writer);
-
-        headers::set_json_response(ctx);
-        cb(buffer.GetString());
-    } catch (const std::exception& e) {
-        logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
-            "[PROGREG CODE] Error: %s", e.what());
-        ctx->set_response_http_code(500);
-        cb("");
-    }
-}
 
     void TSTOServer::handle_proto_currency(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx,
         const evpp::http::HTTPSendResponseCallback& cb) {
@@ -503,39 +378,132 @@ namespace tsto {
             std::string uri = ctx->uri();
             size_t land_start = uri.find("/protocurrency/") + 14;
             size_t land_end = uri.find("/", land_start);
-            std::string land_id = uri.substr(land_start, land_end - land_start);
+            std::string mayhem_id_from_url = uri.substr(land_start, land_end - land_start);
 
-            //grab current session to access the email-based filename
-            auto& session = tsto::Session::get();
+            // Get the database instance
+            auto& db = tsto::database::Database::get_instance();
+            std::string email;
+            std::string user_id;
+            std::string mayhem_id;
+            std::string access_token;
+            bool user_found = false;
+
+            // First priority: Check if we can find a user by the mayhem ID from the URI
+            if (!mayhem_id_from_url.empty()) {
+                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                    "[CURRENCY] Attempting to match user by mayhem ID from URL: %s", mayhem_id_from_url.c_str());
+
+                if (db.get_email_by_mayhem_id(mayhem_id_from_url, email)) {
+                    // Found a user with this mayhem ID from URL
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                        "[CURRENCY] Found user by mayhem ID from URL: %s -> %s",
+                        mayhem_id_from_url.c_str(), email.c_str());
+                    mayhem_id = mayhem_id_from_url;
+                    user_found = true;
+                }
+            }
+
+            // Second priority: Check if we have a mh_uid header to help identify the correct user
+            if (!user_found) {
+                const char* mh_uid_header = ctx->FindRequestHeader("mh_uid");
+                if (mh_uid_header) {
+                    std::string requested_mayhem_id = mh_uid_header;
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                        "[CURRENCY] Found mh_uid header (mayhem_id): %s", requested_mayhem_id.c_str());
+
+                    // mh_uid header contains the mayhem_id, not user_id
+                    std::string mayhem_email;
+                    if (db.get_email_by_mayhem_id(requested_mayhem_id, mayhem_email)) {
+                        // Found a user with this mayhem ID from mh_uid header
+                        email = mayhem_email;
+                        mayhem_id = requested_mayhem_id;
+                        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                            "[CURRENCY] Found user by mayhem ID from mh_uid header: %s -> %s",
+                            requested_mayhem_id.c_str(), email.c_str());
+                        user_found = true;
+                    }
+                    else {
+                        logger::write(logger::LOG_LEVEL_WARN, logger::LOG_LABEL_GAME,
+                            "[CURRENCY] Could not find user with mayhem ID from mh_uid header: %s",
+                            requested_mayhem_id.c_str());
+                    }
+                }
+            }
+
+            // Last priority: Try to find user by access token
+            if (!user_found) {
+                const char* auth_header = ctx->FindRequestHeader("mh_auth_params");
+                if (!auth_header) {
+                    auth_header = ctx->FindRequestHeader("nucleus_token");
+                }
+
+                if (auth_header) {
+                    access_token = auth_header;
+                    if (db.get_email_by_token(access_token, email)) {
+                        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_GAME,
+                            "[CURRENCY] Found user by access token: %s", email.c_str());
+                        user_found = true;
+                    }
+                }
+            }
+
+            // If no user found by any method, return error
+            if (!user_found) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                    "[CURRENCY] No valid user found for proto_currency request");
+                ctx->set_response_http_code(403);
+                cb("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<error code=\"403\" type=\"BAD_REQUEST\" field=\"Invalid AccessToken, User ID, or Mayhem ID\"/>");
+                return;
+            }
+
+            // Get the user_id associated with this email if we don't have it yet
+            if (user_id.empty() && !db.get_user_id(email, user_id)) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_GAME,
+                    "[CURRENCY] No user_id found for email: %s", email.c_str());
+                ctx->set_response_http_code(404);
+                cb("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<error code=\"404\" type=\"NOT_FOUND\" field=\"user_id\"/>");
+                return;
+            }
+
+            // Get mayhem_id if we don't have it yet
+            if (mayhem_id.empty()) {
+                db.get_mayhem_id(email, mayhem_id);
+            }
+
+            // Set the correct currency path based on the authenticated user's email
+            bool use_legacy_mode = utils::configuration::ReadBoolean("Land", "UseLegacyMode", false);
+            bool user_is_anonymous = email.find('@') == std::string::npos;
+
             std::string currency_path;
             std::string user_identifier;
+            std::string town_filename;
 
-            //check if we're using mytown.pb (non-logged in) or email-based town (logged in)
-            std::string current_town = session.town_filename.empty() ? "mytown.pb" : session.town_filename;
-            
-            if (current_town == "mytown.pb") {
-                //non logged in user - use currency.txt
-                currency_path = "towns/currency.txt";
-                user_identifier = "default";
-                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
-                    "[CURRENCY] Using legacy currency file for non-logged in user");
-            } else {
-                //logged in user - use email-based currency file
-                std::string email_base = current_town;
-                size_t pb_pos = email_base.find(".pb");
-                if (pb_pos != std::string::npos) {
-                    email_base = email_base.substr(0, pb_pos);
+            if (user_is_anonymous) {
+                if (use_legacy_mode) {
+                    // Legacy mode: all anonymous users share the same currency file
+                    currency_path = "towns/currency.txt";
+                    user_identifier = "legacy_anonymous";
+                    town_filename = "mytown.pb";
+                    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
+                        "[CURRENCY] Anonymous user detected, using legacy shared filename: %s",
+                        currency_path.c_str());
                 }
-                size_t txt_pos = email_base.find(".txt");
-                if (txt_pos != std::string::npos) {
-                    email_base = email_base.substr(0, txt_pos);
+                else {
+                    // Modern mode: each anonymous user gets a unique currency file
+                    currency_path = "towns/anon_" + user_id + ".txt";
+                    user_identifier = "anon_" + user_id;
+                    town_filename = "anon_" + user_id + ".pb";
+                    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
+                        "[CURRENCY] Anonymous user detected, using unique filename: %s",
+                        currency_path.c_str());
                 }
-                currency_path = "towns/currency_" + email_base + ".txt";
-                user_identifier = email_base;
-                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_GAME,
-                    "[CURRENCY] Using email-based currency file for user: %s", email_base.c_str());
             }
-            
+            else {
+                currency_path = "towns/" + email + ".txt";
+                user_identifier = email;
+                town_filename = email + ".pb";
+            }
+
             std::filesystem::create_directories("towns");
 
             int balance = std::stoi(utils::configuration::ReadString("Server", "InitialDonutAmount", "1000"));
@@ -560,7 +528,7 @@ namespace tsto {
             }
 
             Data::CurrencyData currency_data;
-            currency_data.set_id(land_id);
+            currency_data.set_id(mayhem_id_from_url);
             currency_data.set_vctotalpurchased(0);
             currency_data.set_vctotalawarded(balance);
             currency_data.set_vcbalance(balance);
@@ -621,6 +589,120 @@ namespace tsto {
                 "[PLUGIN EVENT PROTOLAND] Error: {}", ex.what());
             ctx->set_response_http_code(500);
             cb("");
+        }
+    }
+
+    void TSTOServer::handle_links(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
+        const evpp::http::HTTPSendResponseCallback& cb) {
+        try {
+            const char* auth_header = ctx->FindRequestHeader("Authorization");
+            std::string access_token;
+            std::string email;
+            std::string user_id;
+            std::string mayhem_id;
+            bool user_found = false;
+            auto& db = tsto::database::Database::get_instance();
+
+            // First priority: Check if we have a valid token
+            if (auth_header && strncmp(auth_header, "Bearer ", 7) == 0) {
+                access_token = auth_header + 7; // Skip "Bearer " prefix
+
+                if (db.get_email_by_token(access_token, email) && db.get_user_id(email, user_id)) {
+                    user_found = true;
+                    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                        "[LINKS] Valid token for email: %s, user_id: %s", email.c_str(), user_id.c_str());
+                }
+            }
+
+            // Second priority: Try to find user by mh_uid header (which contains mayhem_id)
+            if (!user_found) {
+                const char* mh_uid_header = ctx->FindRequestHeader("mh_uid");
+                if (mh_uid_header) {
+                    mayhem_id = mh_uid_header;
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+                        "[LINKS] Attempting to find user by mayhem_id from mh_uid header: %s", mayhem_id.c_str());
+
+                    if (db.get_email_by_mayhem_id(mayhem_id, email) && db.get_user_id(email, user_id)) {
+                        user_found = true;
+                        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+                            "[LINKS] Found user by mayhem_id: %s, email: %s, user_id: %s",
+                            mayhem_id.c_str(), email.c_str(), user_id.c_str());
+                    }
+                }
+            }
+
+            // Third priority: Try to find user by IP address in the database
+            //if (!user_found) {
+            //    std::string remote_ip = ctx->remote_ip();
+            //    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+            //        "[LINKS] No valid token or mayhem_id, attempting to find user by IP: %s", remote_ip.c_str());
+
+            //    if (db.get_user_by_ip(remote_ip, email) && db.get_user_id(email, user_id)) {
+            //        user_found = true;
+            //        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+            //            "[LINKS] Found user by IP: %s, email: %s, user_id: %s",
+            //            remote_ip.c_str(), email.c_str(), user_id.c_str());
+            //    }
+            //}
+
+            // If no user found, return error - we don't generate anything
+            if (!user_found) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                    "[LINKS] No valid user found in database");
+                ctx->set_response_http_code(403);
+                cb("{\"message\": \"No valid user found\", \"error\": \"UNAUTHORIZED\"}");
+                return;
+            }
+
+            // Determine if this is an email user or anonymous user
+            bool is_email_user = (email.find("anonymous_") != 0);
+
+            rapidjson::Document doc;
+            doc.SetObject();
+            auto& allocator = doc.GetAllocator();
+
+            rapidjson::Value pidGamePersonaMappings(rapidjson::kObjectType);
+            rapidjson::Value pidGamePersonaMapping(rapidjson::kArrayType);
+
+            rapidjson::Value mapping(rapidjson::kObjectType);
+            mapping.AddMember("newCreated", false, allocator);
+            mapping.AddMember("personaId", rapidjson::Value(user_id.c_str(), allocator), allocator);
+
+            std::string personaNamespace = "gsp-redcrow-simpsons4";
+            const char* namespace_param = ctx->FindRequestHeader("personaNamespace");
+            if (namespace_param) {
+                personaNamespace = namespace_param;
+            }
+            mapping.AddMember("personaNamespace", rapidjson::Value(personaNamespace.c_str(), allocator), allocator);
+
+            mapping.AddMember("pidGamePersonaMappingId", rapidjson::Value(user_id.c_str(), allocator), allocator);
+            mapping.AddMember("pidId", rapidjson::Value(user_id.c_str(), allocator), allocator);
+            mapping.AddMember("status", "ACTIVE", allocator);
+
+            // Add authentication type based on user type
+            if (is_email_user) {
+                mapping.AddMember("authenticatorType", "NUCLEUS", allocator);
+            }
+            else {
+                mapping.AddMember("authenticatorType", "AUTHENTICATOR_ANONYMOUS", allocator);
+            }
+
+            pidGamePersonaMapping.PushBack(mapping, allocator);
+            pidGamePersonaMappings.AddMember("pidGamePersonaMapping", pidGamePersonaMapping, allocator);
+            doc.AddMember("pidGamePersonaMappings", pidGamePersonaMappings, allocator);
+
+            rapidjson::StringBuffer buffer;
+            rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+            doc.Accept(writer);
+
+            headers::set_json_response(ctx);
+            cb(buffer.GetString());
+        }
+        catch (const std::exception& e) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                "[LINKS] Error: %s", e.what());
+            ctx->set_response_http_code(400);
+            cb("{\"message\": \"" + std::string(e.what()) + "\"}");
         }
     }
 

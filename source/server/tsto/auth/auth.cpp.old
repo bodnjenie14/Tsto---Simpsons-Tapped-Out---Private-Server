@@ -1,0 +1,1351 @@
+#include <std_include.hpp>
+#include "auth.hpp"
+#include <rapidjson/document.h>
+#include <rapidjson/writer.h>
+#include <rapidjson/stringbuffer.h>
+#include "tsto_server.hpp"
+#include <serialization.hpp>
+#include <AuthData.pb.h> 
+#include <sstream>
+#include <random>
+#include "tsto/database/database.hpp"
+#include "tsto/land/land.hpp"
+#include <vector>
+#include <cctype> 
+#include <algorithm> 
+#include <filesystem>
+#include "configuration.hpp"
+#include "cryptography.hpp"
+#include "tsto/auth/token_gen.hpp"
+
+namespace tsto::auth {
+
+    //URL decoder
+
+    void Auth::handle_check_token(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
+        const evpp::http::HTTPSendResponseCallback& cb) {
+        try {
+            helpers::log_request(ctx);
+
+            //user_id and token type from the URL
+            std::string uri = std::string(ctx->uri());
+            std::vector<std::string> parts;
+            size_t pos = 0;
+            while ((pos = uri.find('/')) != std::string::npos) {
+                parts.push_back(uri.substr(0, pos));
+                uri.erase(0, pos + 1);
+            }
+            parts.push_back(uri);
+
+            // URL format: /mh/games/bg_gameserver_plugin/checkToken/{user_id}/protoWholeLandToken/
+            std::string user_id;
+            if (parts.size() >= 6) {
+                user_id = parts[5]; // Extract user_id from URL path
+            }
+
+            //token from the request headers
+            std::string token;
+
+            // Check access_token header first (to match Node.js implementation)
+            const char* auth_header = ctx->FindRequestHeader("access_token");
+            if (auth_header && auth_header[0] != '\0') {
+                token = auth_header;
+            }
+            else {
+                // Fall back to mh_auth_params if access_token is not present
+                auth_header = ctx->FindRequestHeader("mh_auth_params");
+                if (auth_header && auth_header[0] != '\0') {
+                    std::string auth_str(auth_header);
+                    if (auth_str.substr(0, 7) == "Bearer ") {
+                        token = auth_str.substr(7);
+                    }
+                    else {
+                        token = auth_str;
+                    }
+                }
+                else {
+                    // Fall back to nucleus_token if neither access_token nor mh_auth_params is present
+                    auth_header = ctx->FindRequestHeader("nucleus_token");
+                    if (auth_header && auth_header[0] != '\0') {
+                        token = auth_header;
+                    }
+                }
+            }
+
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                "[CHECK TOKEN] User ID: %s, Token: %s", user_id.c_str(), token.c_str());
+
+            auto& db = tsto::database::Database::get_instance();
+            std::string email;
+            bool valid = false;
+
+            if (!token.empty()) {
+                valid = db.validate_access_token(token, email);
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                    "[CHECK TOKEN] Token validation result: %s, email: %s",
+                    valid ? "valid" : "invalid", email.c_str());
+            }
+
+            auto& session = tsto::Session::get();
+
+            // Get session key from database using consistent user identification
+            std::string session_key = session.session_key;
+            std::string user_email;
+
+            // Use the same user lookup logic as town loading
+            if (db.find_user_email("", "", token, user_email) && !user_email.empty()) {
+                std::string db_session_key;
+                if (db.get_session_key(user_email, db_session_key) && !db_session_key.empty()) {
+                    session_key = db_session_key;
+                    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                        "[CHECK TOKEN] Using session key from database for email: %s", user_email.c_str());
+                }
+                else {
+                    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                        "[CHECK TOKEN] No session key found in database for email: %s", user_email.c_str());
+                }
+            }
+            else {
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                    "[CHECK TOKEN] Could not find user for token: %s", token.substr(0, 10).c_str());
+            }
+
+            Data::TokenData response;
+            response.set_sessionkey(session_key);
+            response.set_expirationdate(0);
+
+            std::string serialized;
+            if (!response.SerializeToString(&serialized)) {
+                throw std::runtime_error("Failed to serialize TokenData");
+            }
+
+            headers::set_protobuf_response(ctx);
+
+            logger::write(logger::LOG_LEVEL_RESPONSE, logger::LOG_LABEL_AUTH,
+                "[CHECK TOKEN] Sending response with session key: %s", session.session_key.c_str());
+
+            cb(serialized);
+        }
+        catch (const std::exception& ex) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH, "[CHECK TOKEN] Error: %s", ex.what());
+            ctx->set_response_http_code(500);
+            cb("");
+        }
+    }
+
+    void Auth::handle_connect_auth(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
+        const evpp::http::HTTPSendResponseCallback& cb) {
+        try {
+            logger::write(logger::LOG_LEVEL_INCOMING, logger::LOG_LABEL_AUTH,
+                "[CONNECT AUTH] Request from %s", std::string(ctx->remote_ip()).c_str());
+
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                "[CONNECT AUTH] Request params:\n"
+                "URI: %s\n"
+                "Query string: %s\n"
+                "authenticator_login_type: %s\n"
+                "client_id: %s\n"
+                "apiVer: %s\n"
+                "serverEnvironment: %s\n"
+                "redirect_uri: %s\n"
+                "release_type: %s\n"
+                "response_type: %s\n"
+                "eadeviceid: %s\n",
+                std::string(ctx->uri()).c_str(),
+                std::string(ctx->original_uri()).c_str(),
+                std::string(ctx->GetQuery("authenticator_login_type")).c_str(),
+                std::string(ctx->GetQuery("client_id")).c_str(),
+                std::string(ctx->GetQuery("apiVer")).c_str(),
+                std::string(ctx->GetQuery("serverEnvironment")).c_str(),
+                std::string(ctx->GetQuery("redirect_uri")).c_str(),
+                std::string(ctx->GetQuery("release_type")).c_str(),
+                std::string(ctx->GetQuery("response_type")).c_str(),
+                std::string(ctx->GetQuery("eadeviceid")).c_str()
+
+            );
+
+            auto client_id = std::string(ctx->GetQuery("client_id"));
+            bool is_ios = (client_id == "simpsons4-ios-client");
+
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                "[CONNECT AUTH] Client platform: %s", is_ios ? "iOS" : "Android");
+
+            auto auth_type = std::string(ctx->GetQuery("authenticator_login_type"));
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                "[CONNECT AUTH] Auth type: %s", auth_type.c_str());
+
+            if (auth_type == "mobile_ea_account") {
+                auto sig = std::string(ctx->GetQuery("sig"));
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                    "[CONNECT AUTH] Signature present: %s", sig.empty() ? "No" : "Yes");
+
+                if (!sig.empty()) {
+                    auto sig_parts = utils::string::split(sig, ".");
+                    if (sig_parts.empty() || sig_parts[0].empty()) {
+                        logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                            "[CONNECT AUTH] Invalid signature format");
+                        ctx->set_response_http_code(403);
+                        cb("");
+                        return;
+                    }
+
+                    try {
+                        std::string decoded = utils::cryptography::base64::decode(
+                            sig_parts[0] + std::string(3 - (sig_parts[0].length() % 3), '=')
+                        );
+                        logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                            "[CONNECT AUTH] Decoded signature: %s", decoded.c_str());
+
+                        rapidjson::Document sig_doc;
+                        sig_doc.Parse(decoded.c_str());
+
+                        if (!sig_doc.HasParseError() && sig_doc.IsObject()) {
+                            if (sig_doc.HasMember("email") && sig_doc["email"].IsString() &&
+                                sig_doc.HasMember("cred") && sig_doc["cred"].IsString()) {
+                                std::string email = sig_doc["email"].GetString();
+                                std::string cred = sig_doc["cred"].GetString();
+
+                                // Check if we already have a valid session
+                                auto& session = tsto::Session::get();
+                                auto& db = tsto::database::Database::get_instance();
+                                std::string stored_user_id;
+                                std::string stored_access_token;
+                                std::string stored_access_code;
+                                std::string stored_user_cred;
+
+                                // First check if we have a valid session with email
+                                bool use_existing_session = false;
+                                std::string session_user_id;
+                                std::string session_email = session.token_user_id;
+
+                                if (!session_email.empty() && db.get_user_id(session_email, session_user_id) && !session_user_id.empty()) {
+                                    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                                        "[CONNECT AUTH] Found existing user_id from database: %s", session_user_id.c_str());
+
+                                    // We already have the email, just check if it matches
+                                    std::string existing_email = session_email;
+                                    if (!existing_email.empty()) {
+                                        // Check if this is the same user trying to authenticate
+                                        if (existing_email == email) {
+                                            // Get both access code and user credential for this user
+                                            std::string stored_user_cred;
+                                            if (db.get_user_cred(existing_email, stored_user_cred) &&
+                                                !stored_user_cred.empty() &&
+                                                stored_user_cred == cred) {
+                                                // Credential matches, now check access code
+                                                if (db.get_access_code(existing_email, stored_access_code) &&
+                                                    db.get_access_token(existing_email, stored_access_token) &&
+                                                    db.get_user_cred(existing_email, stored_user_cred)) {
+
+                                                    use_existing_session = true;
+                                                    stored_user_id = session_user_id;
+
+                                                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+                                                        "[CONNECT AUTH] Using existing session for email: %s, user_id: %s",
+                                                        email.c_str(), stored_user_id.c_str());
+                                                }
+                                                stored_user_id = session.user_user_id;
+
+                                                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+                                                    "[CONNECT AUTH] Using existing session for email: %s, user_id: %s",
+                                                    email.c_str(), stored_user_id.c_str());
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // If we're not using an existing session, check if the user exists in the database
+                                if (!use_existing_session) {
+                                    bool user_exists = db.get_user_id(email, stored_user_id);
+
+                                    if (user_exists) {
+                                        //existing user - verify credentials
+                                        if (!db.get_user_cred(email, stored_user_cred)) {
+                                            //user exists but no credential stored
+                                            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                                                "[CONNECT AUTH] User exists but no credential stored, updating credential");
+                                            if (db.update_user_cred(email, cred)) {
+                                                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+                                                    "[CONNECT AUTH] Successfully updated credential for user: %s", email.c_str());
+                                                // Update the stored credential to match what we just stored
+                                                stored_user_cred = cred;
+                                            }
+                                            else {
+                                                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                                                    "[CONNECT AUTH] Failed to update credential for user: %s", email.c_str());
+                                            }
+                                        }
+                                        else if (stored_user_cred != cred) {
+                                            //validate credentials if we have a non-empty stored credential
+
+                                            // Check if verification methods are disabled
+                                            bool smtp_enabled = utils::configuration::ReadBoolean("SMTP", "Enabled", false);
+                                            bool api_enabled = utils::configuration::ReadBoolean("TSTO_API", "Enabled", false);
+
+                                            // Get the default credential from configuration (default to "12345" if not set)
+                                            std::string default_credential = utils::configuration::ReadString("Auth", "DefaultCredential", "12345");
+
+                                            // If both verification methods are disabled, accept the default credential as valid
+                                            if (!smtp_enabled && !api_enabled && cred == default_credential) {
+                                                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+                                                    "[CONNECT AUTH] Both SMTP and TSTO_API verification are disabled, accepting default credential '%s' for email: %s",
+                                                    default_credential.c_str(), email.c_str());
+                                            }
+                                            // If the stored credential is empty but we have a received credential, update it
+                                            else if (stored_user_cred.empty() && !cred.empty()) {
+                                                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+                                                    "[CONNECT AUTH] Empty stored credential but received non-empty credential, updating for user: %s", email.c_str());
+                                                if (db.update_user_cred(email, cred)) {
+                                                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+                                                        "[CONNECT AUTH] Successfully updated empty credential with received credential for user: %s", email.c_str());
+                                                    // Update the stored credential to match what we just stored
+                                                    stored_user_cred = cred;
+                                                }
+                                            }
+                                            else {
+                                                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                                                    "[CONNECT AUTH] Invalid credential for email: %s (Stored: %s, Received: %s)",
+                                                    email.c_str(),
+                                                    stored_user_cred.empty() ? "empty" : stored_user_cred.substr(0, 10).c_str(),
+                                                    cred.substr(0, 10).c_str());
+                                                ctx->set_response_http_code(400);
+                                                cb("{\"error\":\"invalid_credential\",\"error_description\":\"Invalid credential\"}");
+                                                return;
+                                            }
+                                        }
+                                        else if (stored_user_cred.empty()) {
+                                            //stored credential but we have a new one - update it
+                                            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                                                "[CONNECT AUTH] Empty stored credential, updating with new credential");
+                                            db.update_user_cred(email, cred);
+                                        }
+                                        else {
+                                            //creds match
+                                            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                                                "[CONNECT AUTH] Credential validation successful for email: %s", email.c_str());
+                                        }
+
+                                        if (!db.get_access_token(email, stored_access_token) ||
+                                            !db.get_access_code(email, stored_access_code)) {
+                                            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                                                "[CONNECT AUTH] Failed to retrieve user tokens");
+                                            ctx->set_response_http_code(500);
+                                            cb("");
+                                            return;
+                                        }
+
+                                        // Check if verification code is required
+                                        bool api_require_code = utils::configuration::ReadBoolean("TSTO_API", "RequireCode", false);
+                                        bool smtp_require_code = utils::configuration::ReadBoolean("SMTP", "RequireCode", false);
+
+                                        if ((api_require_code || smtp_require_code) && !stored_user_cred.empty()) {
+                                            // Verify that the provided credential matches the stored user credential
+                                            if (cred != stored_user_cred) {
+                                                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                                                    "[CONNECT AUTH] Invalid credential for email: %s (Stored: %s, Received: %s)",
+                                                    email.c_str(), stored_user_cred.c_str(), cred.c_str());
+                                                ctx->set_response_http_code(400);
+                                                cb("{\"error\":\"invalid_code\",\"error_description\":\"Invalid verification code\"}");
+                                                return;
+                                            }
+
+                                            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+                                                "[CONNECT AUTH] Verification code validation successful for email: %s", email.c_str());
+                                        }
+                                        
+                                        // No need to persist device ID from session - it should come from the request
+                                        std::string device_id = ctx->GetQuery("device_id");
+                                        if (!device_id.empty()) {
+                                            if (db.update_device_id(email, device_id)) {
+                                                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+                                                    "[CONNECT AUTH] Persisted device ID for email: %s", email.c_str());
+                                            }
+                                        }
+                                    }
+                                    else {
+                                        // User doesn't exist, create a new one
+                                        // Get a proper user ID directly from the database
+                                        stored_user_id = db.get_next_user_id();
+                                        stored_access_token = tsto::token::Token::generate_typed_access_token("AT", stored_user_id);
+                                        stored_access_code = tsto::token::Token::generate_access_code(stored_user_id);
+                                        
+                                        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+                                            "[CONNECT AUTH] Created new user with ID: %s", stored_user_id.c_str());
+
+                                        std::string mayhem_id = db.get_next_mayhem_id();
+                                        // Get device ID from request instead of session
+                                        std::string device_id = ctx->GetQuery("device_id");
+                                        
+                                        if (!db.store_user_id(email, stored_user_id, stored_access_token, mayhem_id, stored_access_code, cred, email, "", "", device_id, "", "", "", "", "", "", "", "")) {
+                                            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                                                "[CONNECT AUTH] Failed to store user data");
+                                            ctx->set_response_http_code(500);
+                                            cb("");
+                                            return;
+                                        }
+
+                                        // Generate a new session key for this user
+                                        std::string session_key = tsto::token::Token::generate_random_string(32);
+                                        
+                                        // Store the session key in the database
+                                        if (db.update_session_key(email, session_key)) {
+                                            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                                                "[CONNECT AUTH] Stored new session key for user: %s", email.c_str());
+                                        } else {
+                                            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                                                "[CONNECT AUTH] Failed to store session key for user: %s", email.c_str());
+                                        }
+
+                                        // Generate persona info for new user and store in database
+                                        std::string display_name = "Player_" + stored_user_id.substr(0, 8);
+                                        
+                                        // Update display name in the database
+                                        if (db.update_display_name(email, display_name)) {
+                                            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                                                "[CONNECT AUTH] Updated display name for user: %s to %s", 
+                                                email.c_str(), display_name.c_str());
+                                        }
+                                        
+                                        // Device ID was already stored in the store_user_id call above
+                                    }
+                                }
+
+                                // No need to set session info - all data is stored in the database
+
+                                // Make sure the access token is stored in the database
+                                if (!db.update_access_token(email, stored_access_token)) {
+                                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                                        "[CONNECT AUTH] Failed to update access token for email: %s", email.c_str());
+                                }
+
+                                rapidjson::Document response_doc;
+                                response_doc.SetObject();
+                                auto& allocator = response_doc.GetAllocator();
+
+                                auto response_type = std::string(ctx->GetQuery("response_type"));
+                                if (response_type.find("code") != std::string::npos) {
+                                    response_doc.AddMember("code", rapidjson::Value(stored_access_code.c_str(), allocator), allocator);
+                                }
+                                if (response_type.find("lnglv_token") != std::string::npos) {
+                                    response_doc.AddMember("lnglv_token", rapidjson::Value(stored_access_token.c_str(), allocator), allocator);
+                                }
+
+                                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                                    "[CONNECT AUTH] Generated response:\n"
+                                    "code: %s\n"
+                                    "lnglv_token: %s",
+                                    stored_access_code.c_str(),
+                                    stored_access_token.c_str());
+
+                                headers::set_json_response(ctx);
+
+                                std::string response = utils::serialization::serialize_json(response_doc);
+                                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                                    "[CONNECT AUTH] Sending response: %s", response.c_str());
+                                cb(response);
+                                return;
+                            }
+                        }
+                    }
+                    catch (const std::exception& ex) {
+                        logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                            "[CONNECT AUTH] Failed to decode/parse signature: %s", ex.what());
+                        ctx->set_response_http_code(400);
+                        cb("");
+                        return;
+                    }
+                }
+            }
+            else {
+                // For mobile_anonymous auth type
+                auto& session = tsto::Session::get();
+                auto& db = tsto::database::Database::get_instance();
+                rapidjson::Document doc;
+                doc.SetObject();
+                auto& allocator = doc.GetAllocator();
+
+                // Get client IP address
+                std::string client_ip = std::string(ctx->remote_ip());
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                    "[CONNECT AUTH] Client IP: %s", client_ip.c_str());
+
+                // Extract device identifiers from signature
+                std::string advertising_id = "";
+                std::string platform_id = "";
+                std::string vendor_id = "";
+                std::string combined_id = "";
+
+                auto sig = std::string(ctx->GetQuery("sig"));
+                if (!sig.empty()) {
+                    auto sig_parts = utils::string::split(sig, ".");
+                    if (!sig_parts.empty() && !sig_parts[0].empty()) {
+                        try {
+                            std::string decoded = utils::cryptography::base64::decode(
+                                sig_parts[0] + std::string(3 - (sig_parts[0].length() % 3), '=')
+                            );
+
+                            rapidjson::Document sig_doc;
+                            sig_doc.Parse(decoded.c_str());
+
+                            if (!sig_doc.HasParseError() && sig_doc.IsObject()) {
+                                // Extract advertisingId if present
+                                if (sig_doc.HasMember("advertisingId") && sig_doc["advertisingId"].IsString()) {
+                                    advertising_id = sig_doc["advertisingId"].GetString();
+                                    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                                        "[CONNECT AUTH] Found advertisingId: %s", advertising_id.c_str());
+                                }
+
+                                // Extract platformId if present
+                                if (sig_doc.HasMember("platformId") && sig_doc["platformId"].IsString()) {
+                                    platform_id = sig_doc["platformId"].GetString();
+                                    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                                        "[CONNECT AUTH] Found platformId: %s", platform_id.c_str());
+                                }
+
+                                // Extract vendorId if present (used by iOS devices)
+                                if (sig_doc.HasMember("vendorId") && sig_doc["vendorId"].IsString()) {
+                                    vendor_id = sig_doc["vendorId"].GetString();
+                                    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                                        "[CONNECT AUTH] Found vendorId: %s", vendor_id.c_str());
+                                }
+                            }
+                        }
+                        catch (const std::exception& ex) {
+                            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                                "[CONNECT AUTH] Failed to decode/parse signature: %s", ex.what());
+                        }
+                    }
+                }
+
+                // Create a combined identifier using all available information
+                if (is_ios) {
+                    // For iOS devices, prioritize vendor_id
+                    if (!vendor_id.empty()) {
+                        combined_id = "iOS_" + vendor_id + "_" + client_ip;
+                        logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                            "[CONNECT AUTH] Created iOS combined identifier using vendor_id: %s", combined_id.c_str());
+                    }
+                    else if (!advertising_id.empty() || !platform_id.empty()) {
+                        // Fall back to advertising_id and platform_id if vendor_id is not available
+                        combined_id = "iOS_" + advertising_id + "_" + platform_id + "_" + client_ip;
+                        logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                            "[CONNECT AUTH] Created iOS combined identifier using advertising_id/platform_id: %s", combined_id.c_str());
+                    }
+                }
+                else {
+                    // For Android devices, use advertising_id and platform_id
+                    if (!advertising_id.empty() || !platform_id.empty()) {
+                        combined_id = "Android_" + advertising_id + "_" + platform_id + "_" + client_ip;
+                        logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                            "[CONNECT AUTH] Created Android combined identifier: %s", combined_id.c_str());
+                    }
+                }
+
+                // Check if we already have a user with this combined identifier
+                bool found_existing_user = false;
+                std::string existing_email;
+                std::string existing_user_id;
+                std::string existing_access_token;
+                std::string existing_access_code;
+                std::string access_code; // Declare access_code at this scope so it's available throughout the function
+
+                if (!combined_id.empty()) {
+                    // Try to find a user with this combined ID
+                    std::string stored_combined_id;
+                    std::vector<std::string> all_emails;
+                    if (db.get_all_emails(all_emails)) {
+                        for (const auto& email : all_emails) {
+                            if (db.get_combined_id(email, stored_combined_id) && stored_combined_id == combined_id) {
+                                existing_email = email;
+                                found_existing_user = true;
+
+                                // Get the user ID and tokens for this email
+                                if (!db.get_user_id(existing_email, existing_user_id) ||
+                                    !db.get_access_token(existing_email, existing_access_token) ||
+                                    !db.get_access_code(existing_email, existing_access_code)) {
+                                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                                        "[CONNECT AUTH] Failed to retrieve user details for existing user");
+                                    found_existing_user = false; // Fall back to creating a new user
+                                    break;
+                                }
+
+                                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+                                    "[CONNECT AUTH] Found existing user with combined ID %s: Email=%s, User ID=%s",
+                                    combined_id.c_str(), existing_email.c_str(), existing_user_id.c_str());
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (found_existing_user) {
+                    // Use the existing user
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+                        "[CONNECT AUTH] Using existing user account with combined ID %s", combined_id.c_str());
+
+                    // Update the session with the existing user information
+                    session.user_user_id = existing_user_id;
+                    session.access_token = existing_access_token;
+                    session.personal_id = existing_user_id;
+                    session.me_persona_pid_id = existing_user_id;
+                    session.display_name = "Guest_" + existing_user_id.substr(0, 8);
+                    session.persona_name = session.display_name;
+                    session.me_persona_display_name = session.display_name;
+                    session.me_persona_name = session.display_name;
+                    session.me_persona_anonymous_id = "anon_" + existing_user_id;
+
+                    // Update the access code for this session
+                    std::string new_access_code = tsto::token::Token::generate_access_code(existing_user_id);
+                    if (db.update_access_code(existing_email, new_access_code)) {
+                        logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                            "[CONNECT AUTH] Updated access code for existing user: %s", new_access_code.c_str());
+                        existing_access_code = new_access_code;
+                    }
+
+                    // Update client IP if it has changed
+                    if (!client_ip.empty()) {
+                        db.update_client_ip(existing_email, client_ip);
+                    }
+
+                    // Assign to the outer scope access_code variable
+                    access_code = existing_access_code;
+
+                    doc.AddMember("code", rapidjson::Value(existing_access_code.c_str(), allocator), allocator);
+                }
+                else {
+                    // Create a new anonymous user
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+                        "[CONNECT AUTH] Creating new anonymous user");
+
+                    // Generate a unique anonymous email for this session
+                    std::string anon_email = "anonymous_" + tsto::token::Token::generate_random_string(10) + "@temp.com";
+
+                    // Generate a new user ID and tokens
+                    std::string user_id = db.get_next_user_id();
+                    std::string access_token = tsto::token::Token::generate_typed_access_token("AT", user_id);
+                    access_code = tsto::token::Token::generate_access_code(user_id); // Use the outer scope variable
+                    std::string mayhem_id = db.get_next_mayhem_id();
+
+                    // Store the new anonymous user in the database with all identifiers and session key
+                    if (!db.store_user_id(anon_email, user_id, access_token, mayhem_id, access_code, "", "Guest_" + user_id.substr(0, 8), "", "", session.get_device_id(), client_ip, "", "", combined_id, advertising_id, platform_id, "", "", session.session_key)) {
+                        logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                            "[CONNECT AUTH] Failed to store new anonymous user in database");
+                    }
+                    else {
+                        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+                            "[CONNECT AUTH] Successfully stored new anonymous user - Email: %s, User ID: %s, Combined ID: %s",
+                            anon_email.c_str(), user_id.c_str(), combined_id.c_str());
+                    }
+
+                    // Update the session with the new user information
+                    session.user_user_id = user_id;
+                    session.access_token = access_token;
+                    session.personal_id = user_id;
+                    session.me_persona_pid_id = user_id;
+                    session.display_name = "Guest_" + user_id.substr(0, 8);
+                    session.persona_name = session.display_name;
+                    session.me_persona_display_name = session.display_name;
+                    session.me_persona_name = session.display_name;
+                    session.me_persona_anonymous_id = "anon_" + user_id;
+
+                    doc.AddMember("code", rapidjson::Value(access_code.c_str(), allocator), allocator);
+                }
+
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                    "[CONNECT AUTH] Generated anonymous response:\n"
+                    "code: %s", access_code.c_str());
+
+                headers::set_json_response(ctx);
+                std::string response = utils::serialization::serialize_json(doc);
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                    "[CONNECT AUTH] Sending response: %s", response.c_str());
+                cb(response);
+            }
+
+            logger::write(logger::LOG_LEVEL_RESPONSE, logger::LOG_LABEL_AUTH,
+                "[CONNECT AUTH] Sent response for client_id: %s",
+                client_id.c_str());
+        }
+        catch (const std::exception& ex) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                "[CONNECT AUTH] Error: %s", ex.what());
+            ctx->set_response_http_code(500);
+            cb("");
+        }
+    }
+
+    void Auth::handle_connect_tokeninfo(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
+        const evpp::http::HTTPSendResponseCallback& cb) {
+        try {
+            logger::write(logger::LOG_LEVEL_INCOMING, logger::LOG_LABEL_AUTH,
+                "[CONNECT TOKENINFO] Request from %s", std::string(ctx->remote_ip()).c_str());
+
+            auto& db = tsto::database::Database::get_instance();
+            auto& session = tsto::Session::get();
+
+            std::string access_token;
+
+            // First check the access_token header (case-insensitive)
+            const char* token_header = ctx->FindRequestHeader("access_token");
+            if (!token_header) {
+                // Try with different case variations
+                token_header = ctx->FindRequestHeader("Access-Token");
+            }
+            if (!token_header) {
+                token_header = ctx->FindRequestHeader("Access_Token");
+            }
+
+            if (token_header) {
+                access_token = token_header;
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                    "[CONNECT TOKENINFO] Found access token in header: %s",
+                    access_token.substr(0, 10).c_str());
+            }
+            else {
+                // Then check query parameters
+                auto query_token = ctx->GetQuery("access_token");
+                if (!query_token.empty()) {
+                    access_token = query_token;
+                    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                        "[CONNECT TOKENINFO] Found access token in URL query: %s",
+                        access_token.substr(0, 10).c_str());
+                }
+                else {
+                    // Finally check Authorization header (for backward compatibility)
+                    const char* auth_header = ctx->FindRequestHeader("Authorization");
+                    if (auth_header) {
+                        std::string auth_str(auth_header);
+                        auth_str.erase(0, auth_str.find_first_not_of(" \t\r\n"));
+                        auth_str.erase(auth_str.find_last_not_of(" \t\r\n") + 1);
+
+                        // Bearer token
+                        if (auth_str.find("Bearer ") == 0) {
+                            access_token = auth_str.substr(7);
+                            access_token.erase(0, access_token.find_first_not_of(" \t\r\n"));
+                            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                                "[CONNECT TOKENINFO] Found access token in Authorization header: %s",
+                                access_token.substr(0, 10).c_str());
+                        }
+                        else {
+                            access_token = auth_str;
+                            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                                "[CONNECT TOKENINFO] Found non-Bearer access token in Authorization header: %s",
+                                access_token.substr(0, 10).c_str());
+                        }
+                    }
+                }
+            }
+
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                "[CONNECT TOKENINFO] Final Access Token: %s",
+                access_token.empty() ? "empty" : (access_token.substr(0, 10) + "...").c_str());
+
+            //check if we have a valid access token
+            if (access_token.empty()) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                    "[CONNECT TOKENINFO] No access token provided in request");
+                ctx->set_response_http_code(400);
+                cb("{\"error\":\"invalid_request\",\"error_description\":\"Missing access token\"}");
+                return;
+            }
+
+            headers::set_json_response(ctx);
+            rapidjson::Document doc;
+            doc.SetObject();
+            auto& allocator = doc.GetAllocator();
+
+            //scan token exists in database
+            std::string email;
+            bool found = false;
+            std::string user_id;
+            std::string mayhem_id = "";
+
+            found = db.validate_access_token(access_token, email);
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                "[CONNECT TOKENINFO] Database lookup result: found=%s, email=%s",
+                found ? "true" : "false", found ? email.c_str() : "none");
+
+            if (found) {
+                if (db.get_user_id(email, user_id)) {
+                    // No need to update session - all data is in the database
+                    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                        "[CONNECT TOKENINFO] User logged in successfully: email=%s, user_id=%s",
+                        email.c_str(), user_id.c_str());
+
+                    // Get mayhem_id for this user
+                    if (!db.get_mayhem_id(email, mayhem_id)) {
+                        logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                            "[CONNECT TOKENINFO] Failed to get mayhem_id for email: %s", email.c_str());
+                    }
+                    else {
+                        logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                            "[CONNECT TOKENINFO] Found mayhem_id for email: %s, mayhem_id: %s", email.c_str(), mayhem_id.c_str());
+                    }
+                }
+                else {
+                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                        "[CONNECT TOKENINFO] Failed to get user_id for email: %s", email.c_str());
+
+                    ctx->set_response_http_code(200);
+                    cb("");
+                    return;
+                }
+            }
+            else {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                    "[CONNECT TOKENINFO] Invalid access token: %s", access_token.c_str());
+
+                // Try to get user_id from the access token
+                if (true) {
+                    //use the existing user_id from the session
+                    // If we couldn't get user_id from the email, try to get it using the token
+                    std::string token_email;
+                    if (db.get_email_by_token(access_token, token_email) && db.get_user_id(token_email, user_id)) {
+                        logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                            "[CONNECT TOKENINFO] Retrieved user_id from token: %s", user_id.c_str());
+                    } else {
+                        logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                            "[CONNECT TOKENINFO] Failed to get user_id from token");
+                        ctx->set_response_http_code(401);
+                        cb("{\"error\":\"invalid_token\",\"error_description\":\"Invalid access token\"}");
+                        return;
+                    }
+
+                    //find the access token for this user_id
+                    std::string stored_token;
+                    if (db.get_user_by_id(user_id, stored_token)) {
+                        // If we found a token, try to get the email using that token
+                        if (db.get_email_by_token(stored_token, email)) {
+                            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+                                "[CONNECT TOKENINFO] Using existing session user: user_id=%s, email=%s",
+                                user_id.c_str(), email.c_str());
+
+                            // Get mayhem_id for the existing user
+                            if (!db.get_mayhem_id(email, mayhem_id)) {
+                                logger::write(logger::LOG_LEVEL_WARN, logger::LOG_LABEL_AUTH,
+                                    "[CONNECT TOKENINFO] No mayhem_id found for user: %s", email.c_str());
+                                mayhem_id = "";
+                            }
+                        }
+                        else {
+                            // We have a token but no email
+                            logger::write(logger::LOG_LEVEL_WARN, logger::LOG_LABEL_AUTH,
+                                "[CONNECT TOKENINFO] Found token for user_id but no email: %s", user_id.c_str());
+                            email = "anonymous_session_user";
+                            mayhem_id = "";
+                        }
+                    }
+                    else {
+                        // We have a user_id but no corresponding token in the database
+                        logger::write(logger::LOG_LEVEL_WARN, logger::LOG_LABEL_AUTH,
+                            "[CONNECT TOKENINFO] Session has user_id but no matching record in database: %s",
+                            user_id.c_str());
+
+                        // Use a default anonymous email based on the user_id
+                        email = "anonymous_session_user";
+                        mayhem_id = "";
+                    }
+                }
+                else {
+                    // We don't have a valid user ID, so return an error
+                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                        "[CONNECT TOKENINFO] No valid user found");
+
+                    ctx->set_response_http_code(401);
+                    headers::set_json_response(ctx);
+                    cb("{\"error\":\"invalid_token\",\"error_description\":\"No valid user found\"}");
+                    return;
+                }
+            }
+
+            //determine if this is an email user or anonymous user
+            bool is_email_user = (email.find("anonymous_") != 0);
+            std::string pid_type = is_email_user ? "NUCLEUS" : "AUTHENTICATOR_ANONYMOUS";
+
+            doc.AddMember("client_id", "long_live_token", allocator); // Updated to match Node.js implementation
+            doc.AddMember("scope", "offline basic.antelope.links.bulk openid signin antelope-rtm-readwrite search.identity basic.antelope basic.identity basic.persona antelope-inbox-readwrite", allocator);
+            doc.AddMember("expires_in", 368435455, allocator); // About 11 years
+            doc.AddMember("token_type", "Bearer", allocator);
+
+            // Make sure to include the correct user_id in the response
+            doc.AddMember("user_id", rapidjson::Value(user_id.c_str(), allocator), allocator);
+
+            // Include mayhem_id in the response
+            if (!mayhem_id.empty()) {
+                doc.AddMember("mayhem_id", rapidjson::Value(mayhem_id.c_str(), allocator), allocator);
+            }
+            doc.AddMember("pid_id", rapidjson::Value(user_id.c_str(), allocator), allocator);
+            doc.AddMember("pid_type", rapidjson::Value(pid_type.c_str(), allocator), allocator);
+            doc.AddMember("persona_id", rapidjson::Value(user_id.c_str(), allocator), allocator);
+
+            //check if we need to include additional fields based on headers
+            bool include_underage = false;
+            bool include_authenticators = false;
+            bool include_stopprocess = false;
+            bool include_tid = false;
+
+            auto check_underage = ctx->FindRequestHeader("x-check-underage");
+            if (check_underage && std::string(check_underage) == "true") {
+                include_underage = true;
+            }
+
+            auto include_auth = ctx->FindRequestHeader("x-include-authenticators");
+            if (include_auth && std::string(include_auth) == "true") {
+                include_authenticators = true;
+            }
+
+            auto include_stop = ctx->FindRequestHeader("x-include-stopprocess");
+            if (include_stop && std::string(include_stop) == "true") {
+                include_stopprocess = true;
+            }
+
+            auto include_telemetry = ctx->FindRequestHeader("x-include-tid");
+            if (include_telemetry && std::string(include_telemetry) == "true") {
+                include_tid = true;
+            }
+
+            if (include_underage) {
+                doc.AddMember("is_underage", false, allocator);
+            }
+
+            if (include_authenticators) {
+                rapidjson::Value authenticators(rapidjson::kArrayType);
+
+                if (!is_email_user) {
+                    // Anonymous user
+                    rapidjson::Value authenticator(rapidjson::kObjectType);
+                    authenticator.AddMember("authenticator_type", "AUTHENTICATOR_ANONYMOUS", allocator);
+                    authenticator.AddMember("authenticator_pid_id", rapidjson::Value(user_id.c_str(), allocator), allocator);
+                    authenticators.PushBack(authenticator, allocator);
+                }
+                else {
+                    // Email user - add both NUCLEUS and AUTHENTICATOR_ANONYMOUS
+                    rapidjson::Value authenticator1(rapidjson::kObjectType);
+                    authenticator1.AddMember("authenticator_type", "AUTHENTICATOR_ANONYMOUS", allocator);
+                    authenticator1.AddMember("authenticator_pid_id", rapidjson::Value(user_id.c_str(), allocator), allocator);
+                    authenticators.PushBack(authenticator1, allocator);
+
+                    rapidjson::Value authenticator2(rapidjson::kObjectType);
+                    authenticator2.AddMember("authenticator_type", "NUCLEUS", allocator);
+                    authenticator2.AddMember("authenticator_pid_id", rapidjson::Value(user_id.c_str(), allocator), allocator);
+                    authenticators.PushBack(authenticator2, allocator);
+                }
+
+                doc.AddMember("authenticators", authenticators, allocator);
+            }
+
+            if (include_stopprocess) {
+                doc.AddMember("stopProcess", "OFF", allocator);
+            }
+
+            if (include_tid) {
+                doc.AddMember("telemetry_id", rapidjson::Value(user_id.c_str(), allocator), allocator);
+            }
+
+            cb(utils::serialization::serialize_json(doc));
+        }
+        catch (const std::exception& ex) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                "Error in handle_connect_tokeninfo: %s", ex.what());
+            ctx->set_response_http_code(500);
+            cb("");
+        }
+    }
+
+    void Auth::handle_connect_token(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
+        const evpp::http::HTTPSendResponseCallback& cb) {
+        try {
+            logger::write(logger::LOG_LEVEL_INCOMING, logger::LOG_LABEL_AUTH,
+                "[CONNECT TOKEN] Request from %s", std::string(ctx->remote_ip()).c_str());
+
+            auto& db = tsto::database::Database::get_instance();
+            auto client_id = std::string(ctx->GetQuery("client_id"));
+            bool is_ios = (client_id == "simpsons4-ios-client");
+
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                "[CONNECT TOKEN] Determined platform: %s", is_ios ? "iOS" : "Android");
+
+
+            //logout
+            auto grant_type = std::string(ctx->GetQuery("grant_type"));
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                "[CONNECT TOKEN] Grant type: %s", grant_type.c_str());
+
+            if (grant_type == "remove_authenticator") {
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                    "[CONNECT TOKEN] Grant type: remove_authenticator");
+
+                // Check if we have a valid access token
+                std::string access_token;
+
+                // Check access_token header first (to match Node.js implementation)
+                const char* token_header = ctx->FindRequestHeader("access_token");
+                if (token_header) {
+                    access_token = token_header;
+                }
+
+                // Fall back to mh_auth_params if access_token is not present
+                if (access_token.empty()) {
+                    token_header = ctx->FindRequestHeader("mh_auth_params");
+                    if (token_header) {
+                        std::string auth_str(token_header);
+                        if (auth_str.substr(0, 7) == "Bearer ") {
+                            access_token = auth_str.substr(7);
+                        }
+                        else {
+                            access_token = auth_str;
+                        }
+                    }
+                }
+
+                // Fall back to nucleus_token if neither access_token nor mh_auth_params is present
+                if (access_token.empty()) {
+                    token_header = ctx->FindRequestHeader("nucleus_token");
+                    if (token_header) {
+                        access_token = token_header;
+                    }
+                }
+
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                    "[CONNECT TOKEN] Using access token from header: %s",
+                    access_token.empty() ? "" : access_token.substr(0, 10).c_str());
+
+                // Try to find the email for this token
+                std::string email;
+                if (!access_token.empty() && db.get_email_by_token(access_token, email)) {
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+                        "[CONNECT TOKEN] Found email for access token: %s", email.c_str());
+
+                    // Logout the user by clearing the access token
+                    if (db.logout_user(email)) {
+                        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+                            "[CONNECT TOKEN] Successfully logged out user: %s", email.c_str());
+                    }
+                }
+
+                // Generate a new anonymous user
+                auto& session = tsto::Session::get();
+                //session.reinitialize();
+
+                // Set the town filename to mytown.pb
+                session.town_filename = "mytown.pb";
+
+                // Generate a new anonymous email with a random string
+                std::string anon_email = "anonymous_" + std::to_string(std::rand());
+
+                // Get separate IDs for user and mayhem (don't reuse mayhem ID as user ID)
+                std::string mayhem_id = db.get_next_mayhem_id();
+                std::string user_id = db.get_next_user_id();  // Get a proper user ID that starts with 0
+
+                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+                    "[CONNECT TOKEN] Using sequential user ID: %s", user_id.c_str());
+
+                // Generate a new access token with a random string
+                std::string random_part = std::to_string(std::rand());
+                std::string new_access_token = "AT0:2.0:3.0:86400:" + random_part + ":" + user_id + ":MPDON";
+
+                // We already have the mayhem_id from above
+
+                // Generate an access code for the anonymous user
+                std::string access_code = tsto::token::Token::generate_access_code(user_id);
+                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+                    "[CONNECT TOKEN] Generated access code for anonymous user: %s", access_code.c_str());
+
+                // Generate a new session key
+                std::string session_key = tsto::token::Token::generate_random_string(32);
+                
+                // Get device ID from request instead of session
+                std::string device_id = ctx->GetQuery("device_id");
+                
+                // Store the new anonymous user in the database with the access code and session key
+                if (!db.store_user_id(anon_email, user_id, new_access_token, mayhem_id, access_code, "", "Anonymous", "Springfield", "towns/mytown.pb", device_id, "", "", "", "", "", "", "", "", session_key)) {
+                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                        "[CONNECT TOKEN] Failed to store new anonymous user");
+                }
+
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                    "[CONNECT TOKEN] Stored session key: %s", session_key.c_str());
+
+                // Store the lnglv_token (which is the same as access_token for anonymous users)
+                std::string lnglv_token = new_access_token;
+                if (!db.update_lnglv_token(anon_email, lnglv_token)) {
+                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                        "[CONNECT TOKEN] Failed to store lnglv_token for anonymous user");
+                }
+                else {
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+                        "[CONNECT TOKEN] Successfully stored lnglv_token for anonymous user");
+                }
+
+                // No need to update session - all data is stored in the database
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                    "[CONNECT TOKEN] Using user ID: %s with access token: %s", 
+                    user_id.c_str(), new_access_token.substr(0, 10).c_str());
+
+                // Load or create a new town
+                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+                    "[CONNECT TOKEN] Creating new town as mytown.pb after logout");
+
+                if (tsto::land::Land::static_load_town()) {
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+                        "[CONNECT TOKEN] Successfully created/loaded town as mytown.pb after logout");
+                }
+                else {
+                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                        "[CONNECT TOKEN] Failed to create/load town as mytown.pb after logout");
+                }
+
+                // Prepare the response with the new token
+                headers::set_json_response(ctx);
+                rapidjson::Document doc;
+                doc.SetObject();
+                auto& allocator = doc.GetAllocator();
+
+                // Generate ID token
+                std::string id_token_header = utils::cryptography::base64::encode("{\"typ\":\"JWT\",\"alg\":\"HS256\"}");
+
+                rapidjson::Document id_token_body_doc;
+                id_token_body_doc.SetObject();
+                id_token_body_doc.AddMember("aud", "simpsons4-android-client", allocator);
+                id_token_body_doc.AddMember("iss", "accounts.ea.com", allocator);
+                id_token_body_doc.AddMember("iat", (int64_t)(std::time(nullptr)), allocator);
+                id_token_body_doc.AddMember("exp", (int64_t)(std::time(nullptr)) + 368435455, allocator);
+                id_token_body_doc.AddMember("pid_id", rapidjson::Value(user_id.c_str(), allocator), allocator);
+                id_token_body_doc.AddMember("user_id", rapidjson::Value(user_id.c_str(), allocator), allocator);
+                id_token_body_doc.AddMember("persona_id", rapidjson::Value(user_id.c_str(), allocator), allocator);
+                id_token_body_doc.AddMember("pid_type", "AUTHENTICATOR_ANONYMOUS", allocator);
+                id_token_body_doc.AddMember("auth_time", 0, allocator);
+
+                std::string id_token_body = utils::cryptography::base64::encode(
+                    utils::serialization::serialize_json(id_token_body_doc)
+                );
+
+                std::string id_token_signature = utils::cryptography::base64::encode("2Tok8RykmQD41uWDv5mI7JTZ7NIhcZAIPtiBm4Z5");
+                std::string id_token = id_token_header + "." + id_token_body + "." + id_token_signature;
+
+                // Build the final response
+                doc.AddMember("access_token", rapidjson::Value(new_access_token.c_str(), allocator), allocator);
+                doc.AddMember("token_type", "Bearer", allocator);
+                doc.AddMember("expires_in", 368435455, allocator);
+                doc.AddMember("refresh_token", "NotImplemented", allocator);
+                doc.AddMember("refresh_token_expires_in", 368435455, allocator);
+                doc.AddMember("id_token", rapidjson::Value(id_token.c_str(), allocator), allocator);
+
+                cb(utils::serialization::serialize_json(doc));
+                return;
+            }
+            else {
+
+                //original authorization_code flow
+                auto code = std::string(ctx->GetQuery("code"));
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                    "[CONNECT TOKEN] Received code: %s", code.c_str());
+
+                // URL decode the code - the HTTP library doesn't decode the % characters
+                code = tsto::token::Token::url_decode(code);
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                    "[CONNECT TOKEN] URL-decoded code: %s", code.c_str());
+
+                auto& db = tsto::database::Database::get_instance();
+                std::string email;
+                if (!db.get_email_by_access_code(code, email)) {
+                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                        "[CONNECT TOKEN] Invalid access code: %s", code.c_str());
+                    ctx->set_response_http_code(400);
+                    headers::set_json_response(ctx);
+                    cb("{\"error\":\"invalid_grant\",\"error_description\":\"Invalid code\"}");
+                    return;
+                }
+
+                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+                    "[CONNECT TOKEN] Found email for access code: %s", email.c_str());
+
+                std::string user_id;
+                if (!db.get_user_id(email, user_id)) {
+                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                        "[CONNECT TOKEN] No user_id found for email: %s", email.c_str());
+                    ctx->set_response_http_code(400);
+                    headers::set_json_response(ctx);
+                    cb("{\"error\":\"invalid_grant\",\"error_description\":\"No user_id found for email\"}");
+                    return;
+                }
+
+                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+                    "[CONNECT TOKEN] Found user_id for email: %s - %s", email.c_str(), user_id.c_str());
+
+                // Generate a new access token with a random string
+                std::string random_part = std::to_string(std::rand());
+                std::string access_token = "AT0:2.0:3.0:86400:" + random_part + ":" + user_id + ":MPDON";
+
+                // Update the access token in the database
+                if (!db.update_access_token(email, access_token)) {
+                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                        "[CONNECT TOKEN] Failed to update access token for email: %s", email.c_str());
+                    ctx->set_response_http_code(500);
+                    headers::set_json_response(ctx);
+                    cb("{\"error\":\"server_error\",\"error_description\":\"Failed to update access token\"}");
+                    return;
+                }
+
+                // Store the lnglv_token (which is the same as access_token for our purposes)
+                std::string lnglv_token = access_token;
+
+                // Update the lnglv_token in the database
+                if (!db.update_lnglv_token(email, lnglv_token)) {
+                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                        "[CONNECT TOKEN] Failed to update lnglv_token for email: %s", email.c_str());
+                }
+                else {
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+                        "[CONNECT TOKEN] Successfully updated lnglv_token for email: %s", email.c_str());
+                }
+
+                // Generate a new access code instead of clearing it
+                std::string new_access_code = tsto::token::Token::generate_access_code(user_id);
+                if (!db.update_access_code(email, new_access_code)) {
+                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                        "[CONNECT TOKEN] Failed to update access code for email: %s", email.c_str());
+                }
+                else {
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+                        "[CONNECT TOKEN] Updated access code for email: %s to: %s", email.c_str(), new_access_code.c_str());
+                }
+
+                // Get user's display name
+                std::string display_name;
+                if (!db.get_display_name(email, display_name) || display_name.empty()) {
+                    // Use a default display name if none is set
+                    display_name = "User_" + user_id.substr(0, 8);
+                    logger::write(logger::LOG_LEVEL_WARN, logger::LOG_LABEL_AUTH,
+                        "[CONNECT TOKEN] No display name found for email: %s, using default: %s",
+                        email.c_str(), display_name.c_str());
+                }
+
+                // Get user's town name
+                std::string town_name;
+                if (!db.get_town_name(email, town_name) || town_name.empty()) {
+                    // Use a default town name if none is set
+                    town_name = "Springfield";
+                    logger::write(logger::LOG_LEVEL_WARN, logger::LOG_LABEL_AUTH,
+                        "[CONNECT TOKEN] No town name found for email: %s, using default: %s",
+                        email.c_str(), town_name.c_str());
+                }
+
+                // Get user's land save path
+                std::string land_save_path;
+                if (!db.get_land_save_path(email, land_save_path) || land_save_path.empty()) {
+                    // Use a default land save path if none is set
+                    land_save_path = "towns/" + email + ".pb";
+                    logger::write(logger::LOG_LEVEL_WARN, logger::LOG_LABEL_AUTH,
+                        "[CONNECT TOKEN] No land save path found for email: %s, using default: %s",
+                        email.c_str(), land_save_path.c_str());
+
+                    // Update the land save path in the database
+                    if (!db.update_land_save_path(email, land_save_path)) {
+                        logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                            "[CONNECT TOKEN] Failed to update land save path for email: %s", email.c_str());
+                    }
+                }
+
+                // Get mayhem ID
+                std::string mayhem_id = "";
+                if (!db.get_mayhem_id(email, mayhem_id) || mayhem_id.empty()) {
+                    mayhem_id = db.get_next_mayhem_id();
+                    logger::write(logger::LOG_LEVEL_WARN, logger::LOG_LABEL_AUTH,
+                        "[CONNECT TOKEN] No mayhem ID found for email: %s, using new ID: %s",
+                        email.c_str(), mayhem_id.c_str());
+
+                    // Update the mayhem ID in the database
+                    if (!db.update_mayhem_id(email, mayhem_id)) {
+                        logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                            "[CONNECT TOKEN] Failed to update mayhem ID for email: %s", email.c_str());
+                    }
+                }
+
+                // Update session with the user's data
+                auto& session = tsto::Session::get();
+
+                // Set user information
+                session.user_user_id = user_id;
+                session.access_token = access_token;
+                session.display_name = display_name;
+                session.persona_name = utils::string::to_lower(display_name);
+                session.town_filename = email + ".pb";
+                session.me_persona_display_name = display_name;
+                session.me_persona_name = utils::string::to_lower(display_name);
+                session.me_display_name = display_name;
+
+                // Extract filename from land_save_path
+                size_t last_slash = land_save_path.find_last_of("/\\");
+                if (last_slash != std::string::npos) {
+                    session.town_filename = land_save_path.substr(last_slash + 1);
+                }
+                else {
+                    session.town_filename = land_save_path;
+                }
+
+                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_AUTH,
+                    "[CONNECT TOKEN] Updated session for user: %s, display name: %s, town file: %s",
+                    email.c_str(), display_name.c_str(), session.town_filename.c_str());
+
+                headers::set_json_response(ctx);
+                rapidjson::Document doc;
+                doc.SetObject();
+                auto& allocator = doc.GetAllocator();
+
+                //random refresh token with same format but RT0 prefix
+                std::string refresh_token_base = "RT0" + access_token.substr(3);  // Replace AT0 with RT0
+                std::string refresh_token = refresh_token_base + ".MpDW6wVO8Ek79nu6jxMdSQwOqP";
+
+                std::string id_token_header = utils::cryptography::base64::encode("{\"typ\":\"JWT\",\"alg\":\"HS256\"}");
+
+                rapidjson::Document id_token_body_doc;
+                id_token_body_doc.SetObject();
+                id_token_body_doc.AddMember("aud", rapidjson::Value(client_id.c_str(), allocator), allocator);
+                id_token_body_doc.AddMember("iss", "accounts.ea.com", allocator);
+                id_token_body_doc.AddMember("iat", (int64_t)(std::time(nullptr)), allocator);
+                id_token_body_doc.AddMember("exp", (int64_t)(std::time(nullptr)) + 368435455, allocator); // About 11 years, matching Node.js implementation
+                id_token_body_doc.AddMember("pid_id", rapidjson::Value(user_id.c_str(), allocator), allocator);
+                id_token_body_doc.AddMember("user_id", rapidjson::Value(user_id.c_str(), allocator), allocator);
+                id_token_body_doc.AddMember("persona_id", rapidjson::Value(user_id.c_str(), allocator), allocator);
+                id_token_body_doc.AddMember("pid_type", "AUTHENTICATOR_ANONYMOUS", allocator);
+                id_token_body_doc.AddMember("auth_time", 0, allocator);
+
+                std::string id_token_body = utils::cryptography::base64::encode(
+                    utils::serialization::serialize_json(id_token_body_doc)
+                );
+
+                std::string hex_sig = "2Tok8RykmQD41uWDv5mI7JTZ7NIhcZAIPtiBm4Z5";
+                std::string id_token = id_token_header + "." + id_token_body + "." +
+                    utils::cryptography::base64::encode(hex_sig);
+
+                doc.AddMember("access_token", rapidjson::Value(access_token.c_str(), allocator), allocator);
+                doc.AddMember("token_type", "Bearer", allocator);
+                doc.AddMember("expires_in", 368435455, allocator); // About 11 years, matching Node.js implementation
+                doc.AddMember("refresh_token", rapidjson::Value(refresh_token.c_str(), allocator), allocator);
+                doc.AddMember("refresh_token_expires_in", 368435455, allocator); // About 11 years, matching Node.js implementation
+                doc.AddMember("id_token", rapidjson::Value(id_token.c_str(), allocator), allocator);
+                doc.AddMember("lnglv_token", rapidjson::Value(lnglv_token.c_str(), allocator), allocator);
+
+                logger::write(logger::LOG_LEVEL_RESPONSE, logger::LOG_LABEL_AUTH,
+                    "[CONNECT TOKEN] Sending %s response for client_id: %s",
+                    is_ios ? "iOS" : "Android", client_id.c_str());
+
+                std::string response = utils::serialization::serialize_json(doc);
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_AUTH,
+                    "[CONNECT TOKEN] Response payload: %s", response.substr(0, 100).c_str());
+
+                cb(response);
+            }
+        }
+        catch (const std::exception& ex) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_AUTH,
+                "Error in handle_connect_token: %s", ex.what());
+            ctx->set_response_http_code(500);
+            cb("");
+        }
+    }
+
+
+
+}

@@ -1,0 +1,991 @@
+#include <std_include.hpp>
+#include "user.hpp"
+#include <rapidjson/document.h>
+#include <rapidjson/writer.h>
+#include <rapidjson/stringbuffer.h>
+#include "tsto/database/database.hpp"
+#include <regex>
+
+namespace tsto::user {
+
+    void User::handle_me_personas(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
+        const evpp::http::HTTPSendResponseCallback& cb) {
+        try {
+            logger::write(logger::LOG_LEVEL_INCOMING, logger::LOG_LABEL_USER,
+                "[ME PERSONAS] Request from %s: %s", ctx->remote_ip().data(), ctx->uri().data());
+
+            std::string uri = ctx->uri();
+            
+            //find user ID from the URL
+            std::string who;
+            
+            //diff URL patterns
+            if (uri.find("/proxy/identity/pids/me/personas/") == 0) {
+                //Format: /proxy/identity/pids/me/personas/{who}
+                who = uri.substr(uri.find_last_of('/') + 1);
+                if (who.empty()) {
+                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_USER,
+                        "[ME PERSONAS] Empty user ID in URL: %s", uri.c_str());
+                    ctx->set_response_http_code(400);
+                    cb("{\"message\":\"User ID cannot be empty\"}");
+                    return;
+                }
+            } else if (uri == "/proxy/identity/pids//personas") {
+                // Special case for iOS: /proxy/identity/pids//personas
+                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_USER,
+                    "[ME PERSONAS] iOS-specific empty user ID pattern detected");
+                
+                // Extract token from Authorization header to find the user
+                std::string auth_header = ctx->FindRequestHeader("Authorization") ? ctx->FindRequestHeader("Authorization") : "";
+                std::string token;
+                bool token_valid = false;
+                
+                // Parse "Bearer <token>" if available
+                if (!auth_header.empty() && auth_header.find("Bearer ") == 0) {
+                    token = auth_header.substr(7);
+                    
+                    // Try to find the user ID by token
+                    auto& db = tsto::database::Database::get_instance();
+                    std::string email;
+                    
+                    if (db.get_email_by_token(token, email) && db.get_user_id(email, who)) {
+                        token_valid = true;
+                        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_USER,
+                            "[ME PERSONAS] Found user ID from token: %s", who.c_str());
+                    }
+                }
+                
+                // If token is invalid or not provided, generate a temporary ID
+                if (!token_valid) {
+                    // Don't use session - generate a consistent temporary ID based on remote IP
+                    std::string remote_ip = ctx->remote_ip();
+                    who = "anonymous_" + std::to_string(std::hash<std::string>{}(remote_ip));
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_USER,
+                        "[ME PERSONAS] Generated anonymous user ID from IP: %s", who.c_str());
+                }
+            } else if (uri.find("/proxy/identity/pids/") == 0) {
+                //Format: /proxy/identity/pids/{who}/personas
+                
+                //regex to extract the user ID more reliably
+                std::regex pattern(R"(/proxy/identity/pids/([^/]*)/personas)");
+                std::smatch matches;
+                
+                if (std::regex_search(uri, matches, pattern) && matches.size() > 1) {
+                    who = matches[1].str();
+                    
+                    if (who.empty()) {
+                        logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_USER,
+                            "[ME PERSONAS] Empty user ID in URL: %s", uri.c_str());
+                        ctx->set_response_http_code(400);
+                        cb("{\"message\":\"User ID cannot be empty\"}");
+                        return;
+                    }
+                } else {
+                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_USER,
+                        "[ME PERSONAS] Invalid URL format: %s", uri.c_str());
+                    ctx->set_response_http_code(400);
+                    cb("{\"message\":\"Invalid URL format\"}");
+                    return;
+                }
+            } else {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_USER,
+                    "[ME PERSONAS] Unsupported URL format: %s", uri.c_str());
+                ctx->set_response_http_code(400);
+                cb("{\"message\":\"Unsupported URL format\"}");
+                return;
+            }
+            
+            while (!who.empty() && (who.front() == '/' || who.front() == '\\')) {
+                who.erase(0, 1);
+            }
+            while (!who.empty() && (who.back() == '/' || who.back() == '\\')) {
+                who.pop_back();
+            }
+            
+            if (who.empty()) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_USER,
+                    "[ME PERSONAS] Empty user ID after cleanup: %s", uri.c_str());
+                ctx->set_response_http_code(400);
+                cb("{\"message\":\"User ID cannot be empty\"}");
+                return;
+            }
+            
+            // Extract token from different sources - similar to JS implementation
+            std::string token;
+            
+            // First try Authorization header
+            std::string auth_header = ctx->FindRequestHeader("Authorization") ? ctx->FindRequestHeader("Authorization") : "";
+            if (!auth_header.empty() && auth_header.find("Bearer ") == 0) {
+                token = auth_header.substr(7);
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_USER,
+                    "[ME PERSONAS] Found token in Authorization header");
+            }
+            
+            // If not in Authorization header, try nucleus_token or mh_auth_params headers
+            if (token.empty()) {
+                if (ctx->FindRequestHeader("nucleus_token")) {
+                    token = ctx->FindRequestHeader("nucleus_token");
+                    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_USER,
+                        "[ME PERSONAS] Found token in nucleus_token header");
+                } else if (ctx->FindRequestHeader("mh_auth_params")) {
+                    token = ctx->FindRequestHeader("mh_auth_params");
+                    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_USER,
+                        "[ME PERSONAS] Found token in mh_auth_params header");
+                }
+            }
+            
+            // If not in headers, try URL parameters
+            if (token.empty()) {
+                std::string tokenParam = ctx->GetQuery("nucleus_token");
+                if (!tokenParam.empty()) {
+                    token = tokenParam;
+                    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_USER,
+                        "[ME PERSONAS] Found token in nucleus_token URL parameter");
+                } else {
+                    tokenParam = ctx->GetQuery("mh_auth_params");
+                    if (!tokenParam.empty()) {
+                        token = tokenParam;
+                        logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_USER,
+                            "[ME PERSONAS] Found token in mh_auth_params URL parameter");
+                    }
+                }
+            }
+            
+            // Don't try to get token from session
+            if (token.empty()) {
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_USER,
+                    "[ME PERSONAS] No token found in headers or query parameters");
+            }
+            
+            // Check if we have a token
+            if (token.empty()) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_USER,
+                    "[ME PERSONAS] No token found in any source");
+                ctx->set_response_http_code(400);
+                std::string error = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                                   "<error code=\"400\" type=\"MISSING_VALUE\" field=\"nucleus_token\"/>";
+                headers::set_xml_response(ctx);
+                cb(error);
+                return;
+            }
+            
+            auto& db = tsto::database::Database::get_instance();
+            std::string access_token;
+            
+            // Get the stored access token for this user ID
+            if (!db.get_user_by_id(who, access_token)) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_USER,
+                    "[ME PERSONAS] No user found with ID: %s", who.c_str());
+                
+                // Instead of returning an error, create a temporary user response
+                // Generate a consistent display name based on the user ID
+                // Try to find the display name using the user ID from the URL
+                std::string display_name = "";
+                std::string user_id = who;
+                
+                // Check if the user ID is numeric and pad it to 38 digits if needed
+                if (user_id.find_first_not_of("0123456789") == std::string::npos) {
+                    if (user_id.length() != 38) {
+                        user_id = std::string(38 - user_id.length(), '0') + user_id;
+                        logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_USER,
+                            "[ME PERSONAS] Padded user ID to: %s", user_id.c_str());
+                    }
+                    
+                    // Try to get email by user ID
+                    std::string fallback_email;
+                    if (db.get_email_by_user_id(user_id, fallback_email) && !fallback_email.empty()) {
+                        // Found email by user ID, now get display name
+                        if (!db.get_display_name(fallback_email, display_name) || display_name.empty()) {
+                            // If no display name, use email part
+                            size_t at_pos = fallback_email.find('@');
+                            if (at_pos != std::string::npos) {
+                                display_name = fallback_email.substr(0, at_pos);
+                            } else {
+                                display_name = fallback_email;
+                            }
+                        }
+                        
+                        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_USER,
+                            "[ME PERSONAS] Recovered display name %s for user ID %s", 
+                            display_name.c_str(), user_id.c_str());
+                    }
+                }
+                
+                // If we still don't have a display name, try to find any user with this ID
+                if (display_name.empty()) {
+                    // Try to find any user with matching ID (even partial match)
+                    std::vector<std::string> all_emails;
+                    if (db.get_all_emails(all_emails)) {
+                        for (const auto& email_to_check : all_emails) {
+                            std::string check_user_id;
+                            if (db.get_user_id(email_to_check, check_user_id)) {
+                                // Check if the user ID contains our target ID (for partial matches)
+                                if (check_user_id.find(who) != std::string::npos) {
+                                    // Found a matching user ID, get display name
+                                    if (db.get_display_name(email_to_check, display_name) && !display_name.empty()) {
+                                        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_USER,
+                                            "[ME PERSONAS] Found display name %s for partial user ID match %s", 
+                                            display_name.c_str(), check_user_id.c_str());
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // If we still don't have a display name, use a last resort
+                if (display_name.empty()) {
+                    display_name = "User_" + who.substr(0, std::min<size_t>(8, who.length()));
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_USER,
+                        "[ME PERSONAS] Using last resort display name %s for user ID %s", 
+                        display_name.c_str(), who.c_str());
+                }
+                
+                rapidjson::Document doc;
+                doc.SetObject();
+                auto& allocator = doc.GetAllocator();
+                
+                // For iOS-specific empty user ID pattern
+                if (uri == "/proxy/identity/pids//personas") {
+                    rapidjson::Value personas(rapidjson::kObjectType);
+                    rapidjson::Value personaArray(rapidjson::kArrayType);
+                    
+                    rapidjson::Value persona(rapidjson::kObjectType);
+                    persona.AddMember("personaId", rapidjson::Value(who.c_str(), allocator), allocator);
+                    persona.AddMember("pidId", rapidjson::Value(who.c_str(), allocator), allocator);
+                    persona.AddMember("displayName", rapidjson::Value(display_name.c_str(), allocator), allocator);
+                    persona.AddMember("name", "", allocator);
+                    persona.AddMember("namespaceName", "cem_ea_id", allocator);
+                    persona.AddMember("isVisible", true, allocator);
+                    persona.AddMember("status", "ACTIVE", allocator);
+                    persona.AddMember("statusReasonCode", "", allocator);
+                    persona.AddMember("showPersona", "EVERYONE", allocator);
+                    persona.AddMember("dateCreated", "2024-11-05T18:35Z", allocator);
+                    persona.AddMember("lastAuthenticated", "", allocator);
+                    
+                    personaArray.PushBack(persona, allocator);
+                    personas.AddMember("persona", personaArray, allocator);
+                    doc.AddMember("personas", personas, allocator);
+                } else {
+                    // Standard persona format
+                    rapidjson::Value persona(rapidjson::kObjectType);
+                    persona.AddMember("personaId", rapidjson::Value(who.c_str(), allocator), allocator);
+                    persona.AddMember("pidId", rapidjson::Value(who.c_str(), allocator), allocator);
+                    persona.AddMember("displayName", rapidjson::Value(display_name.c_str(), allocator), allocator);
+                    persona.AddMember("name", "", allocator);
+                    persona.AddMember("namespaceName", "gsp-redcrow-simpsons4", allocator);
+                    persona.AddMember("isVisible", true, allocator);
+                    persona.AddMember("status", "ACTIVE", allocator);
+                    persona.AddMember("statusReasonCode", "", allocator);
+                    persona.AddMember("showPersona", "EVERYONE", allocator);
+                    persona.AddMember("dateCreated", "2024-12-12T15:42Z", allocator);
+                    persona.AddMember("lastAuthenticated", "", allocator);
+                    persona.AddMember("anonymousId", "user", allocator);
+                    
+                    doc.AddMember("persona", persona, allocator);
+                }
+                
+                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_USER,
+                    "[ME PERSONAS] Created temporary persona for user_id: %s", who.c_str());
+                
+                headers::set_json_response(ctx);
+                cb(utils::serialization::serialize_json(doc));
+                return;
+            }
+            
+            // Improved token validation logic to handle token mismatches after logout
+            bool token_valid = false;
+            std::string email;
+            std::string token_user_id;
+            
+            // Prioritize finding the user based on the URL's user ID
+            std::string user_id = who;
+            std::string stored_token;
+            
+            // Check if the user ID is numeric and pad it to 38 digits if needed
+            if (user_id.find_first_not_of("0123456789") == std::string::npos && user_id.length() != 38) {
+                std::string padded_user_id = std::string(38 - user_id.length(), '0') + user_id;
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_USER,
+                    "[ME PERSONAS] Padded user ID from %s to %s", 
+                    user_id.c_str(), padded_user_id.c_str());
+                user_id = padded_user_id;
+            }
+            
+            // First approach: check if the user ID in the URL has a valid token in the database
+            if (db.get_user_by_id(user_id, stored_token) && !stored_token.empty()) {
+                // If we found a token for this user ID, consider it valid
+                token_valid = true;
+                logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_USER,
+                    "[ME PERSONAS] Found user with ID: %s", user_id.c_str());
+                
+                // Don't update session with the stored token
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_USER,
+                    "[ME PERSONAS] Using stored token for user ID: %s", user_id.c_str());
+                
+                // Try to get the email for this user ID
+                if (db.get_email_by_user_id(user_id, email)) {
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_USER,
+                        "[ME PERSONAS] Found email %s for user ID %s", 
+                        email.c_str(), user_id.c_str());
+                }
+            }
+            // Second approach: check if the provided token directly matches the one in the session
+            else if (token == access_token) {
+                token_valid = true;
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_USER,
+                    "[ME PERSONAS] Token matches session token for user ID: %s", who.c_str());
+            }
+            // Third approach: check if the token exists in the database
+            else if (db.get_email_by_token(token, email) && db.get_user_id(email, token_user_id)) {
+                if (token_user_id == who) {
+                    // The token belongs to the requested user ID
+                    token_valid = true;
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_USER,
+                        "[ME PERSONAS] Token valid for user ID: %s, email: %s", 
+                        who.c_str(), email.c_str());
+                    
+                }
+                else {
+                    // Special case: The token is valid but for a different user ID
+                    // This happens after logout when the client still has the old user ID in URL
+                    // but is using the new token
+                    
+                    // In this case, we'll redirect the client to use the correct user ID
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_USER,
+                        "[ME PERSONAS] Token valid but for different user ID: %s (requested: %s)", 
+                        token_user_id.c_str(), who.c_str());
+                    
+                    // Redirect to the correct user ID
+                    ctx->set_response_http_code(302);
+                    std::string redirect_url = "/proxy/identity/pids/me/personas/" + token_user_id;
+                    ctx->AddResponseHeader("Location", redirect_url.c_str());
+                    cb("");
+                    return;
+                }
+            }
+            
+            // If token is not valid after all checks, return an error
+            if (!token_valid) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_USER,
+                    "[ME PERSONAS] Token validation failed for user ID: %s", who.c_str());
+                ctx->set_response_http_code(400);
+                std::string error = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                                   "<error code=\"400\" type=\"BAD_REQUEST\" field=\"AccessToken and UserId does not match\"/>";
+                headers::set_xml_response(ctx);
+                cb(error);
+                return;
+            }
+
+            rapidjson::Document doc;
+            doc.SetObject();
+            auto& allocator = doc.GetAllocator();
+
+            //check url for logged in or not
+            if (uri.find("/proxy/identity/pids/") == 0 && uri.find("/personas/") == std::string::npos) {
+                //logged in users: /pids/:who/personas
+                rapidjson::Value personas(rapidjson::kObjectType);
+                rapidjson::Value personaArray(rapidjson::kArrayType);
+
+                // Get display name from database
+                std::string email;
+                if (db.get_email_by_token(token, email)) {
+                    std::string display_name;
+                    if (!db.get_display_name(email, display_name) || display_name.empty()) {
+                        // If no display name or empty, use the part before @ in email
+                        size_t at_pos = email.find('@');
+                        if (at_pos != std::string::npos) {
+                            display_name = email.substr(0, at_pos);
+                        } else {
+                            display_name = email;
+                        }
+                    }
+
+                    rapidjson::Value persona(rapidjson::kObjectType);
+                    persona.AddMember("personaId", rapidjson::Value(who.c_str(), allocator), allocator);
+                    persona.AddMember("pidId", rapidjson::Value(who.c_str(), allocator), allocator);
+                    persona.AddMember("displayName", rapidjson::Value(display_name.c_str(), allocator), allocator);
+                    persona.AddMember("name", "", allocator);
+                    persona.AddMember("namespaceName", "cem_ea_id", allocator);
+                    persona.AddMember("isVisible", true, allocator);
+                    persona.AddMember("status", "ACTIVE", allocator);
+                    persona.AddMember("statusReasonCode", "", allocator);
+                    persona.AddMember("showPersona", "EVERYONE", allocator);
+                    persona.AddMember("dateCreated", "2024-11-05T18:35Z", allocator);
+                    persona.AddMember("lastAuthenticated", "", allocator);
+
+                    personaArray.PushBack(persona, allocator);
+                    personas.AddMember("persona", personaArray, allocator);
+                    doc.AddMember("personas", personas, allocator);
+                } else {
+                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_USER,
+                        "[ME PERSONAS] Could not find email for token: %s", token.substr(0, 10).c_str());
+                    
+                    // Try to use the user ID from the URL to get the display name
+                    std::string display_name = "";
+                    std::string user_id = who;
+                    
+                    // Check if the user ID is numeric and pad it to 38 digits if needed
+                    if (user_id.find_first_not_of("0123456789") == std::string::npos) {
+                        if (user_id.length() != 38) {
+                            user_id = std::string(38 - user_id.length(), '0') + user_id;
+                            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_USER,
+                                "[ME PERSONAS] Padded user ID to: %s", user_id.c_str());
+                        }
+                        
+                        // Try to get email by user ID
+                        std::string fallback_email;
+                        if (db.get_email_by_user_id(user_id, fallback_email) && !fallback_email.empty()) {
+                            // Found email by user ID, now get display name
+                            if (!db.get_display_name(fallback_email, display_name) || display_name.empty()) {
+                                // If no display name, use email part
+                                size_t at_pos = fallback_email.find('@');
+                                if (at_pos != std::string::npos) {
+                                    display_name = fallback_email.substr(0, at_pos);
+                                } else {
+                                    display_name = fallback_email;
+                                }
+                            }
+                            
+                            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_USER,
+                                "[ME PERSONAS] Recovered display name %s for user ID %s", 
+                                display_name.c_str(), user_id.c_str());
+                        }
+                    }
+                    
+                    // If we still don't have a display name, try to find any user with this ID
+                    if (display_name.empty()) {
+                        // Try to find any user with matching ID (even partial match)
+                        std::vector<std::string> all_emails;
+                        if (db.get_all_emails(all_emails)) {
+                            for (const auto& email_to_check : all_emails) {
+                                std::string check_user_id;
+                                if (db.get_user_id(email_to_check, check_user_id)) {
+                                    // Check if the user ID contains our target ID (for partial matches)
+                                    if (check_user_id.find(who) != std::string::npos) {
+                                        // Found a matching user ID, get display name
+                                        if (db.get_display_name(email_to_check, display_name) && !display_name.empty()) {
+                                            logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_USER,
+                                                "[ME PERSONAS] Found display name %s for partial user ID match %s", 
+                                                display_name.c_str(), check_user_id.c_str());
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // If we still don't have a display name, use a last resort
+                    if (display_name.empty()) {
+                        display_name = "User_" + who.substr(0, std::min<size_t>(8, who.length()));
+                        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_USER,
+                            "[ME PERSONAS] Using last resort display name %s for user ID %s", 
+                            display_name.c_str(), who.c_str());
+                    }
+                    
+                    // Create persona with the recovered display name
+                    rapidjson::Value persona(rapidjson::kObjectType);
+                    persona.AddMember("personaId", rapidjson::Value(who.c_str(), allocator), allocator);
+                    persona.AddMember("pidId", rapidjson::Value(who.c_str(), allocator), allocator);
+                    persona.AddMember("displayName", rapidjson::Value(display_name.c_str(), allocator), allocator);
+                    persona.AddMember("name", "", allocator);
+                    persona.AddMember("namespaceName", "cem_ea_id", allocator);
+                    persona.AddMember("isVisible", true, allocator);
+                    persona.AddMember("status", "ACTIVE", allocator);
+                    persona.AddMember("statusReasonCode", "", allocator);
+                    persona.AddMember("showPersona", "EVERYONE", allocator);
+                    persona.AddMember("dateCreated", "2024-11-05T18:35Z", allocator);
+                    persona.AddMember("lastAuthenticated", "", allocator);
+                    personaArray.PushBack(persona, allocator);
+                    personas.AddMember("persona", personaArray, allocator);
+                    doc.AddMember("personas", personas, allocator);
+                }
+            }
+            else {
+                //non logged in users : /pids/me/personas/:who 
+                // Get display name from database if possible
+                std::string email;
+                std::string display_name = "";
+                
+                if (db.get_email_by_token(token, email)) {
+                    if (!db.get_display_name(email, display_name) || display_name.empty()) {
+                        // If no display name or empty, use the part before @ in email
+                        size_t at_pos = email.find('@');
+                        if (at_pos != std::string::npos) {
+                            display_name = email.substr(0, at_pos);
+                        } else {
+                            display_name = email;
+                        }
+                    }
+                } else {
+                    display_name = "Guest";
+                }
+                
+                rapidjson::Value persona(rapidjson::kObjectType);
+                persona.AddMember("personaId", rapidjson::Value(who.c_str(), allocator), allocator);
+                persona.AddMember("pidId", rapidjson::Value(who.c_str(), allocator), allocator);
+                persona.AddMember("displayName", rapidjson::Value(display_name.c_str(), allocator), allocator);
+                persona.AddMember("name","", allocator);
+                persona.AddMember("namespaceName", "gsp-redcrow-simpsons4", allocator);
+                persona.AddMember("isVisible", true, allocator);
+                persona.AddMember("status", "ACTIVE", allocator);
+                persona.AddMember("statusReasonCode", "", allocator);
+                persona.AddMember("showPersona", "EVERYONE", allocator);
+                persona.AddMember("dateCreated", "2024-12-12T15:42Z", allocator);
+                persona.AddMember("lastAuthenticated", "", allocator);
+                persona.AddMember("anonymousId", "user", allocator);
+
+                doc.AddMember("persona", persona, allocator);
+            }
+
+            logger::write(logger::LOG_LEVEL_RESPONSE, logger::LOG_LABEL_USER,
+                "[ME PERSONAS] Sending response for user_id: %s", who.c_str());
+
+            headers::set_json_response(ctx);
+            cb(utils::serialization::serialize_json(doc));
+        }
+        catch (const std::exception& ex) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_USER,
+                "[ME PERSONAS] Error: %s", ex.what());
+            ctx->set_response_http_code(500);
+            cb("");
+        }
+    }
+
+    void User::handle_mh_users(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
+        const evpp::http::HTTPSendResponseCallback& cb) {
+        try {
+            logger::write(logger::LOG_LEVEL_INCOMING, logger::LOG_LABEL_USER,
+                "[MH USERS] Request from %s: %s", ctx->remote_ip().data(), ctx->uri().data());
+
+
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_USER,
+                "[MH USERS] Request params:\n"
+                "appVer: %s\n"
+                "appLang: %s\n"
+                "application: %s\n"
+                "applicationUserId: %s",
+                ctx->GetQuery("appVer").c_str(),
+                ctx->GetQuery("appLang").c_str(),
+                ctx->GetQuery("application").c_str(),
+                ctx->GetQuery("applicationUserId").c_str()
+            );
+
+
+            // Extract token from multiple sources
+            std::string token;
+            
+            // First try headers
+            if (ctx->FindRequestHeader("nucleus_token")) {
+                token = ctx->FindRequestHeader("nucleus_token");
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_USER,
+                    "[MH USERS] Found token in nucleus_token header");
+            } else if (ctx->FindRequestHeader("mh_auth_params")) {
+                token = ctx->FindRequestHeader("mh_auth_params");
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_USER,
+                    "[MH USERS] Found token in mh_auth_params header");
+            } else if (ctx->FindRequestHeader("Authorization")) {
+                std::string auth = ctx->FindRequestHeader("Authorization");
+                if (auth.find("Bearer ") == 0) {
+                    token = auth.substr(7);
+                    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_USER,
+                        "[MH USERS] Found token in Authorization header");
+                }
+            }
+            
+            // Then try URL parameters
+            if (token.empty()) {
+                if (!ctx->GetQuery("nucleus_token").empty()) {
+                    token = ctx->GetQuery("nucleus_token");
+                    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_USER,
+                        "[MH USERS] Found token in nucleus_token URL parameter");
+                } else if (!ctx->GetQuery("mh_auth_params").empty()) {
+                    token = ctx->GetQuery("mh_auth_params");
+                    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_USER,
+                        "[MH USERS] Found token in mh_auth_params URL parameter");
+                }
+            }
+            
+            // Check if token is missing
+            if (token.empty()) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_USER,
+                    "[MH USERS] Missing token in request headers and URL parameters");
+                ctx->set_response_http_code(400);
+                std::string error = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                                   "<error code=\"400\" type=\"MISSING_VALUE\" field=\"nucleus_token\"/>";
+                headers::set_xml_response(ctx);
+                cb(error);
+                return;
+            }
+            
+            // Extract applicationUserId from query parameters
+            std::string user_id = ctx->GetQuery("applicationUserId");
+            auto& db = tsto::database::Database::get_instance();
+            
+            // If we have an applicationUserId, prioritize using it
+            if (!user_id.empty()) {
+                // Check if the user ID is numeric and pad it to 38 digits if needed
+                if (user_id.find_first_not_of("0123456789") == std::string::npos && user_id.length() != 38) {
+                    std::string padded_user_id = std::string(38 - user_id.length(), '0') + user_id;
+                    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_USER,
+                        "[MH USERS] Padded user ID from %s to %s", 
+                        user_id.c_str(), padded_user_id.c_str());
+                    user_id = padded_user_id;
+                }
+                
+                // Check if this user ID exists in the database
+                std::string stored_token;
+                if (db.get_user_by_id(user_id, stored_token)) {
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_USER,
+                        "[MH USERS] Found user with ID: %s", user_id.c_str());
+                }
+            }
+            // If applicationUserId is missing or not found, try to get it from the database using the token
+            else {
+                std::string email;
+                
+                if (db.get_email_by_token(token, email) && db.get_user_id(email, user_id)) {
+                    // Ensure user ID is in the correct 38-digit format
+                    if (user_id.find_first_not_of("0123456789") == std::string::npos && user_id.length() != 38) {
+                        std::string padded_user_id = std::string(38 - user_id.length(), '0') + user_id;
+                        logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_USER,
+                            "[MH USERS] Padded user ID from %s to %s", 
+                            user_id.c_str(), padded_user_id.c_str());
+                        user_id = padded_user_id;
+                    }
+                    
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_USER,
+                        "[MH USERS] Found user_id from token: %s", user_id.c_str());
+                } else {
+                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_USER,
+                        "[MH USERS] Could not find user_id for token");
+                    ctx->set_response_http_code(404);
+                    std::string error = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                                       "<error code=\"404\" type=\"NOT_FOUND\" field=\"applicationUserId\"/>";
+                    headers::set_xml_response(ctx);
+                    cb(error);
+                    return;
+                }
+            }
+            
+            // Get user data from database
+            std::string stored_token;
+            std::string email;
+            std::string mayhem_id = "";
+            
+            // Check if the user ID is in the expected 38-digit format
+            bool is_38_digit_format = (user_id.length() == 38);
+            std::string padded_user_id = user_id;
+            
+            // If it's not in the 38-digit format, try to pad it
+            if (!is_38_digit_format && user_id.find_first_not_of("0123456789") == std::string::npos) {
+                // It's a numeric ID, pad it to 38 digits
+                padded_user_id = std::string(38 - user_id.length(), '0') + user_id;
+                
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_USER,
+                    "[MH USERS] Padded numeric user ID %s to 38-digit format: %s", 
+                    user_id.c_str(), padded_user_id.c_str());
+            }
+            
+            // Try to get the stored token for this user using both formats
+            bool user_found = false;
+            
+            // First try with the original user ID
+            if (db.get_user_by_id(user_id, stored_token)) {
+                user_found = true;
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_USER,
+                    "[MH USERS] User found with original user ID: %s", user_id.c_str());
+            }
+            // If not found and we had to pad the ID, try with the padded format
+            else if (!is_38_digit_format && db.get_user_by_id(padded_user_id, stored_token)) {
+                user_found = true;
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_USER,
+                    "[MH USERS] User found with padded user ID: %s (original: %s)", 
+                    padded_user_id.c_str(), user_id.c_str());
+                
+                // Update the user_id to match the padded format
+                user_id = padded_user_id;
+            }
+            
+            if (!user_found) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_USER,
+                    "[MH USERS] User not found with applicationUserId: %s or padded ID: %s", 
+                    user_id.c_str(), padded_user_id.c_str());
+                ctx->set_response_http_code(404);
+                std::string error = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                                   "<error code=\"404\" type=\"NOT_FOUND\" field=\"applicationUserId\"/>";
+                headers::set_xml_response(ctx);
+                cb(error);
+                return;
+            }
+            
+            // Get the mayhem_id for this user
+            if (!db.get_email_by_user_id(user_id, email) || !db.get_mayhem_id(email, mayhem_id)) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_USER,
+                    "[MH USERS] Could not get mayhem_id for user: %s", user_id.c_str());
+                ctx->set_response_http_code(500);
+                std::string error = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                                   "<error code=\"500\" type=\"INTERNAL_SERVER_ERROR\"/>";
+                headers::set_xml_response(ctx);
+                cb(error);
+                return;
+            }
+            
+            // Add detailed debug logging to track all relevant IDs
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_USER,
+                "[MH USERS] Request details - URL user_id: %s, token: %s (first 10 chars)",
+                user_id.c_str(), token.substr(0, 10).c_str());
+
+            // Log stored token information
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_USER,
+                "[MH USERS] Database lookup - user_id: %s has stored token: %s (first 10 chars)",
+                user_id.c_str(), stored_token.substr(0, 10).c_str());
+
+            // Log mayhem ID
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_USER,
+                "[MH USERS] Mayhem ID for user_id %s: %s", user_id.c_str(), mayhem_id.c_str());
+
+            // Improved token validation logic to handle token mismatches after logout
+            bool token_valid = false;
+            std::string token_email;
+            std::string token_user_id;
+            
+            // First approach: check if the provided token directly matches the stored token
+            if (token == stored_token) {
+                token_valid = true;
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_USER,
+                    "[MH USERS] Token matches stored token for user ID: %s", user_id.c_str());
+            }
+            // Second approach: check if the token exists in the database and is associated with this user
+            else if (db.get_email_by_token(token, token_email) && db.get_user_id(token_email, token_user_id)) {
+                // Log the token's associated user ID for debugging
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_USER,
+                    "[MH USERS] Token is associated with email: %s and user_id: %s",
+                    token_email.c_str(), token_user_id.c_str());
+                
+                // Get mayhem ID for token's user ID for comparison
+                std::string token_mayhem_id = "";
+                if (db.get_mayhem_id(token_email, token_mayhem_id)) {
+                    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_USER,
+                        "[MH USERS] Token's associated mayhem_id: %s (requested user's mayhem_id: %s)",
+                        token_mayhem_id.c_str(), mayhem_id.c_str());
+                }
+                
+                if (token_user_id == user_id) {
+                    // The token belongs to the requested user ID
+                    token_valid = true;
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_USER,
+                        "[MH USERS] Token valid for user ID: %s, email: %s", 
+                        user_id.c_str(), token_email.c_str());
+                    
+                    // Don't update session with the new token
+                    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_USER,
+                        "[MH USERS] Using token for user ID: %s", user_id.c_str());
+                }
+                else {
+                    // Special case: The token is valid but for a different user ID
+                    // This happens after logout when the client still has the old user ID in URL
+                    // but is using the new token
+                    
+                    // In this case, we'll use the token's associated user ID instead of returning an error
+                    // This is what the Node.js implementation does
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_USER,
+                        "[MH USERS] Token valid but for different user ID: %s (requested: %s), using token's user ID", 
+                        token_user_id.c_str(), user_id.c_str());
+                    
+                    // Update the user_id to match the token's user_id
+                    user_id = token_user_id;
+                    
+                    // Don't update session with the new user ID
+                    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_USER,
+                        "[MH USERS] Using token's user ID: %s", user_id.c_str());
+                    
+                    // We need to get the mayhem_id for the new user_id
+                    if (!db.get_email_by_user_id(user_id, email) || !db.get_mayhem_id(email, mayhem_id)) {
+                        logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_USER,
+                            "[MH USERS] Could not get mayhem_id for new user: %s", user_id.c_str());
+                        ctx->set_response_http_code(500);
+                        std::string error = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                                           "<error code=\"500\" type=\"INTERNAL_SERVER_ERROR\"/>";
+                        headers::set_xml_response(ctx);
+                        cb(error);
+                        return;
+                    }
+                    
+                    // Set token_valid to true since we're using the token's user ID
+                    token_valid = true;
+                }
+            }
+            // Third approach: check if the user ID has any valid token in the database
+            else {
+                // We already have the stored token from earlier in the function
+                // If we have a stored token, consider it valid
+                if (!stored_token.empty()) {
+                    token_valid = true;
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_USER,
+                        "[MH USERS] Using stored token for user ID: %s", user_id.c_str());
+                    
+                    // Update session with the stored token
+                    auto& session = tsto::Session::get();
+                    session.access_token = stored_token;
+                    session.user_user_id = user_id;
+                }
+            }
+            
+            // If token is not valid after all checks, return an error
+            if (!token_valid) {
+                logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_USER,
+                    "[MH USERS] Token validation failed for user ID: %s", user_id.c_str());
+                ctx->set_response_http_code(400);
+                std::string error = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                                   "<error code=\"400\" type=\"BAD_REQUEST\" field=\"AccessToken and UserId does not match\"/>";
+                headers::set_xml_response(ctx);
+                cb(error);
+                return;
+            }
+            
+            // Don't update session data to avoid confusing the client
+            // The client should be responsible for maintaining its own user ID
+            
+            // Create protobuf response
+            Data::UsersResponseMessage response;
+            response.mutable_user()->set_userid(mayhem_id);
+            response.mutable_user()->set_telemetryid("42"); // Not used, but client expects it
+            response.mutable_token()->set_sessionkey(""); // Empty session key
+            
+            logger::write(logger::LOG_LEVEL_RESPONSE, logger::LOG_LABEL_USER,
+                "[MH USERS] Sending response for user_id: %s, mayhem_id: %s", user_id.c_str(), mayhem_id.c_str());
+            
+            // Set content type and status code
+            headers::set_protobuf_response(ctx);
+            ctx->set_response_http_code(200);
+            cb(response.SerializeAsString());
+        }
+        catch (const std::exception& ex) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_USER,
+                "[MH USERS] Exception: %s", ex.what());
+            ctx->set_response_http_code(500);
+            headers::set_xml_response(ctx);
+            std::string error = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                               "<error code=\"500\" type=\"INTERNAL_SERVER_ERROR\"/>";
+            cb(error);
+        }
+    }
+
+    void User::handle_mh_userstats(evpp::EventLoop*, const evpp::http::ContextPtr& ctx,
+        const evpp::http::HTTPSendResponseCallback& cb) {
+        try {
+            logger::write(logger::LOG_LEVEL_INCOMING, logger::LOG_LABEL_USER,
+                "[USERSTATS] Request from %s", ctx->remote_ip().data());
+
+            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_USER,
+                "[USERSTATS] Request params:\n"
+                "device_id: %s\n"
+                "synergy_id: %s",
+                ctx->GetQuery("device_id").c_str(),
+                ctx->GetQuery("synergy_id").c_str()
+            );
+
+            // Extract access token from request
+            std::string access_token;
+
+            // First check the access_token header (case-insensitive)
+            const char* token_header = ctx->FindRequestHeader("access_token");
+            if (!token_header) {
+                // Try with different case variations
+                token_header = ctx->FindRequestHeader("Access-Token");
+            }
+            if (!token_header) {
+                token_header = ctx->FindRequestHeader("Access_Token");
+            }
+
+            if (token_header) {
+                access_token = token_header;
+                logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_USER,
+                    "[USERSTATS] Found access token in header: %s",
+                    access_token.substr(0, 10).c_str());
+            }
+            else {
+                // Then check query parameters
+                auto query_token = ctx->GetQuery("access_token");
+                if (!query_token.empty()) {
+                    access_token = query_token;
+                    logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_USER,
+                        "[USERSTATS] Found access token in URL query: %s",
+                        access_token.substr(0, 10).c_str());
+                }
+                else {
+                    // Finally check Authorization header
+                    const char* auth_header = ctx->FindRequestHeader("Authorization");
+                    if (auth_header) {
+                        std::string auth_str(auth_header);
+                        auth_str.erase(0, auth_str.find_first_not_of(" \t\r\n"));
+                        auth_str.erase(auth_str.find_last_not_of(" \t\r\n") + 1);
+
+                        // Bearer token
+                        if (auth_str.find("Bearer ") == 0) {
+                            access_token = auth_str.substr(7);
+                            access_token.erase(0, access_token.find_first_not_of(" \t\r\n"));
+                            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_USER,
+                                "[USERSTATS] Found access token in Authorization header: %s",
+                                access_token.substr(0, 10).c_str());
+                        }
+                        else {
+                            access_token = auth_str;
+                            logger::write(logger::LOG_LEVEL_DEBUG, logger::LOG_LABEL_USER,
+                                "[USERSTATS] Found non-Bearer access token in Authorization header: %s",
+                                access_token.substr(0, 10).c_str());
+                        }
+                    }
+                }
+            }
+
+            // Validate the access token
+            std::string email;
+            bool valid_token = false;
+
+            if (!access_token.empty()) {
+                auto& db = tsto::database::Database::get_instance();
+                valid_token = db.validate_access_token(access_token, email);
+
+                if (valid_token) {
+                    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_USER,
+                        "[USERSTATS] Valid access token for user: %s", email.c_str());
+
+                    // Get user_id for this user
+                    std::string user_id;
+                    if (db.get_user_id(email, user_id)) {
+                        logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_USER,
+                            "[USERSTATS] Found user_id: %s for email: %s", user_id.c_str(), email.c_str());
+
+                        // Return success response
+                        ctx->set_response_http_code(200);
+                        headers::set_json_response(ctx);
+                        cb("{}");
+                        return;
+                    }
+                }
+                else {
+                    logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_USER,
+                        "[USERSTATS] Invalid access token: %s",
+                        access_token.empty() ? "empty" : (access_token.substr(0, 10) + "...").c_str());
+                }
+            }
+
+            // If we reach here, either the token was invalid or we couldn't find the user
+            logger::write(logger::LOG_LEVEL_RESPONSE, logger::LOG_LABEL_USER,
+                "[USERSTATS] Sending 409 Conflict response");
+
+            ctx->set_response_http_code(409);
+            cb("");
+        }
+        catch (const std::exception& ex) {
+            logger::write(logger::LOG_LEVEL_ERROR, logger::LOG_LABEL_USER,
+                "[USERSTATS] Error: %s", ex.what());
+            ctx->set_response_http_code(500);
+            cb("");
+        }
+    }
+
+}

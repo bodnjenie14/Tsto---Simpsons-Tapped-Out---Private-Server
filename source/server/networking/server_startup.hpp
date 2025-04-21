@@ -11,4 +11,5 @@
 
 
 void initialize_servers();
-
+void initialize_backup_system();
+void shutdown_backup_system();

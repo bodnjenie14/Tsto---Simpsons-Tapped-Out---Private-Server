@@ -11,7 +11,9 @@
 #include <iphlpapi.h>
 #pragma comment(lib, "iphlpapi.lib")
 #pragma comment(lib, "ws2_32.lib")
+#include "tsto/land/backup.hpp"
 
+#include "tsto/includes/session.hpp"
 
 std::string get_local_ipv4() {
     ULONG bufferSize = 0;
@@ -42,6 +44,38 @@ std::string get_local_ipv4() {
     return "127.0.0.1"; // Fallback to localhost
 }
 
+void initialize_backup_system() {
+    //backup interval from configuration (default to 2 hours)
+    int backup_interval_hours = utils::configuration::ReadInteger("Backup", "IntervalHours", 2);
+
+    //support seconds for testing purposes
+    int backup_interval_seconds = utils::configuration::ReadInteger("Backup", "IntervalSeconds", 0);
+
+    // Make sure backup directory is configured with a proper default value
+    std::string backup_dir = utils::configuration::ReadString("Backup", "BackupDirectory", "town_backups");
+    utils::configuration::WriteString("Backup", "BackupDirectory", backup_dir);
+    utils::configuration::WriteInteger("Backup", "IntervalHours", backup_interval_hours);
+    utils::configuration::WriteInteger("Backup", "IntervalSeconds", backup_interval_seconds);
+
+    //start the backup manager
+    auto& backup_manager = tsto::land::BackupManager::get_instance();
+
+    backup_manager.initialize(backup_interval_hours, backup_interval_seconds);
+
+    backup_manager.start();
+}
+
+
+
+//stop the backup system
+void shutdown_backup_system() {
+    auto& backup_manager = tsto::land::BackupManager::get_instance();
+    backup_manager.stop();
+
+    logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_INITIALIZER,
+        "[BACKUP] Town backup system shutdown");
+}
+
 void initialize_servers() {  //for now dlc on same port as game
     logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_INITIALIZER, "Initializing HTTP Servers...");
 
@@ -49,6 +83,8 @@ void initialize_servers() {  //for now dlc on same port as game
     logger::write(logger::LOG_LEVEL_INFO, logger::LOG_LABEL_INITIALIZER, "=== TSTO Server %s ===", updater::get_server_version().c_str());
 
     const char* CONFIG_SECTION = "ServerConfig";
+
+    initialize_backup_system();
 	
     // check config for auto updates
     bool enable_auto_update = utils::configuration::ReadBoolean(CONFIG_SECTION, "EnableAutoUpdate", true);
@@ -62,6 +98,9 @@ void initialize_servers() {  //for now dlc on same port as game
             return; 
         }
     }
+
+    //auto& session = tsto::Session::get();
+    //session.reinitialize();
 
     // check config for discord integration
     bool enable_discord = utils::configuration::ReadBoolean(CONFIG_SECTION, "EnableDiscord", true);
@@ -77,6 +116,35 @@ void initialize_servers() {  //for now dlc on same port as game
     std::string detected_ip = get_local_ipv4();
     bool auto_detect_ip = utils::configuration::ReadBoolean(CONFIG_SECTION, "AutoDetectIP", true);
     utils::configuration::WriteBoolean(CONFIG_SECTION, "AutoDetectIP", auto_detect_ip);
+
+    utils::configuration::ReadBoolean("TSTO_API", "Enabled", false);
+    utils::configuration::ReadString("TSTO_API", "ApiKey", "");
+    utils::configuration::ReadString("TSTO_API", "TeamName", "Bodnjenie");
+
+    //basic stmp 
+    utils::configuration::ReadBoolean("SMTP", "Enabled", false);
+    utils::configuration::ReadString("SMTP", "Server", "");
+    utils::configuration::ReadString("SMTP", "Port", "");
+    utils::configuration::ReadString("SMTP", "Username", "");
+    utils::configuration::ReadString("SMTP", "Password", "");
+    utils::configuration::ReadString("SMTP", "From", "");
+
+    //land config
+	utils::configuration::ReadBoolean("Land", "UseLegacyMode", true);
+	utils::configuration::ReadBoolean("Security", "DisableAnonymousUsers", false); // for public server to disable anonymous users as they have dementia
+
+    //dlc logging
+    utils::configuration::ReadBoolean("FileServer", "VerboseLogging", false);
+
+    //tracking logging
+    utils::configuration::ReadBoolean("Tracking", "VerboseLogging", false);
+
+	//delete user on land
+    utils::configuration::ReadBoolean("Land", "DeleteExistingUsersOnImport", false);
+
+    //verifaction code
+    utils::configuration::ReadString("Auth", "DefaultCredential", "42069");
+
 
     std::string server_ip;
     if (auto_detect_ip) {
@@ -146,6 +214,7 @@ void initialize_servers() {  //for now dlc on same port as game
             });
         discord_thread.detach();
     }
+
 
     game_loop.Run();
     //dlc_thread.join();

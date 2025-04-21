@@ -37,6 +37,7 @@
 
 #include "tsto/includes/session.hpp"
 #include "tsto/includes/helpers.hpp"
+#include "tsto/land/backup.hpp"
 
 namespace server::dispatcher::http {
     class Dispatcher;
@@ -98,10 +99,16 @@ namespace tsto {
         void handle_pin_events(evpp::EventLoop*, const evpp::http::ContextPtr&, const evpp::http::HTTPSendResponseCallback&);
         void handle_plugin_event(evpp::EventLoop*, const evpp::http::ContextPtr&, const evpp::http::HTTPSendResponseCallback&);
         void handle_friend_data_origin(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx, const evpp::http::HTTPSendResponseCallback& cb);
-        void handle_progreg_code(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx, const evpp::http::HTTPSendResponseCallback& cb);
         void handle_proto_currency(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx, const evpp::http::HTTPSendResponseCallback& cb);
-        void handle_plugin_event_protoland(evpp::EventLoop*, const evpp::http::ContextPtr&, const evpp::http::HTTPSendResponseCallback&);
-      
+        void handle_plugin_event_protoland(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx,
+            const evpp::http::HTTPSendResponseCallback& cb);
+
+        void handle_links(evpp::EventLoop* loop, const evpp::http::ContextPtr& ctx,
+            const evpp::http::HTTPSendResponseCallback& cb);
+
+        // Initialize the town backup system
+
+    private:
         std::string generate_random_id();
         std::string generate_session_key() {
             return utils::cryptography::random::get_challenge();

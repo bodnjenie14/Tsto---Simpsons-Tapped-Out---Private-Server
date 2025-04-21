@@ -7,6 +7,9 @@
 
 #include "debugging/serverlog.hpp"
 #include "LandData.pb.h"
+#include "tsto/database/database.hpp"
+
+//depreciated pretty much
 
 namespace tsto {
     class Session {
@@ -23,10 +26,10 @@ namespace tsto {
 
         std::string session_key;
         std::string land_token;
-        std::string user_user_id;
-        std::string user_telemetry_id;
+        std::string user_user_id;  // Making this public again to avoid breaking existing code
         std::string token_session_key;
         std::string token_user_id;
+        std::string mh_uid;  // Added for storing the mh_uid header value
         int64_t token_authenticator_pid_id;
         int64_t token_persona_id;
         std::string token_telemetry_id;
@@ -44,23 +47,21 @@ namespace tsto {
         std::string me_anonymous_id;
 
         std::string device_id;
+        std::string platform_identifier; // Stores androidId or vendorId
+        std::string platform_type;       // "android", "ios", or "unknown"
+        std::string client_ip;           // Stores the client's IP address
 
-        std::string lnglv_token;     
-        std::string access_token;    
+        std::string lnglv_token;
+        std::string access_token;
+        std::string user_telemetry_id;
 
         Data::LandMessage land_proto;
-
-        // Reinitialize the session
-        void reinitialize() {
-            initialize();
-        }
 
     private:
 
         Session() {
             initialize();
         }
-
 
         std::string generate_random_digits(size_t length) {
             std::string result;
@@ -102,7 +103,7 @@ namespace tsto {
 
             // user
             user_user_id = generate_random_digits(38);
-            user_telemetry_id = generate_random_digits(11);
+            user_telemetry_id = user_user_id;
 
             logger::write(logger::LOG_LEVEL_PLAYER_ID, logger::LOG_LABEL_SESSION, "[INIT] user_user_id: %s", user_user_id.c_str());
             logger::write(logger::LOG_LEVEL_PLAYER_ID, logger::LOG_LABEL_SESSION, "[INIT] user_telemetry_id: %s", user_telemetry_id.c_str());
@@ -116,7 +117,7 @@ namespace tsto {
             logger::write(logger::LOG_LEVEL_PLAYER_ID, logger::LOG_LABEL_SESSION, "[INIT] token_session_key: %s", token_session_key.c_str());
 
             // token
-            token_user_id = /*"90159726165211658982621159447878257465"*/std::to_string(generate_random_id());
+            token_user_id = /*"90159726165211658982621159447878257465"*/"";
             token_authenticator_pid_id = generate_random_id();
             token_persona_id = generate_random_id();
             token_telemetry_id = std::to_string(generate_random_id());
@@ -140,8 +141,8 @@ namespace tsto {
             me_display_name = me_persona_display_name;
             me_anonymous_id = me_persona_anonymous_id;
 
-            lnglv_token = "QVQwOjIuMDozLjA6ODY0MDA6S3BuUUdaTzJTSXhEMHhLWkVMOXBCYXVWZEJKWVJPME5ZRDI6NDcwODI6cmlxYWM";
-			access_token = "";  // shud be set from headers later
+            lnglv_token = "";
+            access_token = "";  // shud be set from headers later
 
             logger::write(logger::LOG_LEVEL_PLAYER_ID, logger::LOG_LABEL_SESSION, "[INIT] me_persona_name: %s", me_persona_name.c_str());
             logger::write(logger::LOG_LEVEL_PLAYER_ID, logger::LOG_LABEL_SESSION, "[INIT] persona_name: %s", persona_name.c_str());
@@ -153,7 +154,11 @@ namespace tsto {
             // device ID (SHA256 of current time)
             device_id = utils::cryptography::sha256::compute(now_str, true);
             logger::write(logger::LOG_LEVEL_PLAYER_ID, logger::LOG_LABEL_SESSION, "[INIT] device_id: %s", device_id.c_str());
-        }
 
+            // Initialize platform identifier fields
+            platform_identifier = "";
+            platform_type = "unknown";
+            logger::write(logger::LOG_LEVEL_PLAYER_ID, logger::LOG_LABEL_SESSION, "[INIT] platform_type: %s", platform_type.c_str());
+        }
     };
 }

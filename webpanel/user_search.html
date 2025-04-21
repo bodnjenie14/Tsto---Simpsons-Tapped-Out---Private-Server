@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TSTO User Search</title>
+    <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="js/user_search.js"></script>
+    <script src="js/public_user_search.js"></script>
+    <style>
+        :root {
+            --simpsons-yellow: #FED90F;
+            --simpsons-blue: #3E67B1;
+            --simpsons-red: #E53935;
+            --simpsons-green: #7BC142;
+            --simpsons-white: #ffffff;
+            --simpsons-black: #333333;
+            --simpsons-orange: #F57C00;
+            --simpsons-panel: #FFF3D4;
+            --simpsons-shadow: rgba(0, 0, 0, 0.3);
+            --text-color: #333333;
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --border-color: #ddd;
+            --hover-bg: #f5f5f5;
+            --input-bg: #ffffff;
+        }
+
+        html {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Comic Neue', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: url('images/background.png') no-repeat center center fixed;
+            background-size: cover;
+            min-height: 100vh;
+            color: var(--text-color);
+            box-sizing: border-box;
+        }
+
+        /* Dark mode styles */
+        body.dark-mode {
+            --background: #1a1a2e;
+            --panel-bg: #282838;
+            --text-color: var(--simpsons-yellow);
+            --text-primary: var(--simpsons-yellow);
+            --text-secondary: var(--simpsons-orange);
+            --border-color: var(--simpsons-blue);
+            --hover-bg: #2d2d44;
+            --input-bg: #1f1f2f;
+            --editor-bg: #1E1E2E;
+            background-color: var(--background);
+            color: var(--text-color);
+        }
+
+        body.dark-mode .panel {
+            background-color: var(--panel-bg);
+            border-color: var(--text-color);
+        }
+
+        body.dark-mode h2 {
+            color: var(--text-color);
+            border-bottom-color: var(--text-color);
+        }
+
+        body.dark-mode .form-group label {
+            color: var(--text-color);
+        }
+
+        body.dark-mode input[type="text"],
+        body.dark-mode input[type="email"],
+        body.dark-mode input[type="password"],
+        body.dark-mode select {
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            border-color: var(--border-color);
+        }
+
+        body.dark-mode .tab {
+            background-color: var(--background);
+            color: var(--text-color);
+        }
+
+        body.dark-mode .tab.active {
+            background-color: var(--text-color);
+            color: var(--background);
+        }
+
+        body.dark-mode .tab-content {
+            background-color: var(--panel-bg);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--simpsons-yellow);
+            margin-bottom: 30px;
+            font-size: 48px;
+            font-weight: bold;
+            text-shadow: 2px 2px 0 var(--simpsons-black), 
+                        -2px -2px 0 var(--simpsons-black),
+                        2px -2px 0 var(--simpsons-black),
+                        -2px 2px 0 var(--simpsons-black),
+                        0 2px 0 var(--simpsons-black),
+                        2px 0 0 var(--simpsons-black),
+                        0 -2px 0 var(--simpsons-black),
+                        -2px 0 0 var(--simpsons-black);
+            letter-spacing: 1px;
+        }
+
+        h2 {
+            color: var(--simpsons-blue);
+            margin-top: 0;
+            font-size: 24px;
+            border-bottom: 2px solid var(--simpsons-yellow);
+            padding-bottom: 8px;
+            display: inline-block;
+        }
+
+        .panel {
+            background-color: var(--simpsons-panel);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 6px 10px var(--simpsons-shadow);
+            border: 4px solid var(--simpsons-yellow);
+            margin-bottom: 20px;
+        }
+
+        .search-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .search-container select,
+        .search-container input {
+            padding: 10px;
+            border: 3px solid var(--simpsons-blue);
+            border-radius: 10px;
+            font-family: 'Comic Neue', cursive;
+            font-size: 16px;
+            background-color: var(--input-bg);
+            color: var(--text-color);
+        }
+
+        .search-container select {
+            min-width: 120px;
+        }
+
+        .search-container input {
+            flex: 1;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 10px;
+            background-color: var(--simpsons-blue);
+            color: var(--simpsons-white);
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            font-family: 'Comic Neue', cursive;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 0 #2A4B85;
+            position: relative;
+            top: 0;
+        }
+
+        button:hover {
+            background-color: #5482D0;
+            top: -2px;
+            box-shadow: 0 6px 0 #2A4B85;
+        }
+        
+        button:active {
+            top: 4px;
+            box-shadow: 0 0 0 #2A4B85;
+        }
+
+        .results-container {
+            margin-top: 20px;
+            overflow-x: auto;
+            max-width: 100%;
+            /* Add hardware acceleration to reduce flickering */
+            transform: translateZ(0);
+            backface-visibility: hidden;
+            perspective: 1000px;
+            will-change: transform;
+            /* Add padding to ensure scrollbar doesn't overlap content */
+            padding-bottom: 10px;
+        }
+
+        .user-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background-color: var(--simpsons-panel);
+            border-radius: 10px;
+            /* Change from fixed to auto for better column sizing */
+            table-layout: auto;
+            will-change: contents;
+            transform: translateZ(0);
+            box-shadow: 0 4px 8px var(--simpsons-shadow);
+            /* Set minimum width to ensure table is wide enough */
+            min-width: 1000px;
+        }
+
+        .user-table th {
+            background-color: var(--simpsons-blue);
+            color: var(--simpsons-white);
+            padding: 12px;
+            text-align: left;
+            font-weight: bold;
+        }
+
+        .user-table td, .user-table th {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border-color);
+            text-align: left;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 250px; /* Increased cell width */
+            /* Set minimum width for columns */
+            min-width: 150px;
+        }
+
+        .user-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .user-table tr:nth-child(even) {
+            background-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .user-table tr:hover {
+            background-color: var(--hover-bg);
+        }
+
+        .user-table td:hover {
+            white-space: normal;
+            overflow: visible;
+            word-break: break-word;
+            /* Show full content on hover with a higher z-index */
+            position: relative;
+            z-index: 1;
+            background-color: var(--simpsons-panel);
+            box-shadow: 0 0 5px var(--simpsons-shadow);
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 5px;
+        }
+
+        .action-btn.delete-btn {
+            background-color: var(--simpsons-red);
+        }
+        
+        .action-btn.edit-btn {
+            background-color: var(--simpsons-blue);
+        }
+        
+        .action-btn.view-btn {
+            background-color: var(--simpsons-green);
+        }
+
+        .edit-form {
+            display: none;
+            margin-top: 20px;
+            padding: 20px;
+            background-color: var(--simpsons-panel);
+            border-radius: 10px;
+            box-shadow: 0 4px 8px var(--simpsons-shadow);
+            border: 3px solid var(--simpsons-yellow);
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .form-scroll-wrapper {
+            max-height: 70vh;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: var(--simpsons-blue);
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid var(--simpsons-blue);
+            border-radius: 8px;
+            font-family: 'Comic Neue', cursive;
+            font-size: 16px;
+            background-color: var(--input-bg);
+            color: var(--text-color);
+        }
+
+        .form-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .save-btn {
+            background-color: var(--simpsons-green);
+        }
+
+        .cancel-btn {
+            background-color: var(--simpsons-orange);
+        }
+
+        .response {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .response.success {
+            background-color: rgba(123, 193, 66, 0.2);
+            border-left: 4px solid var(--simpsons-green);
+        }
+
+        .response.error {
+            background-color: rgba(229, 57, 53, 0.2);
+            border-left: 4px solid var(--simpsons-red);
+        }
+
+        .loading {
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        #loading {
+            display: none;
+            border: 5px solid var(--simpsons-panel);
+            border-top: 5px solid var(--simpsons-blue);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+            /* Optimize animation performance */
+            will-change: transform;
+            transform: translateZ(0);
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Add performance optimizations to reduce flickering */
+        html, body {
+            scroll-behavior: smooth;
+        }
+        
+        /* Optimize rendering for the entire page */
+        .container {
+            transform: translateZ(0);
+            backface-visibility: hidden;
+            perspective: 1000px;
+        }
+        
+        /* Add smooth transitions for better visual experience */
+        .edit-form, .response {
+            transition: opacity 0.2s ease-in-out;
+        }
+
+        /* Theme toggle button with NO animations or hover effects */
+        .theme-toggle {
+            position: fixed !important;
+            top: 20px !important;
+            right: 20px !important;
+            background-color: var(--simpsons-yellow) !important;
+            color: var(--simpsons-black) !important;
+            border: 2px solid var(--simpsons-blue) !important;
+            border-radius: 50% !important;
+            width: 40px !important;
+            height: 40px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            cursor: pointer !important;
+            font-size: 24px !important;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2) !important;
+            z-index: 1000 !important;
+            font-weight: bold !important;
+            /* Explicitly disable all animations and transitions */
+            transition: none !important;
+            transform: none !important;
+            animation: none !important;
+        }
+        
+        /* Remove hover effect completely */
+        .theme-toggle:hover {
+            background-color: var(--simpsons-yellow) !important;
+        }
+        
+        /* Dark mode theme toggle with NO animations or hover effects */
+        body.dark-mode .theme-toggle {
+            background-color: #333 !important;
+            color: var(--simpsons-yellow) !important;
+            border-color: var(--simpsons-yellow) !important;
+        }
+        
+        /* Remove dark mode hover effect completely */
+        body.dark-mode .theme-toggle:hover {
+            background-color: #333 !important;
+        }
+
+        /* Navigation Bar Styles */
+        .nav-bar {
+            background-color: var(--simpsons-blue);
+            padding: 10px 0;
+            margin-bottom: 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 8px var(--simpsons-shadow);
+            border: 4px solid var(--simpsons-yellow);
+            max-width: 1200px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        .nav-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+        }
+        
+        .nav-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .nav-button {
+            background-color: var(--simpsons-yellow);
+            color: var(--simpsons-blue);
+            border: none;
+            padding: 8px 15px;
+            border-radius: 10px;
+            font-weight: bold;
+            text-decoration: none;
+            transition: background-color 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .nav-button:hover {
+            background-color: var(--simpsons-white);
+        }
+        
+        .nav-button.active {
+            background-color: var(--simpsons-white);
+            box-shadow: 0 2px 4px var(--simpsons-shadow);
+        }
+        
+        .logout-btn {
+            background-color: var(--simpsons-red);
+            color: white;
+        }
+        
+        .user-info {
+            color: var(--simpsons-white);
+            font-weight: bold;
+        }
+
+        /* Dark mode styles for navigation bar */
+        body.dark-mode .nav-bar {
+            background-color: #1a1a2e;
+            border-color: var(--simpsons-yellow);
+        }
+        
+        body.dark-mode .nav-button {
+            color: var(--simpsons-yellow);
+            background-color: transparent;
+        }
+        
+        body.dark-mode .nav-button.active {
+            background-color: var(--simpsons-blue);
+            color: var(--simpsons-yellow);
+        }
+        
+        body.dark-mode .nav-button:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+        
+        body.dark-mode .nav-title {
+            color: var(--simpsons-yellow);
+        }
+
+        body.dark-mode .response {
+            background-color: rgba(123, 193, 66, 0.1);
+            border-left-color: var(--simpsons-green);
+        }
+        
+        body.dark-mode .response.error {
+            background-color: rgba(229, 57, 53, 0.2);
+            border-left-color: var(--simpsons-red);
+        }
+
+        /* Dark mode styles for user table */
+        body.dark-mode .user-table th {
+            background-color: #2a2a40;
+        }
+        
+        body.dark-mode .user-table td {
+            border-color: #3a3a50;
+        }
+        
+        body.dark-mode .user-table tr:nth-child(even) {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+        
+        body.dark-mode .user-table tr:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        /* Decorative donuts */
+        .donut {
+            position: absolute;
+            width: 100px;
+            height: 100px;
+            z-index: -1;
+            opacity: 0.8;
+        }
+        
+        .donut1 {
+            top: 20px;
+            left: 20px;
+        }
+        
+        .donut2 {
+            top: 100px;
+            right: 100px;
+        }
+        
+        .donut3 {
+            bottom: 50px;
+            left: 150px;
+        }
+        
+        .long-input {
+            width: calc(100% - 40px);
+        }
+        
+        .copy-btn {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            background-color: var(--simpsons-blue);
+            color: var(--simpsons-white);
+            border: none;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .search-btn, .show-all-btn {
+            background-color: #4a90e2;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+
+        .search-btn:hover, .show-all-btn:hover {
+            background-color: #2a70c2;
+        }
+
+        body.dark-mode .search-btn,
+        body.dark-mode .show-all-btn {
+            background-color: #3a80d2;
+        }
+
+        body.dark-mode .search-btn:hover,
+        body.dark-mode .show-all-btn:hover {
+            background-color: #2a70c2;
+        }
+    </style>
+</head>
+<body>
+    <!--decorative donuts-->
+    <svg class="donut donut1" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="40" fill="#FFA0B7" />
+        <circle cx="50" cy="50" r="15" fill="#FFF3D4" />
+    </svg>
+    <svg class="donut donut2" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="40" fill="#85C8F2" />
+        <circle cx="50" cy="50" r="15" fill="#FFF3D4" />
+    </svg>
+    <svg class="donut donut3" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="40" fill="#7BC142" />
+        <circle cx="50" cy="50" r="15" fill="#FFF3D4" />
+    </svg>
+    
+    <button class="theme-toggle" id="theme-toggle">
+        <i class="fas fa-moon"></i>
+    </button>
+
+    <!-- Navigation Bar -->
+    <div class="nav-bar">
+        <div class="nav-container">
+            <div class="nav-buttons">
+                <a href="/dashboard.html" class="nav-button">Dashboard</a>
+                <a href="/town_operations.html" class="nav-button">Town Operations</a>
+                <a href="/game_config.html" class="nav-button">Game Config</a>
+                <a href="/user_management.html" class="nav-button">User Management</a>
+                <a href="/user_search.html" class="nav-button active">User Search</a>
+                <a href="/admin_management.html" class="nav-button">Admin Management</a>
+                <a href="#" onclick="logout(); return false;" class="nav-button logout-btn">Logout</a>
+            </div>
+            <div class="user-info">
+                <span id="current-user">Loading...</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h1>User Search</h1>
+        
+        <div class="panel">
+            <h2>Search for users in the database by various criteria. Admin access only.</h2>
+            
+            <!-- Tab Navigation -->
+            <div class="tabs">
+                <button class="tab active" id="tab-user-db">User Database</button>
+                <button class="tab" id="tab-public-db">Public Database</button>
+            </div>
+            
+               <div class="search-form" id="user-db-search" style="
+                    element.style {
+                    margin-top: 28px;
+                    };
+                    margin-top: 15px;
+               ">
+                <div class="form-group">
+                    <label for="search-field">Search Field:</label>
+                    <select id="search-field" class="styled-select">
+                        <option value="email">Email</option>
+                        <option value="user_id">User ID</option>
+                        <option value="anon_uid">Anon UID</option>
+                        <option value="as_identifier">AS Identifier</option>
+                        <option value="display_name">Display Name</option>
+                        <option value="town_name">Town Name</option>
+                        <option value="device_id">Device ID</option>
+                        <option value="android_id">Android ID</option>
+                        <option value="vendor_id">Vendor ID</option>
+                        <option value="client_ip">Client IP</option>
+                        <option value="combined_id">Combined ID</option>
+                        <option value="advertising_id">Advertising ID</option>
+                        <option value="platform_id">Platform ID</option>
+                        <option value="manufacturer">Manufacturer</option>
+                        <option value="model">Model</option>
+                        <option value="mayhem_id">Mayhem ID</option>
+                        <option value="land_token">Land Token</option>
+                        <option value="session_key">Session Key</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="search-term">Search Term:</label>
+                    <input type="text" id="search-term" placeholder="Enter search term" class="styled-input">
+                </div>
+                
+                <div class="button-group">
+                    <button id="search-button" class="search-btn"><i class="fas fa-search"></i> Search</button>
+                    <button id="show-all-button" class="show-all-btn"><i class="fas fa-list"></i> Show All Users</button>
+                </div>
+                
+                <div id="search-response" class="response"></div>
+                
+                <div class="results-container">
+                    <div id="loading" class="loading" style="display: none;">
+                        <div class="spinner"></div>
+                        <p>Searching...</p>
+                    </div>
+                    
+                    <div class="table-wrapper">
+                        <table id="results-table" class="user-table" style="display: none;">
+                            <thead>
+                                <tr id="results-header-row">
+                                    <th>Email</th>
+                                    <th>User ID</th>
+                                    <th>Anon UID</th>
+                                    <th>AS Identifier</th>
+                                    <th>Access Token</th>
+                                    <th>Device ID</th>
+                                    <th>Display Name</th>
+                                    <th>Town Name</th>
+                                    <th>Land Path</th>
+                                    <th>Android ID</th>
+                                    <th>Vendor ID</th>
+                                    <th>Client IP</th>
+                                    <th>Combined ID</th>
+                                    <th>Ad ID</th>
+                                    <th>Platform ID</th>
+                                    <th>Manufacturer</th>
+                                    <th>Model</th>
+                                    <th>Mayhem ID</th>
+                                    <th>Access Code</th>
+                                    <th>User Cred</th>
+                                    <th>Session Key</th>
+                                    <th>Land Token</th>
+                                    <th>LNGLV Token</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="results-body">
+                                <!-- Results will be inserted here -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="pagination-controls" id="pagination-controls" style="display: none;">
+                        <button id="prev-page" class="pagination-btn" disabled><i class="fas fa-chevron-left"></i> Previous</button>
+                        <span id="page-info">Page 1 of 1</span>
+                        <button id="next-page" class="pagination-btn" disabled>Next <i class="fas fa-chevron-right"></i></button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Public Database Search Form -->
+            <div class="search-form" id="public-db-search" style="display: none;">
+                <div class="form-group">
+                    <label for="public-search-field">Search Field:</label>
+                    <select id="public-search-field">
+                        <option value="email">Email</option>
+                        <option value="display_name">Display Name</option>
+                        <option value="tsto_email">TSTO Email</option>
+                        <option value="registration_date">Registration Date</option>
+                        <option value="last_login">Last Login</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="public-search-term">Search Term:</label>
+                    <input type="text" id="public-search-term" placeholder="Enter search term">
+                </div>
+                
+                <div class="button-group">
+                    <button id="public-search-button" class="search-btn">Search</button>
+                    <button id="public-show-all-button" class="show-all-btn">Show All Users</button>
+                </div>
+                
+                <div id="public-search-response" class="response"></div>
+                
+                <div class="results-container">
+                    <div id="public-loading" class="loading" style="display: none;">
+                        <div class="spinner"></div>
+                        <p>Searching...</p>
+                    </div>
+                    
+                    <table id="public-results-table" class="user-table" style="display: none;">
+                        <thead>
+                            <tr>
+                                <th>Email</th>
+                                <th>Display Name</th>
+                                <th>TSTO Email</th>
+                                <th>Registration Date</th>
+                                <th>Last Login</th>
+                                <th>Verified</th>
+                                <th>Failed Login Attempts</th>
+                                <th>Account Locked</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="public-results-body">
+                            <!-- Results will be inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Public User Edit Form -->
+            <div id="public-edit-form" class="edit-form" style="display: none;">
+                <h2>Edit Public User</h2>
+                <div class="form-scroll-wrapper">
+                    <div class="form-group">
+                        <label for="public-edit-email">Email:</label>
+                        <input type="email" id="public-edit-email" readonly>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="public-edit-display-name">Display Name:</label>
+                        <input type="text" id="public-edit-display-name">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="public-edit-tsto-email">TSTO Email:</label>
+                        <input type="text" id="public-edit-tsto-email">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="public-edit-verified">Verified:</label>
+                        <select id="public-edit-verified">
+                            <option value="1">Yes</option>
+                            <option value="0">No</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="public-edit-failed-attempts">Failed Login Attempts:</label>
+                        <input type="number" id="public-edit-failed-attempts" min="0">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="public-edit-account-locked">Account Locked:</label>
+                        <select id="public-edit-account-locked">
+                            <option value="0">No</option>
+                            <option value="1">Yes</option>
+                        </select>
+                    </div>
+                    
+                    <div class="button-group">
+                        <button id="public-save-button" class="save-btn">Save Changes</button>
+                        <button id="public-delete-button" class="delete-btn">Delete User</button>
+                        <button id="public-cancel-button" class="cancel-btn">Cancel</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="edit-form" class="edit-form">
+                <h2>Edit User</h2>
+                <div class="form-scroll-wrapper">
+                    <div class="form-group">
+                        <label for="edit-email">Email:</label>
+                        <input type="email" id="edit-email" readonly>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-user-id">User ID:</label>
+                        <input type="text" id="edit-user-id">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-anon-uid">Anon UID:</label>
+                        <input type="text" id="edit-anon-uid">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-as-identifier">AS Identifier:</label>
+                        <input type="text" id="edit-as-identifier">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-access-token">Access Token:</label>
+                        <input type="text" id="edit-access-token" class="long-input">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-device-id">Device ID:</label>
+                        <input type="text" id="edit-device-id">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-display-name">Display Name:</label>
+                        <input type="text" id="edit-display-name">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-town-name">Town Name:</label>
+                        <input type="text" id="edit-town-name">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-land-save-path">Land Save Path:</label>
+                        <input type="text" id="edit-land-save-path">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-android-id">Android ID:</label>
+                        <input type="text" id="edit-android-id">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-vendor-id">Vendor ID:</label>
+                        <input type="text" id="edit-vendor-id">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-client-ip">Client IP:</label>
+                        <input type="text" id="edit-client-ip">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-combined-id">Combined ID:</label>
+                        <input type="text" id="edit-combined-id">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-advertising-id">Advertising ID:</label>
+                        <input type="text" id="edit-advertising-id">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-platform-id">Platform ID:</label>
+                        <input type="text" id="edit-platform-id">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-manufacturer">Manufacturer:</label>
+                        <input type="text" id="edit-manufacturer">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-model">Model:</label>
+                        <input type="text" id="edit-model">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-mayhem-id">Mayhem ID:</label>
+                        <input type="text" id="edit-mayhem-id">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-access-code">Access Code:</label>
+                        <input type="text" id="edit-access-code">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-user-cred">User Cred:</label>
+                        <input type="text" id="edit-user-cred">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-session-key">Session Key:</label>
+                        <input type="text" id="edit-session-key" class="long-input">
+                        <button type="button" id="copy-session-key-button" class="copy-btn" title="Copy to clipboard">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-land-token">Land Token:</label>
+                        <input type="text" id="edit-land-token" class="long-input">
+                        <button type="button" id="copy-land-token-button" class="copy-btn" title="Copy to clipboard">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-lnglv-token">LNGLV Token:</label>
+                        <input type="text" id="edit-lnglv-token" class="long-input">
+                        <button type="button" id="copy-lnglv-token-button" class="copy-btn" title="Copy to clipboard">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-password">New Password (leave blank to keep current):</label>
+                        <input type="password" id="edit-password">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-role">Role:</label>
+                        <select id="edit-role">
+                            <option value="USER">User</option>
+                            <option value="ADMIN">Admin</option>
+                            <option value="TOWN_OPERATIONS">Town Operations</option>
+                            <option value="CURRENCY_EDITOR">Currency Editor</option>
+                        </select>
+                    </div>
+                    
+                    <div id="edit-response" class="response"></div>
+                    
+                    <div class="form-buttons">
+                        <button id="save-button" class="save-btn">Save Changes</button>
+                        <button id="delete-button" class="delete-btn" onclick="confirmDeleteUser(document.getElementById('edit-email').value)">Delete User</button>
+                        <button id="cancel-button" class="cancel-btn">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set up tab switching
+            const userDbTab = document.getElementById('tab-user-db');
+            const publicDbTab = document.getElementById('tab-public-db');
+            const userDbSearch = document.getElementById('user-db-search');
+            const publicDbSearch = document.getElementById('public-db-search');
+            
+            userDbTab.addEventListener('click', function() {
+                userDbTab.classList.add('active');
+                publicDbTab.classList.remove('active');
+                userDbSearch.style.display = 'block';
+                publicDbSearch.style.display = 'none';
+                document.getElementById('edit-form').style.display = 'none';
+                document.getElementById('public-edit-form').style.display = 'none';
+            });
+            
+            publicDbTab.addEventListener('click', function() {
+                publicDbTab.classList.add('active');
+                userDbTab.classList.remove('active');
+                publicDbSearch.style.display = 'block';
+                userDbSearch.style.display = 'none';
+                document.getElementById('edit-form').style.display = 'none';
+                document.getElementById('public-edit-form').style.display = 'none';
+            });
+            
+            // Set up public database search event listeners
+            document.getElementById('public-search-button').addEventListener('click', searchPublicUsers);
+            document.getElementById('public-search-term').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    searchPublicUsers();
+                }
+            });
+            document.getElementById('public-show-all-button').addEventListener('click', showAllPublicUsers);
+            document.getElementById('public-save-button').addEventListener('click', savePublicUserChanges);
+            document.getElementById('public-delete-button').addEventListener('click', function() {
+                const email = document.getElementById('public-edit-email').value;
+                confirmDeletePublicUser(email);
+            });
+            document.getElementById('public-cancel-button').addEventListener('click', function() {
+                document.getElementById('public-edit-form').style.display = 'none';
+            });
+            
+            // Check if user is authenticated and has admin access
+            checkAdminAccess();
+
+            // Set up event listeners
+            document.getElementById('search-term').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    searchUsers();
+                }
+            });
+            document.getElementById('save-button').addEventListener('click', saveUserChanges);
+            document.getElementById('cancel-button').addEventListener('click', function() {
+                document.getElementById('edit-form').style.display = 'none';
+            });
+            
+            // Theme toggle functionality
+            const themeToggleButton = document.getElementById('theme-toggle');
+            const themeIcon = themeToggleButton.querySelector('i');
+            let isDarkMode = localStorage.getItem('darkMode') === 'true';
+            
+            // Set initial state
+            if (isDarkMode) {
+                document.body.classList.add('dark-mode');
+                themeIcon.className = 'fas fa-sun';
+            } else {
+                themeIcon.className = 'fas fa-moon';
+            }
+
+            function toggleTheme() {
+                isDarkMode = !isDarkMode;
+                // Toggle the dark-mode class on the body
+                document.body.classList.toggle('dark-mode');
+                // Save preference to localStorage
+                localStorage.setItem('darkMode', isDarkMode);
+                // Update the icon
+                if (isDarkMode) {
+                    themeIcon.className = 'fas fa-sun';
+                } else {
+                    themeIcon.className = 'fas fa-moon';
+                }
+            }
+
+            themeToggleButton.addEventListener('click', toggleTheme);
+        });
+    </script>
+</body>
+</html>

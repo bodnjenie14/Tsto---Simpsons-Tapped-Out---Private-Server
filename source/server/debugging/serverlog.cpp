@@ -40,6 +40,8 @@ namespace logger
 		"DISCORD",
 		"UPDATE",
 		"DATABASE",
+		"SECURITY",
+		"FRIENDS",
 
 
     };
@@ -131,7 +133,13 @@ namespace logger
         OutputDebugStringA(stream.str().c_str());
 #endif // OUTPUT_DEBUG_API
 
+        // Write to main log file
         write("tsto_server.log", stream.str());
+        
+        // Also write errors and warnings to a separate log file
+        if (level == LOG_LEVEL_ERROR || level == LOG_LEVEL_WARN || level == LOG_LEVEL_CRITICAL) {
+            write("tsto_errors.log", stream.str());
+        }
     }
 
     void log_packet_buffer(const char* stub, const char* buffer, size_t length)

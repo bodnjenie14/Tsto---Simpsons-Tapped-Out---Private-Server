@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TSTO Public Registration</title>
+    <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --simpsons-yellow: #FED90F;
+            --simpsons-blue: #3E67B1;
+            --simpsons-red: #E53935;
+            --simpsons-green: #7BC142;
+            --simpsons-white: #ffffff;
+            --simpsons-black: #333333;
+            --simpsons-orange: #F57C00;
+            --simpsons-panel: #FFF3D4;
+            --simpsons-shadow: rgba(0, 0, 0, 0.3);
+        }
+
+        html {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Comic Neue', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: url('images/background.png') no-repeat center center fixed;
+            background-size: cover;
+            min-height: 100vh;
+            color: var(--simpsons-black);
+            box-sizing: border-box;
+        }
+        
+        /* Dark mode */
+        body.dark-mode {
+            --background: #1a1a2e;
+            --panel-bg: #282838;
+            --text-color: var(--simpsons-yellow);
+            --text-primary: var(--simpsons-yellow);
+            --text-secondary: var(--simpsons-orange);
+            --border-color: var(--simpsons-blue);
+            --hover-bg: #2d2d44;
+            --input-bg: #1f1f2f;
+            --editor-bg: #1E1E2E;
+            background-color: var(--background);
+            color: var(--text-color);
+        }
+        
+        body.dark-mode .panel {
+            background-color: var(--panel-bg);
+            border-color: var(--text-color);
+        }
+        
+        body.dark-mode h2 {
+            color: var(--text-color);
+            border-bottom-color: var(--text-color);
+        }
+        
+        body.dark-mode .form-group label {
+            color: var(--text-color);
+        }
+        
+        body.dark-mode input[type="text"],
+        body.dark-mode input[type="email"],
+        body.dark-mode input[type="password"],
+        body.dark-mode select {
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            border-color: var(--border-color);
+        }
+        
+        body.dark-mode .tab {
+            background-color: var(--background);
+            color: var(--text-color);
+        }
+        
+        body.dark-mode .tab.active {
+            background-color: var(--text-color);
+            color: var(--background);
+        }
+        
+        body.dark-mode .tab-content {
+            background-color: var(--panel-bg);
+        }
+
+        body.dark-mode .theme-toggle {
+            background-color: #333;
+            color: var(--simpsons-yellow);
+            border-color: var(--simpsons-yellow);
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .panel {
+            background-color: var(--simpsons-panel);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 6px 10px var(--simpsons-shadow);
+            border: 4px solid var(--simpsons-yellow);
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--simpsons-yellow);
+            margin-bottom: 30px;
+            font-size: 48px;
+            font-weight: bold;
+            text-shadow: 2px 2px 0 var(--simpsons-black), 
+                        -2px -2px 0 var(--simpsons-black),
+                        2px -2px 0 var(--simpsons-black),
+                        -2px 2px 0 var(--simpsons-black),
+                        0 2px 0 var(--simpsons-black),
+                        2px 0 0 var(--simpsons-black),
+                        0 -2px 0 var(--simpsons-black),
+                        -2px 0 0 var(--simpsons-black);
+            letter-spacing: 1px;
+        }
+
+        h2 {
+            color: var(--simpsons-blue);
+            border-bottom: 2px solid var(--simpsons-blue);
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: var(--simpsons-blue);
+        }
+
+        input[type="text"],
+        input[type="email"],
+        input[type="password"],
+        select {
+            width: 100%;
+            padding: 10px;
+            border-radius: 10px;
+            border: 2px solid var(--simpsons-blue);
+            font-family: 'Comic Neue', sans-serif;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+
+        button {
+            background-color: var(--simpsons-blue);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-family: 'Comic Neue', sans-serif;
+            font-weight: bold;
+            font-size: 16px;
+            margin-top: 10px;
+            box-shadow: 0 4px 0 #2A4B85;
+            position: relative;
+            top: 0;
+        }
+
+        button:hover {
+            background-color: #5482D0;
+            top: -2px;
+            box-shadow: 0 6px 0 #2A4B85;
+        }
+
+        button:active {
+            top: 4px;
+            box-shadow: 0 0 0 #2A4B85;
+        }
+
+        .response {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 10px;
+        }
+
+        .success {
+            background-color: var(--simpsons-green);
+            color: white;
+        }
+
+        .error {
+            background-color: var(--simpsons-red);
+            color: white;
+        }
+
+        .theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: var(--simpsons-yellow);
+            color: var(--simpsons-black);
+            border: 2px solid var(--simpsons-black);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 1000;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        .back-button {
+            display: inline-block;
+            background-color: var(--simpsons-blue);
+            color: white;
+            text-decoration: none;
+            padding: 10px 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            font-weight: bold;
+            box-shadow: 0 4px 0 #2A4B85;
+            position: relative;
+            top: 0;
+        }
+
+        .back-button:hover {
+            background-color: #5482D0;
+            top: -2px;
+            box-shadow: 0 6px 0 #2A4B85;
+        }
+        
+        .back-button:active {
+            top: 4px;
+            box-shadow: 0 0 0 #2A4B85;
+        }
+
+        .donut {
+            position: fixed;
+            width: 100px;
+            height: 100px;
+            z-index: -1;
+        }
+
+        .donut1 {
+            top: 10%;
+            left: 5%;
+            animation: float 8s ease-in-out infinite;
+        }
+
+        .donut2 {
+            top: 20%;
+            right: 5%;
+            animation: float 10s ease-in-out infinite;
+            animation-delay: 1s;
+        }
+
+        .donut3 {
+            bottom: 10%;
+            left: 10%;
+            animation: float 9s ease-in-out infinite;
+            animation-delay: 2s;
+        }
+
+        .donut4 {
+            bottom: 15%;
+            right: 10%;
+            animation: float 11s ease-in-out infinite;
+            animation-delay: 3s;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(10deg); }
+            100% { transform: translateY(0) rotate(0deg); }
+        }
+
+        .password-requirements {
+            font-size: 14px;
+            color: #666;
+            margin-top: 5px;
+            padding: 8px;
+            background-color: rgba(255, 255, 255, 0.5);
+            border-radius: 5px;
+        }
+
+        .password-requirements ul {
+            margin: 5px 0 0 20px;
+            padding: 0;
+        }
+
+        .password-requirements li {
+            margin-bottom: 3px;
+        }
+
+        .password-requirements li.valid {
+            color: var(--simpsons-green);
+        }
+
+        .password-requirements li.invalid {
+            color: var(--simpsons-red);
+        }
+    </style>
+</head>
+<body>
+    <div class="theme-toggle" onclick="toggleTheme()">
+        <i class="fas fa-moon"></i>
+    </div>
+
+    <!-- Decorative Donuts -->
+    <svg class="donut donut1" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="40" fill="#F57C00" />
+        <circle cx="50" cy="50" r="15" fill="#FFF3D4" />
+        <circle cx="50" cy="50" r="45" fill="none" stroke="#FED90F" stroke-width="3" />
+        <circle cx="30" cy="35" r="5" fill="#E53935" />
+        <circle cx="65" cy="30" r="5" fill="#7BC142" />
+        <circle cx="70" cy="60" r="5" fill="#3E67B1" />
+    </svg>
+    
+    <svg class="donut donut2" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="40" fill="#E53935" />
+        <circle cx="50" cy="50" r="15" fill="#FFF3D4" />
+        <circle cx="50" cy="50" r="45" fill="none" stroke="#FED90F" stroke-width="3" />
+        <circle cx="30" cy="35" r="5" fill="#7BC142" />
+        <circle cx="65" cy="30" r="5" fill="#F57C00" />
+        <circle cx="70" cy="60" r="5" fill="#3E67B1" />
+    </svg>
+    
+    <svg class="donut donut3" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="40" fill="#7BC142" />
+        <circle cx="50" cy="50" r="15" fill="#FFF3D4" />
+        <circle cx="50" cy="50" r="45" fill="none" stroke="#FED90F" stroke-width="3" />
+        <circle cx="30" cy="35" r="5" fill="#E53935" />
+        <circle cx="65" cy="30" r="5" fill="#F57C00" />
+        <circle cx="70" cy="60" r="5" fill="#3E67B1" />
+    </svg>
+    
+    <svg class="donut donut4" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="40" fill="#3E67B1" />
+        <circle cx="50" cy="50" r="15" fill="#FFF3D4" />
+        <circle cx="50" cy="50" r="45" fill="none" stroke="#FED90F" stroke-width="3" />
+        <circle cx="30" cy="35" r="5" fill="#E53935" />
+        <circle cx="65" cy="30" r="5" fill="#F57C00" />
+        <circle cx="70" cy="60" r="5" fill="#7BC142" />
+    </svg>
+
+    <div class="container">
+        <h1>Register for TSTO</h1>
+        
+        <div class="panel">
+            <h2>Create Your Account</h2>
+            <form id="register-form">
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <input type="email" id="email" name="email" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="display-name">Display Name</label>
+                    <input type="text" id="display-name" name="display-name" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" required>
+                    <div class="password-requirements">
+                        Password requirements:
+                        <ul id="password-requirements-list">
+                            <li id="req-length">At least 8 characters</li>
+                            <li id="req-uppercase">At least one uppercase letter</li>
+                            <li id="req-lowercase">At least one lowercase letter</li>
+                            <li id="req-number">At least one number</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="confirm-password">Confirm Password</label>
+                    <input type="password" id="confirm-password" name="confirm-password" required>
+                </div>
+                
+                <button type="submit" id="register-button">Register</button>
+            </form>
+            
+            <div id="response" class="response" style="display: none;"></div>
+            
+            <div style="margin-top: 20px; text-align: center;">
+                <p>Already have an account? <a href="public_login.html" style="color: var(--simpsons-blue); font-weight: bold;">Log in here</a></p>
+            </div>
+        </div>
+        
+        <!-- Verification Popup -->
+        <div id="verification-popup" class="panel" style="display: none;">
+            <h2>Verify Your Email</h2>
+            <p>We've sent a verification code to <span id="verification-email"></span></p>
+            <p>Please enter the code below to complete your registration:</p>
+            
+            <form id="verification-form">
+                <div class="form-group">
+                    <label for="verification-code">Verification Code</label>
+                    <input type="text" id="verification-code" name="verification-code" required>
+                </div>
+                
+                <button type="submit" id="verify-button">Verify Account</button>
+            </form>
+            
+            <div id="verification-response" class="response" style="display: none;"></div>
+            
+            <div style="margin-top: 20px; text-align: center;">
+                <p>Didn't receive the code? <a href="#" id="resend-code" style="color: var(--simpsons-blue); font-weight: bold;">Resend Code</a></p>
+            </div>
+        </div>
+        
+        <a href="public_login.html" class="back-button">
+            <i class="fas fa-arrow-left"></i> Back to Login
+        </a>
+    </div>
+
+    <script>
+        // Theme toggle functionality
+        function toggleTheme() {
+            const body = document.body;
+            const themeToggle = document.querySelector('.theme-toggle i');
+            
+            body.classList.toggle('dark-mode');
+            
+            if (body.classList.contains('dark-mode')) {
+                themeToggle.className = 'fas fa-sun';
+                localStorage.setItem('darkMode', 'true');
+            } else {
+                themeToggle.className = 'fas fa-moon';
+                localStorage.setItem('darkMode', 'false');
+            }
+        }
+        
+        // Check for saved theme preference
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if there's a pending verification
+            const pendingEmail = localStorage.getItem('pendingVerificationEmail');
+            if (pendingEmail) {
+                document.getElementById('register-form').style.display = 'none';
+                document.getElementById('verification-popup').style.display = 'block';
+                document.getElementById('verification-email').textContent = pendingEmail;
+            }
+            const isDarkMode = localStorage.getItem('darkMode') === 'true';
+            const themeToggle = document.querySelector('.theme-toggle i');
+            
+            if (isDarkMode) {
+                document.body.classList.add('dark-mode');
+                themeToggle.className = 'fas fa-sun';
+            }
+            
+            // Password validation
+            const passwordInput = document.getElementById('password');
+            const confirmPasswordInput = document.getElementById('confirm-password');
+            const reqLength = document.getElementById('req-length');
+            const reqUppercase = document.getElementById('req-uppercase');
+            const reqLowercase = document.getElementById('req-lowercase');
+            const reqNumber = document.getElementById('req-number');
+            
+            passwordInput.addEventListener('input', function() {
+                const password = this.value;
+                
+                // Check length
+                if (password.length >= 8) {
+                    reqLength.classList.add('valid');
+                    reqLength.classList.remove('invalid');
+                } else {
+                    reqLength.classList.add('invalid');
+                    reqLength.classList.remove('valid');
+                }
+                
+                // Check uppercase
+                if (/[A-Z]/.test(password)) {
+                    reqUppercase.classList.add('valid');
+                    reqUppercase.classList.remove('invalid');
+                } else {
+                    reqUppercase.classList.add('invalid');
+                    reqUppercase.classList.remove('valid');
+                }
+                
+                // Check lowercase
+                if (/[a-z]/.test(password)) {
+                    reqLowercase.classList.add('valid');
+                    reqLowercase.classList.remove('invalid');
+                } else {
+                    reqLowercase.classList.add('invalid');
+                    reqLowercase.classList.remove('valid');
+                }
+                
+                // Check number
+                if (/[0-9]/.test(password)) {
+                    reqNumber.classList.add('valid');
+                    reqNumber.classList.remove('invalid');
+                } else {
+                    reqNumber.classList.add('invalid');
+                    reqNumber.classList.remove('valid');
+                }
+            });
+            
+            // Form submission
+            const registerForm = document.getElementById('register-form');
+            const responseElement = document.getElementById('response');
+            
+            registerForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const email = document.getElementById('email').value;
+                const displayName = document.getElementById('display-name').value;
+                const password = passwordInput.value;
+                const confirmPassword = confirmPasswordInput.value;
+                
+                // Validate email format
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRegex.test(email)) {
+                    showResponse('Please enter a valid email address', true);
+                    return;
+                }
+                
+                // Validate password
+                if (password.length < 8 || !/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
+                    showResponse('Password does not meet the requirements', true);
+                    return;
+                }
+                
+                // Check if passwords match
+                if (password !== confirmPassword) {
+                    showResponse('Passwords do not match', true);
+                    return;
+                }
+                
+                // Disable the register button and show loading state
+                const registerButton = document.getElementById('register-button');
+                registerButton.disabled = true;
+                registerButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Registering...';
+                
+                try {
+                    // Send registration request to the server
+                    const response = await fetch('/api/register_public_user', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            email: email,
+                            display_name: displayName,
+                            password: password
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                        // Hide registration form and show verification popup
+                        document.getElementById('register-form').style.display = 'none';
+                        document.getElementById('verification-popup').style.display = 'block';
+                        document.getElementById('verification-email').textContent = email;
+                        
+                        // Store email for verification
+                        localStorage.setItem('pendingVerificationEmail', email);
+                        
+                        showResponse('Registration initiated! Please check your email for verification code.', false);
+                    } else {
+                        showResponse(data.error || 'Registration failed. Please try again.', true);
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    showResponse('An error occurred. Please try again later.', true);
+                } finally {
+                    // Re-enable the register button
+                    registerButton.disabled = false;
+                    registerButton.innerHTML = 'Register';
+                }
+            });
+            
+            function showResponse(message, isError) {
+                responseElement.textContent = message;
+                responseElement.className = 'response ' + (isError ? 'error' : 'success');
+                responseElement.style.display = 'block';
+                
+                // Scroll to the response message
+                responseElement.scrollIntoView({ behavior: 'smooth' });
+            }
+            
+            // Handle verification form submission
+            const verificationForm = document.getElementById('verification-form');
+            const verificationResponseElement = document.getElementById('verification-response');
+            
+            verificationForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const email = localStorage.getItem('pendingVerificationEmail');
+                const code = document.getElementById('verification-code').value;
+                
+                if (!email || !code) {
+                    showVerificationResponse('Missing email or verification code', true);
+                    return;
+                }
+                
+                // Disable the verify button and show loading state
+                const verifyButton = document.getElementById('verify-button');
+                verifyButton.disabled = true;
+                verifyButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying...';
+                
+                try {
+                    // Send verification request to the server
+                    const response = await fetch('/api/public/verify_code', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            email: email,
+                            code: code
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (response.ok && data.success) {
+                        showVerificationResponse('Verification successful! Redirecting to login...', false);
+                        
+                        // Clear pending verification
+                        localStorage.removeItem('pendingVerificationEmail');
+                        
+                        // Redirect to login page after a delay
+                        setTimeout(function() {
+                            window.location.href = 'public_login.html';
+                        }, 2000);
+                    } else {
+                        showVerificationResponse(data.error || 'Verification failed. Please try again.', true);
+                        verifyButton.disabled = false;
+                        verifyButton.textContent = 'Verify Account';
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    showVerificationResponse('An error occurred. Please try again later.', true);
+                    verifyButton.disabled = false;
+                    verifyButton.textContent = 'Verify Account';
+                }
+            });
+            
+            // Handle resend code
+            document.getElementById('resend-code').addEventListener('click', async function(e) {
+                e.preventDefault();
+                
+                const email = localStorage.getItem('pendingVerificationEmail');
+                
+                if (!email) {
+                    showVerificationResponse('No email found for verification', true);
+                    return;
+                }
+                
+                try {
+                    // Send resend code request
+                    const response = await fetch('/api/public/resend_code', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            email: email
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (response.ok && data.success) {
+                        showVerificationResponse('Verification code resent! Please check your email.', false);
+                    } else {
+                        showVerificationResponse(data.error || 'Failed to resend code. Please try again.', true);
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    showVerificationResponse('An error occurred. Please try again later.', true);
+                }
+            });
+            
+            function showVerificationResponse(message, isError) {
+                verificationResponseElement.textContent = message;
+                verificationResponseElement.className = 'response ' + (isError ? 'error' : 'success');
+                verificationResponseElement.style.display = 'block';
+                
+                // Scroll to the response message
+                verificationResponseElement.scrollIntoView({ behavior: 'smooth' });
+            }
+        });
+    </script>
+	    <footer style="text-align: center; padding: 20px; margin-top: 30px; color: var(--text-primary); font-size: 14px; font-family: 'Comic Neue', cursive;">
+     Server created and designed by BodNJenie&trade;
+    </footer>
+</body>
+</html>
