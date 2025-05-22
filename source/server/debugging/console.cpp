@@ -9,7 +9,7 @@
 
 void create_console()
 {
-    AllocConsole();  
+    AllocConsole();
 
     FILE* stream;
 
@@ -24,9 +24,18 @@ void create_console()
     HWND consoleWindow = GetConsoleWindow();
     if (consoleWindow != nullptr)
     {
-        RECT consoleRect;
-        GetWindowRect(consoleWindow, &consoleRect);
-        MoveWindow(consoleWindow, consoleRect.left, consoleRect.top, 800, 600, TRUE);
+        // Get screen dimensions
+        int screenWidth = GetSystemMetrics(SM_CXSCREEN);
+        int screenHeight = GetSystemMetrics(SM_CYSCREEN);
+
+        // Calculate position to center the console window
+        int consoleWidth = 800;
+        int consoleHeight = 600;
+        int posX = (screenWidth - consoleWidth) / 2;
+        int posY = (screenHeight - consoleHeight) / 2;
+
+        // Position the console window in the center of the screen
+        MoveWindow(consoleWindow, posX, posY, consoleWidth, consoleHeight, TRUE);
     }
 
     std::cout.clear();
